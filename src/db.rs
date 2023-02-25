@@ -94,7 +94,6 @@ impl Db {
         Ok(())
     }
 
-    //Don't want to propagate errors so we use option instead
     pub fn get_sqlite_conn() -> Result<Connection, Box<dyn Error>> {
         //Maybe inefficient to compute this path every time?
         let path = Self::get_db_path()?;
