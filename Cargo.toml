@@ -1,0 +1,15 @@
+[package]
+name = "avis-imgv"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+eframe = { version = "0.21.0" }
+image = { version = "0.24.5", default-features = true }
+serde = { version = "1.0.152" }
+serde_yaml = { version = "0.9.17" }
+serde_json = { version = "1.0.93" }
+directories = { version = "4.0.1" }
+qcms = { version = "0.2.0" }
+sqlite = { version = "0.30.4" }
+regex = { version = "1.7.1" }
