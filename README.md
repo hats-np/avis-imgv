@@ -6,7 +6,10 @@ As of now it's only been tested in Linux but I don't see why it wouldn't work in
 
 ## Dependencies
 
-Sqlite and exiftool are required.
+- sqlite
+- exiftool
+- libwebp for WebP
+- libdav1d for AVIF if you enable it in cargo.toml
 
 ## Build
 
@@ -26,11 +29,23 @@ Output Profile is sRGB by default and only supports built in profiles. If you ne
 
 sRGB and Adobe RGB(ClayRGB) were taken from [elles_icc_profiles](https://github.com/ellelstone/elles_icc_profiles).
 
+## Supported Image Formats.
+
+Supported image formats can be found [here](https://github.com/image-rs/image/blob/master/README.md) and [here](https://docs.rs/crate/image/latest/features).
+
+Default feature flag for the `image` crate is used by default.
+
 ## Planned Features
 
 - Configurable shortcuts
 - Right click context menu with actions based on user configuration. For example running a bash script to copy the image with xclip or wl-copy, add an xmp file with a rating or open raw file with the same name in darktable.
 - Shortcuts with actions based on user configuration with the exact same premisse as the context menu.
+- Theme Configuration
+
+## Known Issues
+
+- Multi Gallery scroll position will not remain the same when the window is resized.
+- Multi Gallery needs to scroll to the current image when first opened.
 
 ## Configuration
 
