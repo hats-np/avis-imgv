@@ -93,6 +93,7 @@ Key | Action
 --- | --- 
 F | Fit image to screen
 G | Toggle a white frame around the image
+I | Display side tab with image metadata
 Spacebar | Toggle Zoom
 Ctrl+Scroll | Zoom image
 Scroll | Next or Previous 
