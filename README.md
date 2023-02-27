@@ -1,6 +1,6 @@
 # avis-imgv
 
-avis-imgv is a fast, configurable and color managed image viewer built with Rust and [egui](https://github.com/emilk/egui). My goal was for it to be be fast and to be able to adapt to any kind of hardware power through user configuration.
+avis-imgv is a fast, configurable and color managed image viewer built with Rust and [egui](https://github.com/emilk/egui). My goal was for it to be fast and to be able to adapt to any kind of hardware power through user configuration.
 
 As of now it's only been tested in Linux but I don't see why it wouldn't work in Windows/MacOS. Configuration and cache directories are obtained through the `directories` crate which is platform agnostic.
 
