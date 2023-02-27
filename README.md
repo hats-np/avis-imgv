@@ -46,7 +46,6 @@ Default feature flag for the `image` crate is used by default.
 
 ## Known Issues
 
-- Multi Gallery scroll position will not remain the same when the window is resized.
 - White Frame goes out of bounds in some situations.
 
 ## Configuration
