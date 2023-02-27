@@ -9,6 +9,9 @@ pub struct MultiGallery {
     imgs: Vec<ThumbnailImage>,
     config: MultiGalleryConfig,
     selected_image_name: Option<String>,
+    prev_img_size: f32,
+    prev_scroll_offset: f32,
+    total_rows: usize,
 }
 
 impl MultiGallery {
@@ -17,10 +20,14 @@ impl MultiGallery {
         config: MultiGalleryConfig,
         output_profile: &String,
     ) -> MultiGallery {
+        let imgs = ThumbnailImage::from_paths(image_paths, output_profile);
         let mut mg = MultiGallery {
-            imgs: ThumbnailImage::from_paths(image_paths, output_profile),
+            total_rows: Self::calc_total_rows(imgs.len(), config.images_per_row),
+            imgs,
             selected_image_name: None,
             config,
+            prev_img_size: 0.,
+            prev_scroll_offset: 0.,
         };
 
         mg.imgs.sort_by(|a, b| a.name.cmp(&b.name));
@@ -31,15 +38,21 @@ impl MultiGallery {
     pub fn ui(&mut self, ctx: &egui::Context, jump_to_index: &mut Option<usize>) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.spacing_mut().item_spacing = Vec2::new(0., 0.);
-            //div_ceil will be available in the next release. Avoids conversions..
-            let total_rows =
-                (self.imgs.len() as f32 / self.config.images_per_row as f32).ceil() as usize;
-            let mut loading_imgs = self.imgs.iter().filter(|i| i.is_loading()).count();
-
             ui.set_min_width(ui.available_width());
+
+            let mut loading_imgs = self.imgs.iter().filter(|i| i.is_loading()).count();
             let img_size = ui.available_width() / self.config.images_per_row as f32;
 
             let mut scroll_area = egui::ScrollArea::vertical().drag_to_scroll(true);
+
+            //Since image size changes when we resize the window, we need to compensate the scroll
+            //offset as show_rows assumes fixed widget sizes
+            if img_size != self.prev_img_size {
+                scroll_area = scroll_area.scroll_offset(Vec2 {
+                    x: 0.,
+                    y: img_size * self.prev_scroll_offset / self.prev_img_size,
+                });
+            }
 
             match jump_to_index.take() {
                 Some(mut i) => {
@@ -54,71 +67,82 @@ impl MultiGallery {
                 None => {}
             };
 
-            scroll_area.show_rows(ui, img_size, total_rows, |ui, row_range| {
-                ui.spacing_mut().item_spacing = Vec2::new(0., 0.);
+            let scroll_area_response =
+                scroll_area.show_rows(ui, img_size, self.total_rows, |ui, row_range| {
+                    ui.spacing_mut().item_spacing = Vec2::new(0., 0.);
 
-                let preload_from = if row_range.start <= self.config.preloaded_rows {
-                    0
-                } else {
-                    row_range.start - self.config.preloaded_rows
-                };
+                    let preload_from = if row_range.start <= self.config.preloaded_rows {
+                        0
+                    } else {
+                        row_range.start - self.config.preloaded_rows
+                    };
 
-                let preload_to = if row_range.end + self.config.preloaded_rows > total_rows {
-                    total_rows
-                } else {
-                    row_range.end + self.config.preloaded_rows
-                };
+                    let preload_to = if row_range.end + self.config.preloaded_rows > self.total_rows
+                    {
+                        self.total_rows
+                    } else {
+                        row_range.end + self.config.preloaded_rows
+                    };
 
-                //first we go over the visible ones
-                for r in row_range.start..row_range.end {
-                    for i in r * self.config.images_per_row..(r + 1) * self.config.images_per_row {
-                        self.load_unload_image(
-                            i,
-                            row_range.start,
-                            row_range.end,
-                            &mut loading_imgs,
-                        );
-                    }
-                }
-
-                //then in the down direction as the user is most likely to scroll down
-                for r in row_range.end..total_rows {
-                    for i in r * self.config.images_per_row..(r + 1) * self.config.images_per_row {
-                        self.load_unload_image(i, preload_from, preload_to, &mut loading_imgs);
-                    }
-                }
-
-                //then up
-                for r in 0..row_range.start {
-                    for i in r * self.config.images_per_row..(r + 1) * self.config.images_per_row {
-                        self.load_unload_image(i, preload_from, preload_to, &mut loading_imgs);
-                    }
-                }
-
-                for r in row_range {
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing = Vec2::new(0., 0.);
-                        for j in
+                    //first we go over the visible ones
+                    for r in row_range.start..row_range.end {
+                        for i in
                             r * self.config.images_per_row..(r + 1) * self.config.images_per_row
                         {
-                            match &mut self.imgs.get_mut(j) {
-                                Some(img) => Self::show_image(
-                                    img,
-                                    ui,
-                                    img_size,
-                                    &mut self.selected_image_name,
-                                    &self.config.margin_size,
-                                ),
-                                None => {}
-                            }
+                            self.load_unload_image(
+                                i,
+                                row_range.start,
+                                row_range.end,
+                                &mut loading_imgs,
+                            );
                         }
-                    });
-                }
+                    }
 
-                if ctx.input(|i| i.key_pressed(egui::Key::Space)) {
-                    ui.scroll_with_delta(Vec2::new(0., (img_size * 0.5) * -1.));
-                }
-            });
+                    //then in the down direction as the user is most likely to scroll down
+                    for r in row_range.end..self.total_rows {
+                        for i in
+                            r * self.config.images_per_row..(r + 1) * self.config.images_per_row
+                        {
+                            self.load_unload_image(i, preload_from, preload_to, &mut loading_imgs);
+                        }
+                    }
+
+                    //then up
+                    for r in 0..row_range.start {
+                        for i in
+                            r * self.config.images_per_row..(r + 1) * self.config.images_per_row
+                        {
+                            self.load_unload_image(i, preload_from, preload_to, &mut loading_imgs);
+                        }
+                    }
+
+                    for r in row_range {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing = Vec2::new(0., 0.);
+                            for j in
+                                r * self.config.images_per_row..(r + 1) * self.config.images_per_row
+                            {
+                                match &mut self.imgs.get_mut(j) {
+                                    Some(img) => Self::show_image(
+                                        img,
+                                        ui,
+                                        img_size,
+                                        &mut self.selected_image_name,
+                                        &self.config.margin_size,
+                                    ),
+                                    None => {}
+                                }
+                            }
+                        });
+                    }
+
+                    if ctx.input(|i| i.key_pressed(egui::Key::Space)) {
+                        ui.scroll_with_delta(Vec2::new(0., (img_size * 0.5) * -1.));
+                    }
+                });
+
+            self.prev_scroll_offset = scroll_area_response.state.offset.y;
+            self.prev_img_size = img_size;
         });
     }
 
@@ -168,5 +192,10 @@ impl MultiGallery {
     pub fn selected_image_name(&mut self) -> Option<String> {
         //We want it to be consumed
         self.selected_image_name.take()
+    }
+
+    pub fn calc_total_rows(imgs_len: usize, imgs_per_row: usize) -> usize {
+        //div_ceil will be available in the next release. Avoids conversions..
+        (imgs_len as f32 / imgs_per_row as f32).ceil() as usize
     }
 }
