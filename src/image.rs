@@ -12,8 +12,7 @@ use std::{
 
 use crate::{
     icc::profile_desc_to_icc,
-    metadata::{self, Orientation},
-    METADATA_ORIENTATION, METADATA_PROFILE_DESCRIPTION,
+    metadata::{self, Orientation, METADATA_ORIENTATION, METADATA_PROFILE_DESCRIPTION},
 };
 
 pub struct Image {

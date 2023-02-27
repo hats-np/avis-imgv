@@ -17,5 +17,3 @@ pub const APPLICATION: &'static str = "avis-imgv";
 
 pub const VALID_EXTENSIONS: &'static [&'static str] =
     &["jpg", "png", "jpeg", "webp", "gif", "bmp", "tiff"];
-pub const METADATA_PROFILE_DESCRIPTION: &'static str = "Profile Description";
-pub const METADATA_ORIENTATION: &'static str = "Orientation";

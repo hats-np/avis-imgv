@@ -10,6 +10,8 @@ use std::{
 
 //for exiftool, the bigger the chunk the better as the startup time is slow
 pub const CHUNK_SIZE: &'static usize = &500;
+pub const METADATA_PROFILE_DESCRIPTION: &'static str = "Profile Description";
+pub const METADATA_ORIENTATION: &'static str = "Orientation";
 
 pub enum Orientation {
     Normal,
