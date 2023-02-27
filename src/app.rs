@@ -7,6 +7,8 @@ use std::time::Instant;
 
 pub struct App {
     gallery: SingleGallery,
+    //used when switching between galleries
+    gallery_selected_index: Option<usize>,
     multi_gallery: MultiGallery,
     perf_metrics_visible: bool,
     multi_gallery_visible: bool,
@@ -55,6 +57,7 @@ impl App {
                 cfg.gallery,
                 &cfg.output_icc_profile,
             ),
+            gallery_selected_index: None,
             multi_gallery: MultiGallery::new(
                 &img_paths,
                 cfg.multi_gallery,
@@ -104,6 +107,7 @@ impl App {
 
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.multi_gallery_visible = !self.multi_gallery_visible;
+            self.gallery_selected_index = Some(self.gallery.selected_img_index);
         }
     }
 }
@@ -121,7 +125,7 @@ impl eframe::App for App {
         }
 
         if self.multi_gallery_visible {
-            self.multi_gallery.ui(ctx);
+            self.multi_gallery.ui(ctx, &mut self.gallery_selected_index);
             match self.multi_gallery.selected_image_name() {
                 Some(img_name) => {
                     self.gallery.select_by_name(img_name);

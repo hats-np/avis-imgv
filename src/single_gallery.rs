@@ -6,7 +6,7 @@ use crate::{config::GalleryConfig, gallery_image::GalleryImage};
 pub struct SingleGallery {
     imgs: Vec<GalleryImage>,
     img_count: usize,
-    selected_img_index: usize,
+    pub selected_img_index: usize,
     metadata_pannel_visible: bool,
     zoom_factor: f32,
     preload_active: bool,
