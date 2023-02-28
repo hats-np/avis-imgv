@@ -217,12 +217,16 @@ impl MultiGallery {
     }
 
     pub fn handle_input(&mut self, ui: &egui::Context) {
-        if ui.input(|i| i.key_pressed(egui::Key::PlusEquals)) || ui.input(|i| i.zoom_delta() < 1.) {
+        if (ui.input(|i| i.key_pressed(egui::Key::PlusEquals)) || ui.input(|i| i.zoom_delta() < 1.))
+            && self.images_per_row <= 15
+        {
             self.images_per_row += 1;
             self.total_rows = Self::calc_total_rows(self.imgs.len(), self.images_per_row);
         }
 
-        if ui.input(|i| i.key_pressed(egui::Key::Minus)) || ui.input(|i| i.zoom_delta() > 1.) {
+        if (ui.input(|i| i.key_pressed(egui::Key::Minus)) || ui.input(|i| i.zoom_delta() > 1.))
+            && self.images_per_row != 1
+        {
             self.images_per_row -= 1;
             self.total_rows = Self::calc_total_rows(self.imgs.len(), self.images_per_row);
         }
