@@ -75,7 +75,6 @@ Keys | Values | Default
 --- | --- | ---
 images_per_row | How many images should be displayed per row | 3
 preloaded_rows | How many off-screen rows in each direction should be loaded and remain in memory | 2
-image_size | Max image size(largest side) for images. Downscale algorithm is Catmull-Rom which provides decent time saving and quality compared to Lanczos3 | 1000 (Good for a 4k screen with 3 images per row)
 simultaneous_load | How many images should be allowed to load at the same time | 8 (Adjust according to core count or how much you want to work your PC)
 margin_size | Margin size between images | 10.
 

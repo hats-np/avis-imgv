@@ -2,6 +2,7 @@ use eframe::{
     egui,
     epaint::{ColorImage, TextureHandle},
 };
+use image::DynamicImage;
 use std::{
     collections::HashMap,
     fs::File,
@@ -53,32 +54,15 @@ impl Image {
                 }
             };
 
-            match image_size {
-                Some(size) => {
-                    image = image.resize(size, size, image::imageops::FilterType::CatmullRom);
-                }
-                None => {}
+            if image_size.is_some() {
+                image = Self::resize(image, image_size);
             }
 
             let metadata =
                 metadata::Metadata::get_image_metadata(&path.to_string_lossy().to_string())
                     .unwrap_or_default();
 
-            //create own method.
-            //see https://magnushoff.com/articles/jpeg-orientation/
-            image = match metadata.get(METADATA_ORIENTATION) {
-                Some(o) => match metadata::Orientation::from_orientation_metadata(&o) {
-                    Orientation::Normal => image,
-                    Orientation::MirrorHorizontal => image.fliph(),
-                    Orientation::Rotate180 => image.rotate180(),
-                    Orientation::MirrorVertical => image.flipv(),
-                    Orientation::MirrorHorizontalRotate270 => image.fliph().rotate270(),
-                    Orientation::Rotate90CW => image.rotate90(),
-                    Orientation::MirrorHorizontalRotate90CW => image.fliph().rotate90(),
-                    Orientation::Rotate270CW => image.rotate270(),
-                },
-                None => image,
-            };
+            image = Self::orient(image, &metadata);
 
             let size = [image.width() as _, image.height() as _];
             let mut flat_samples = image.into_rgb8().into_flat_samples();
@@ -95,6 +79,45 @@ impl Image {
                 metadata,
             });
         })
+    }
+
+    pub fn resize(img: DynamicImage, target_size: Option<u32>) -> DynamicImage {
+        match target_size {
+            Some(mut t_size) => {
+                let largest_side = if img.width() > img.height() {
+                    img.width()
+                } else {
+                    img.height()
+                };
+
+                let largest_side = largest_side as u32;
+                t_size = if t_size > largest_side {
+                    largest_side
+                } else {
+                    t_size
+                };
+
+                img.resize(t_size, t_size, image::imageops::FilterType::CatmullRom)
+            }
+            None => img,
+        }
+    }
+
+    pub fn orient(img: DynamicImage, metadata: &HashMap<String, String>) -> DynamicImage {
+        //see https://magnushoff.com/articles/jpeg-orientation/
+        match metadata.get(METADATA_ORIENTATION) {
+            Some(o) => match metadata::Orientation::from_orientation_metadata(&o) {
+                Orientation::Normal => img,
+                Orientation::MirrorHorizontal => img.fliph(),
+                Orientation::Rotate180 => img.rotate180(),
+                Orientation::MirrorVertical => img.flipv(),
+                Orientation::MirrorHorizontalRotate270 => img.fliph().rotate270(),
+                Orientation::Rotate90CW => img.rotate90(),
+                Orientation::MirrorHorizontalRotate90CW => img.fliph().rotate90(),
+                Orientation::Rotate270CW => img.rotate270(),
+            },
+            None => img,
+        }
     }
 
     pub fn apply_cc(

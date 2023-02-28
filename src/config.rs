@@ -33,8 +33,6 @@ pub struct MultiGalleryConfig {
     pub images_per_row: usize,
     #[serde(default = "default_preloaded_rows")]
     pub preloaded_rows: usize,
-    #[serde(default = "default_image_size")]
-    pub image_size: u32,
     #[serde(default = "default_simultaneous_load")]
     pub simultaneous_load: usize,
     #[serde(default = "default_margin_size")]
@@ -69,7 +67,6 @@ impl Default for MultiGalleryConfig {
         MultiGalleryConfig {
             images_per_row: default_images_per_row(),
             preloaded_rows: default_preloaded_rows(),
-            image_size: default_image_size(),
             simultaneous_load: default_simultaneous_load(),
             margin_size: default_margin_size(),
         }
@@ -154,9 +151,6 @@ pub fn default_images_per_row() -> usize {
 }
 pub fn default_preloaded_rows() -> usize {
     2
-}
-pub fn default_image_size() -> u32 {
-    1000
 }
 pub fn default_simultaneous_load() -> usize {
     8
