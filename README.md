@@ -105,3 +105,7 @@ Key | Action
 --- | ---
 Spacebar | Scroll down
 Double Click | Open Single gallery on selected image
+Ctrl+Scroll | Increase/Decrease nr of images per row
++ | Increase nr of images per row
+- | Decrease nr of images per row
+
