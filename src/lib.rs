@@ -10,6 +10,7 @@ pub mod multi_gallery;
 pub mod single_gallery;
 pub mod theme;
 pub mod thumbnail_image;
+pub mod user_action;
 
 pub const QUALIFIER: &'static str = "com";
 pub const ORGANIZATION: &'static str = "avis-imgv";

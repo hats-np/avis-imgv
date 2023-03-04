@@ -1,4 +1,8 @@
-use crate::{config::MultiGalleryConfig, thumbnail_image::ThumbnailImage};
+use crate::{
+    config::{ContextMenuEntry, MultiGalleryConfig},
+    thumbnail_image::ThumbnailImage,
+    user_action::build_context_menu,
+};
 use eframe::{
     egui::{self, Ui},
     epaint::Vec2,
@@ -153,6 +157,7 @@ impl MultiGallery {
                                         img_size,
                                         &mut self.selected_image_name,
                                         &self.config.margin_size,
+                                        &self.config.context_menu,
                                     ),
                                     None => {}
                                 }
@@ -207,6 +212,7 @@ impl MultiGallery {
         max_size: f32,
         select_image_name: &mut Option<String>,
         margin_size: &f32,
+        context_menu: &Vec<ContextMenuEntry>,
     ) {
         match image.ui(ui, [max_size, max_size], margin_size) {
             Some(resp) => {
@@ -216,6 +222,8 @@ impl MultiGallery {
                 if resp.hovered() {
                     ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
                 }
+
+                build_context_menu(context_menu, resp, image.path.clone())
             }
             None => {}
         };
