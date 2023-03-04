@@ -38,14 +38,31 @@ Default feature flag for the `image` crate is used by default.
 ## Planned Features
 
 - Allow to sort by name or date
-- Right click context menu with actions based on user configuration. For example running a bash script to copy the image with xclip or wl-copy, add an xmp file with a rating or open raw file with the same name in darktable.
-- Shortcuts with actions based on user configuration with the exact same premisse as the context menu.
 - Theme Configuration
 
 ## Known Issues
 
 - White Frame goes out of bounds in some situations.
 
+## User Actions and Context Menu
+
+avis-imgv supports adding user actions, both with a shortcut or a context menu when right clicking on an image.
+User actions are simple commands which will be spawned and take in parameters.
+
+Currently three parameters are supported:
+
+- {} Full path
+- {.} Path without extension
+- {//} Parent path (without last slash)
+
+It is recommended to use simple commands. If you need more complex behaviour, you can use a script and pass the path as a param.
+
+#### Examples
+
+- 'gimp {}' - Opens the file in GIMP.
+- 'darktable {.}.RAF' - Opens adjacent Fujifilm raw file in darktable. This one will work best with a script that checks if the file exists.
+- 'rate.sh {.}.RAF 5' - Run script which writes a base xmp with image rating. Provided in the examples folder.
+ 
 ## Configuration
 
 Configuration file should be: `~/.config/avis-imgv/config.yaml`. An example is provided under examples/config.yaml.
