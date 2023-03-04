@@ -2,7 +2,7 @@ use crate::{
     config::Config, crawler, db::Db, metadata::Metadata, multi_gallery::MultiGallery,
     single_gallery::SingleGallery,
 };
-use eframe::egui;
+use eframe::egui::{self};
 use std::time::Instant;
 
 pub struct App {
@@ -16,6 +16,7 @@ pub struct App {
     longest_frametime: u128,
     longest_recent_frametime: u128,
     current_frametime: u128,
+    config: Config,
 }
 
 impl App {
@@ -50,17 +51,20 @@ impl App {
             }
         };
 
+        //Not sure about cloning the config here
+        //Maybe use lifetime or specify another struct for "general" configs,
+        //This way we can borrow instead
         let app = Self {
             gallery: SingleGallery::new(
                 &img_paths,
                 &opened_img_path,
-                cfg.gallery,
+                cfg.gallery.clone(),
                 &cfg.output_icc_profile,
             ),
             gallery_selected_index: None,
             multi_gallery: MultiGallery::new(
                 &img_paths,
-                cfg.multi_gallery,
+                cfg.multi_gallery.clone(),
                 &cfg.output_icc_profile,
             ),
             perf_metrics_visible: false,
@@ -69,6 +73,7 @@ impl App {
             longest_frametime: 0,
             longest_recent_frametime: 0,
             current_frametime: 0,
+            config: cfg,
         };
 
         app
@@ -97,7 +102,7 @@ impl App {
 
     //Maybe have gallery show this
     fn handle_input(&mut self, ctx: &egui::Context) {
-        if ctx.input(|i| i.key_pressed(egui::Key::Q)) {
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_exit.kbd_shortcut)) {
             std::process::exit(0);
         }
 
@@ -105,7 +110,7 @@ impl App {
             self.perf_metrics_visible = !self.perf_metrics_visible;
         }
 
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_toggle_gallery.kbd_shortcut)) {
             self.multi_gallery_visible = !self.multi_gallery_visible;
             self.gallery_selected_index = Some(self.gallery.selected_img_index);
         }

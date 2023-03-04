@@ -280,12 +280,14 @@ impl SingleGallery {
         //unfortunately we'll always be one frame behind
         //when advancing with the scroll wheel
         if image_pannel_resp.hovered() {
-            if ctx.input(|i| i.scroll_delta.y) > 0.0 {
-                self.next_image();
-            }
+            if self.config.scroll_navigation {
+                if ctx.input(|i| i.scroll_delta.y) > 0.0 {
+                    self.next_image();
+                }
 
-            if ctx.input(|i| i.scroll_delta.y) < 0.0 {
-                self.previous_image();
+                if ctx.input(|i| i.scroll_delta.y) < 0.0 {
+                    self.previous_image();
+                }
             }
 
             self.scroll_delta = ctx.input(|i| i.scroll_delta);
@@ -308,27 +310,27 @@ impl SingleGallery {
     }
 
     pub fn handle_input(&mut self, ctx: &egui::Context) {
-        if ctx.input(|i| i.key_pressed(egui::Key::F)) {
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_fit.kbd_shortcut)) {
             self.reset_zoom();
         }
 
-        if ctx.input(|i| i.key_pressed(egui::Key::G)) {
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_frame.kbd_shortcut)) {
             self.toggle_frame();
         }
 
-        if ctx.input(|i| i.key_pressed(egui::Key::Space)) {
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_zoom.kbd_shortcut)) {
             self.double_zoom();
         }
 
-        if ctx.input(|i| i.key_pressed(egui::Key::I)) {
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_metadata.kbd_shortcut)) {
             self.metadata_pannel_visible = !self.metadata_pannel_visible;
         }
 
-        if ctx.input(|i| i.key_pressed(egui::Key::ArrowRight)) {
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_next.kbd_shortcut)) {
             self.next_image();
         }
 
-        if ctx.input(|i| i.key_pressed(egui::Key::ArrowLeft)) {
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_prev.kbd_shortcut)) {
             self.previous_image();
         }
 

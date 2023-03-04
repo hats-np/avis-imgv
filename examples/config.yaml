@@ -1,0 +1,59 @@
+gallery:
+  nr_loaded_images: 7
+  should_wait: false
+  metadata_tags:
+  - Date/Time Original
+  - Created Date
+  - Camera Model Name
+  - Lens Model
+  - Focal Length
+  - Aperture Value
+  - Exposure Time
+  - ISO
+  - Image Size
+  - Color Space
+  - Directory
+  frame_size_relative_to_image: 0.1
+  scroll_navigation: true
+  sc_fit:
+    key: f
+    modifiers: []
+  sc_frame:
+    key: g
+    modifiers: []
+  sc_metadata:
+    key: i
+    modifiers: []
+  sc_zoom:
+    key: space
+    modifiers: []
+  sc_next:
+    key: right
+    modifiers: []
+  sc_prev:
+    key: left
+    modifiers: []
+multi_gallery:
+  images_per_row: 5
+  preloaded_rows: 2
+  simultaneous_load: 14
+  margin_size: 10.0
+  sc_scroll:
+    key: space
+    modifiers: []
+  sc_more_per_row:
+    key: plus
+    modifiers: []
+  sc_less_per_row:
+    key: minus
+    modifiers: []
+limit_cached: 100000
+output_icc_profile: srgb
+text_scaling: 1.5
+sc_toggle_gallery:
+  key: escape
+  modifiers: []
+sc_exit:
+  key: q
+  modifiers:
+    - alt

@@ -159,7 +159,7 @@ impl MultiGallery {
                         });
                     }
 
-                    if ctx.input(|i| i.key_pressed(egui::Key::Space)) {
+                    if ui.input_mut(|i| i.consume_shortcut(&self.config.sc_scroll.kbd_shortcut)) {
                         ui.scroll_with_delta(Vec2::new(0., (img_size * 0.5) * -1.));
                     }
 
@@ -217,14 +217,16 @@ impl MultiGallery {
     }
 
     pub fn handle_input(&mut self, ui: &egui::Context) {
-        if (ui.input(|i| i.key_pressed(egui::Key::PlusEquals)) || ui.input(|i| i.zoom_delta() < 1.))
+        if (ui.input_mut(|i| i.consume_shortcut(&self.config.sc_more_per_row.kbd_shortcut))
+            || ui.input(|i| i.zoom_delta() < 1.))
             && self.images_per_row <= 15
         {
             self.images_per_row += 1;
             self.total_rows = Self::calc_total_rows(self.imgs.len(), self.images_per_row);
         }
 
-        if (ui.input(|i| i.key_pressed(egui::Key::Minus)) || ui.input(|i| i.zoom_delta() > 1.))
+        if (ui.input_mut(|i| i.consume_shortcut(&self.config.sc_less_per_row.kbd_shortcut))
+            || ui.input(|i| i.zoom_delta() > 1.))
             && self.images_per_row != 1
         {
             self.images_per_row -= 1;

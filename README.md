@@ -13,7 +13,7 @@ As of now it's only been tested in Linux but I don't see why it wouldn't work in
 
 ## Build
 
-Simply run:
+With rust [installed](https://rustup.rs/) simply run:
 
 `RUSTC_BOOTSTRAP="qcms" cargo build --release`
 
@@ -68,6 +68,7 @@ loaded_images | Number of loaded images in each direction. Adjust based on how m
 should_wait | Should wait for image to finish loading before advancing to the next one | true
 metadata_tags | Metadata visible in the Image Information side pannel(when opened) | Date/Time Original, Created Date, Camera Model Name, Lens Model, Focal Length, Aperture Value, Exposure Time, ISO, Image Size, Color Space, Directory
 frame_size_relative_to_image | White frame size relative to smallest image side | 0.2
+scroll_navigation | Should scroll be used for navigation | true
 
 ### Multi Gallery
 
@@ -78,7 +79,9 @@ preloaded_rows | How many off-screen rows in each direction should be loaded and
 simultaneous_load | How many images should be allowed to load at the same time | 8 (Adjust according to core count or how much you want to work your PC)
 margin_size | Margin size between images | 10.
 
-## Shortcuts
+## Default Shortcuts
+
+Shortcuts can be configured in the settings. Check examples/config.yaml for a an example and keys.txt for valid keys and modifiers.
 
 ### General
 
