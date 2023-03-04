@@ -68,6 +68,13 @@ impl Metadata {
                 .filter(|x| !cached_paths.contains(x))
                 .collect();
 
+            //A bit of a hack but simpler than diverging code paths
+            let single_image_path = if image_paths.len() == 1 {
+                Some(&image_paths[0])
+            } else {
+                None
+            };
+
             let chunks: Vec<&[String]> = image_paths.chunks(*CHUNK_SIZE).collect();
             for chunk in chunks {
                 let chunk_timer = Instant::now();
@@ -79,7 +86,7 @@ impl Metadata {
                 match cmd {
                     Ok(cmd) => match cmd.wait_with_output() {
                         Ok(output) => {
-                            Self::parse_exiftool_output(&output);
+                            Self::parse_exiftool_output(&output, single_image_path);
                         }
                         Err(e) => println!("Error fetching metadata -> {}", e),
                     },
@@ -99,7 +106,7 @@ impl Metadata {
         });
     }
 
-    pub fn parse_exiftool_output(output: &Output) {
+    pub fn parse_exiftool_output(output: &Output, path: Option<&String>) {
         //only panics if regex is invalid, impossible to happen in tested builds
         let re = regex::Regex::new(r"========").unwrap();
 
@@ -117,6 +124,13 @@ impl Metadata {
                 };
                 metadata_to_insert.push((path, metadata_json))
             }
+        }
+
+        //This is required because exiftool doesn't print the filename
+        //When only one image is passed
+        match path {
+            Some(path) => metadata_to_insert[0].0 = path.clone(),
+            None => {}
         }
 
         match db::Db::insert_files_metadata(metadata_to_insert) {
@@ -137,7 +151,7 @@ impl Metadata {
 
         let tags = output
             .lines()
-            .filter(|x| x != &"" && !x.is_empty() && x.contains(":"))
+            .filter(|x| !x.is_empty() && x.contains(":"))
             .filter_map(|x| {
                 let split: Vec<&str> = x.split(":").collect();
 
