@@ -41,7 +41,6 @@ Default feature flag for the `image` crate is used by default.
 - Right click context menu with actions based on user configuration. For example running a bash script to copy the image with xclip or wl-copy, add an xmp file with a rating or open raw file with the same name in darktable.
 - Shortcuts with actions based on user configuration with the exact same premisse as the context menu.
 - Theme Configuration
-- Hover cursor on multi gallery image
 
 ## Known Issues
 
@@ -49,7 +48,7 @@ Default feature flag for the `image` crate is used by default.
 
 ## Configuration
 
-Configuration file should be: `~/.config/avis-imgv/config.yaml`. An example is provided in the repo.
+Configuration file should be: `~/.config/avis-imgv/config.yaml`. An example is provided under examples/config.yaml.
 
 ### General
 
