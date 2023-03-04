@@ -15,6 +15,17 @@ gallery:
   - Directory
   frame_size_relative_to_image: 0.1
   scroll_navigation: true
+  user_actions:
+    - exec: "gimp {}" 
+    shortcut:
+      key: 1
+      modifiers:
+        - alt
+  context_menu:
+    - exec: "gimp {}"
+      description: "Open in GIMP"
+    - exec: "darktable {.}.RAF"
+      description: "Open RAW in Darktable"
   sc_fit:
     key: f
     modifiers: []
@@ -47,6 +58,11 @@ multi_gallery:
   sc_less_per_row:
     key: minus
     modifiers: []
+  context_menu:
+    - exec: "gimp {}"
+      description: "Open in GIMP"
+    - exec: "darktable {.}.RAF"
+      description: "Open RAW in Darktable"
 limit_cached: 100000
 output_icc_profile: srgb
 text_scaling: 1.5

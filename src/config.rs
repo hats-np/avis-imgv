@@ -39,6 +39,10 @@ pub struct GalleryConfig {
     pub frame_size_relative_to_image: f32,
     #[serde(default = "default_scroll_navigation")]
     pub scroll_navigation: bool,
+    #[serde(default = "default_user_actions")]
+    pub user_actions: Vec<UserAction>,
+    #[serde(default = "default_ctx_menu")]
+    pub context_menu: Vec<ContextMenuEntry>,
 
     #[serde(default = "default_sc_fit")]
     pub sc_fit: Shortcut,
@@ -64,6 +68,8 @@ pub struct MultiGalleryConfig {
     pub simultaneous_load: usize,
     #[serde(default = "default_margin_size")]
     pub margin_size: f32,
+    #[serde(default = "default_ctx_menu")]
+    pub context_menu: Vec<ContextMenuEntry>,
 
     #[serde(default = "default_sc_scroll")]
     pub sc_scroll: Shortcut,
@@ -80,6 +86,18 @@ pub struct Shortcut {
     #[serde(skip)]
     #[serde(default = "default_shortcut")]
     pub kbd_shortcut: KeyboardShortcut,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct UserAction {
+    pub shortcut: Shortcut,
+    pub exec: String,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct ContextMenuEntry {
+    pub description: String,
+    pub exec: String,
 }
 
 impl Shortcut {
@@ -139,6 +157,8 @@ impl Default for GalleryConfig {
             metadata_tags: default_metadata_tags(),
             frame_size_relative_to_image: default_frame_size_relative_to_image(),
             scroll_navigation: default_scroll_navigation(),
+            user_actions: default_user_actions(),
+            context_menu: default_ctx_menu(),
 
             sc_fit: default_sc_fit(),
             sc_frame: default_sc_frame(),
@@ -157,6 +177,7 @@ impl Default for MultiGalleryConfig {
             preloaded_rows: default_preloaded_rows(),
             simultaneous_load: default_simultaneous_load(),
             margin_size: default_margin_size(),
+            context_menu: default_ctx_menu(),
 
             sc_scroll: default_sc_scroll(),
             sc_more_per_row: default_sc_more_per_row(),
@@ -219,6 +240,10 @@ impl Config {
         self.gallery.sc_next.build(&keys);
         self.gallery.sc_prev.build(&keys);
 
+        for action in &mut self.gallery.user_actions {
+            action.shortcut.build(&keys);
+        }
+
         self.multi_gallery.sc_scroll.build(&keys);
         self.multi_gallery.sc_more_per_row.build(&keys);
         self.multi_gallery.sc_less_per_row.build(&keys);
@@ -272,6 +297,12 @@ pub fn default_frame_size_relative_to_image() -> f32 {
 }
 pub fn default_scroll_navigation() -> bool {
     true
+}
+pub fn default_user_actions() -> Vec<UserAction> {
+    vec![]
+}
+pub fn default_ctx_menu() -> Vec<ContextMenuEntry> {
+    vec![]
 }
 pub fn default_sc_fit() -> Shortcut {
     Shortcut::from("f", &[])

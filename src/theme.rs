@@ -8,13 +8,14 @@ pub fn apply_theme(ctx: &egui::Context) {
     let accent = Color32::from_rgb(220, 220, 220);
     let bg = Color32::from_rgb(48, 48, 48);
     let wbg = Color32::from_rgb(200, 200, 200);
+    let light_bg = Color32::from_rgb(150, 150, 150);
     let font = Color32::from_rgb(185, 185, 185);
 
     ctx.set_visuals(egui::Visuals {
         override_text_color: Some(font),
         window_fill: bg,
         panel_fill: bg,
-        button_frame: false,
+        button_frame: true,
         extreme_bg_color: Color32::from_rgb(127, 127, 127),
         widgets: style::Widgets {
             noninteractive: create_widget_visuals(
@@ -23,8 +24,8 @@ pub fn apply_theme(ctx: &egui::Context) {
                 accent,
             ),
             inactive: create_widget_visuals(previous_theme.widgets.hovered, wbg, bg),
-            hovered: create_widget_visuals(previous_theme.widgets.hovered, wbg, bg),
-            active: create_widget_visuals(previous_theme.widgets.active, wbg, bg),
+            hovered: create_widget_visuals(previous_theme.widgets.hovered, light_bg, bg),
+            active: create_widget_visuals(previous_theme.widgets.active, wbg, light_bg),
             open: create_widget_visuals(previous_theme.widgets.open, wbg, bg),
             ..previous_theme.widgets
         },

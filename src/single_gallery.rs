@@ -1,7 +1,11 @@
 use eframe::{egui, epaint::Vec2};
 use std::path::PathBuf;
 
-use crate::{config::GalleryConfig, gallery_image::GalleryImage};
+use crate::{
+    config::GalleryConfig,
+    gallery_image::GalleryImage,
+    user_action::{self, build_context_menu},
+};
 
 pub struct SingleGallery {
     imgs: Vec<GalleryImage>,
@@ -180,7 +184,7 @@ impl SingleGallery {
         self.selected_img_index + 1
     }
 
-    pub fn get_active_img(&mut self) -> Option<&mut GalleryImage> {
+    pub fn get_active_img_mut(&mut self) -> Option<&mut GalleryImage> {
         if self.img_count > 0 {
             return Some(&mut self.imgs[self.selected_img_index]);
         }
@@ -188,10 +192,25 @@ impl SingleGallery {
         None
     }
 
-    pub fn get_active_img_name(&mut self) -> &str {
+    pub fn get_active_img(&self) -> Option<&GalleryImage> {
+        if self.img_count > 0 {
+            return Some(&self.imgs[self.selected_img_index]);
+        }
+
+        None
+    }
+
+    pub fn get_active_img_name(&self) -> &str {
         match self.get_active_img() {
             Some(img) => img.name.as_str(),
             None => "",
+        }
+    }
+
+    pub fn get_active_img_path(&self) -> Option<PathBuf> {
+        match self.get_active_img() {
+            Some(img) => Some(img.path.clone()),
+            None => None,
         }
     }
 
@@ -303,10 +322,10 @@ impl SingleGallery {
             self.scroll_delta.y = 0.;
         }
 
-        //For right click
-        /*image_pannel_resp.context_menu(|ui| {
-            ui.menu_button("Plot", |ui| {});
-        });*/
+        match self.get_active_img_path() {
+            Some(path) => build_context_menu(&self.config.context_menu, image_pannel_resp, path),
+            None => {}
+        }
     }
 
     pub fn handle_input(&mut self, ctx: &egui::Context) {
@@ -335,6 +354,17 @@ impl SingleGallery {
         }
 
         self.multiply_zoom(ctx.input(|i| i.zoom_delta()));
+
+        for action in &self.config.user_actions {
+            if ctx.input_mut(|i| i.consume_shortcut(&action.shortcut.kbd_shortcut)) {
+                match self.get_active_img_path() {
+                    Some(path) => {
+                        user_action::execute(action.exec.clone(), path);
+                    }
+                    None => println!("Unable to get active image path for user action"),
+                }
+            }
+        }
     }
 }
 
