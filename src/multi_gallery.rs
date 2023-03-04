@@ -149,6 +149,7 @@ impl MultiGallery {
                                     Some(img) => Self::show_image(
                                         img,
                                         ui,
+                                        ctx,
                                         img_size,
                                         &mut self.selected_image_name,
                                         &self.config.margin_size,
@@ -202,14 +203,18 @@ impl MultiGallery {
     fn show_image(
         image: &mut ThumbnailImage,
         ui: &mut Ui,
+        ctx: &egui::Context,
         max_size: f32,
         select_image_name: &mut Option<String>,
         margin_size: &f32,
     ) {
         match image.ui(ui, [max_size, max_size], margin_size) {
             Some(resp) => {
-                if resp.double_clicked() {
+                if resp.clicked() {
                     *select_image_name = Some(image.name.clone());
+                }
+                if resp.hovered() {
+                    ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
                 }
             }
             None => {}
