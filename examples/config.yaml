@@ -1,6 +1,6 @@
 gallery:
-  nr_loaded_images: 7
-  should_wait: false
+  nr_loaded_images: 5
+  should_wait: true
   metadata_tags:
   - Date/Time Original
   - Created Date
@@ -17,10 +17,10 @@ gallery:
   scroll_navigation: true
   user_actions:
     - exec: "gimp {}" 
-    shortcut:
-      key: 1
-      modifiers:
-        - alt
+      shortcut:
+        key: 1
+        modifiers:
+          - alt
   context_menu:
     - exec: "gimp {}"
       description: "Open in GIMP"
@@ -47,7 +47,7 @@ gallery:
 multi_gallery:
   images_per_row: 5
   preloaded_rows: 2
-  simultaneous_load: 14
+  simultaneous_load: 8 
   margin_size: 10.0
   sc_scroll:
     key: space
