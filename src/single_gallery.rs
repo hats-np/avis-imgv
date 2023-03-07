@@ -214,50 +214,51 @@ impl SingleGallery {
         }
     }
 
+    pub fn jump_to_image(&mut self) {
+        self.selected_img_index = match self.jump_to.parse::<usize>() {
+            Ok(i) => {
+                if i > self.img_count || i < 1 {
+                    self.selected_img_index
+                } else {
+                    i - 1
+                }
+            }
+            Err(_) => self.selected_img_index,
+        };
+
+        self.load();
+        self.jump_to.clear();
+    }
+
     pub fn ui(&mut self, ctx: &egui::Context) {
         self.handle_input(ctx);
 
         egui::TopBottomPanel::bottom("bottom_info").show(ctx, |ui| {
-            ui.columns(3, |c| {
-                c[0].with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                    let response = ui.add_sized(
-                        Vec2::new(60., ui.available_height()),
-                        egui::TextEdit::singleline(&mut self.jump_to),
-                    );
-                    if response.lost_focus()
-                        && response.ctx.input(|i| i.key_pressed(egui::Key::Enter))
-                    {
-                        self.selected_img_index = match self.jump_to.parse::<usize>() {
-                            Ok(i) => {
-                                if i > self.img_count || i < 1 {
-                                    self.selected_img_index
-                                } else {
-                                    i - 1
-                                }
-                            }
-                            Err(_) => self.selected_img_index,
-                        };
-
-                        self.load();
-                        self.jump_to.clear();
-                    }
-                    ui.label(format!("{}/{}", self.get_active_img_nr(), self.img_count,));
-                });
-
-                c[1].with_layout(
-                    egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
-                    |ui| {
-                        ui.label(self.get_active_img_name());
-                    },
+            ui.horizontal_centered(|ui| {
+                let response = ui.add_sized(
+                    Vec2::new(65., ui.available_height()),
+                    egui::TextEdit::singleline(&mut self.jump_to),
                 );
 
-                c[2].with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    // if we do not limit the size the slider will continue to grow indefinitely.
-                    ui.add_sized(
-                        Vec2::new(ui.available_width(), ui.available_height()),
-                        egui::Slider::new(&mut self.zoom_factor, 0.5..=10.0).text("🔎"),
-                    );
-                });
+                if response.lost_focus() && response.ctx.input(|i| i.key_pressed(egui::Key::Enter))
+                {
+                    self.jump_to_image();
+                }
+
+                ui.add_sized(
+                    Vec2::new(35., ui.available_height()),
+                    egui::Label::new(format!("{}/{}", self.get_active_img_nr(), self.img_count)),
+                );
+
+                let mut label = egui::Label::new(self.get_active_img_name());
+                label = label.wrap(true);
+                ui.add_sized(
+                    Vec2::new(ui.available_width() - 180., ui.available_height()),
+                    label,
+                );
+
+                // if we do not limit the size the slider will continue to grow indefinitely.
+                ui.add(egui::Slider::new(&mut self.zoom_factor, 0.5..=10.0).text("🔎"));
             });
         });
 

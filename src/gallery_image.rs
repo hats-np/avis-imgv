@@ -3,7 +3,6 @@ use eframe::egui::{self, RichText};
 use eframe::epaint::{Pos2, Vec2};
 use std;
 use std::path::PathBuf;
-
 use std::thread::JoinHandle;
 
 pub struct GalleryImage {
@@ -14,6 +13,7 @@ pub struct GalleryImage {
     image: Option<Image>,
     load_image_handle: Option<JoinHandle<Option<Image>>>,
     output_profile: String,
+    display_metadata: Option<Vec<(String, String)>>,
 }
 
 impl GalleryImage {
@@ -37,6 +37,7 @@ impl GalleryImage {
                 load_image_handle: None,
                 should_wait,
                 output_profile: output_profile.to_owned(),
+                display_metadata: None,
             })
             .collect()
     }
@@ -223,22 +224,25 @@ impl GalleryImage {
     pub fn metadata_ui(&mut self, ui: &mut egui::Ui, tags_to_display: &Vec<String>) {
         match &mut self.image {
             Some(img) => {
-                //Not sure about doing this every frame but
-                //Maybe save the fetched data as an Option<Vec>
-                let mut metadata: Vec<(String, String)> = vec![];
-                for tag in tags_to_display {
-                    match &img.metadata.get(tag) {
-                        Some(value) => metadata.push((tag.to_string(), value.to_string())),
-                        None => {}
-                    };
+                if self.display_metadata.is_none() {
+                    let mut metadata: Vec<(String, String)> = vec![];
+                    for tag in tags_to_display {
+                        match &img.metadata.get(tag) {
+                            Some(value) => metadata.push((tag.to_string(), value.to_string())),
+                            None => {}
+                        };
+                    }
+                    self.display_metadata = Some(metadata);
                 }
 
-                for md in metadata {
-                    ui.horizontal_wrapped(|ui| {
-                        let text = RichText::new(format!("{}:", md.0)).strong();
-                        ui.label(text);
-                        ui.label(md.1);
-                    });
+                if let Some(metadata) = &self.display_metadata {
+                    for md in metadata {
+                        ui.horizontal_wrapped(|ui| {
+                            let text = RichText::new(format!("{}:", md.0)).strong();
+                            ui.label(text);
+                            ui.label(&md.1);
+                        });
+                    }
                 }
             }
             None => {}
