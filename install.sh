@@ -1,22 +1,39 @@
-RUSTC_BOOTSTRAP="qcms" cargo build --release
-
-old_bin="$HOME/.local/bin/avis-imgv"
-if [ -f "$old_bin" ] ; then
-    echo "Deleting old binary"
-    rm "$old_bin"
+if ! RUSTC_BOOTSTRAP="qcms" cargo build --release ; then
+    echo "Build failed -> exiting"
+    exit
 fi
 
-echo "Copying new binary"
-cp ./target/release/avis-imgv $HOME/.local/bin
+echo "Installing"
 
-echo "
-[Desktop Entry]
-Exec=$HOME/.local/bin/avis-imgv
-MimeType=image/png;image/jpeg;image/jpg;image/webp;
-Name=AvisImgv
-NoDisplay=true
-Type=Application
-" > $HOME/.local/share/applications/avis-imgv.desktop 
+if ! install -C -D -t $HOME/.local/bin/ ./target/release/avis-imgv ; then
+    echo "Installation failed -> exiting"
+fi
 
-echo "Updating desktop database"
-update-desktop-database -v ~/.local/share/applications/
+echo "Installation complete"
+
+config_dir=$HOME/.config/avis-imgv
+applications_dir=$HOME/.local/share/applications
+
+if [ ! -f $config_dir/config.yaml ]; then
+    echo "Configuration doesn't exist yet -> creating base configuration"
+    mkdir -p $config_dir  
+    cp ./examples/config.yaml $config_dir/config.yaml
+fi
+
+mkdir -p $applications_dir
+
+if [ ! -f $applications_dir/avis-imgv.desktop ]; then
+    echo "
+    [Desktop Entry]
+    Exec=$HOME/.local/bin/avis-imgv
+    MimeType=image/png;image/jpeg;image/jpg;image/webp;
+    Name=AvisImgv
+    NoDisplay=true
+    Type=Application
+    " > $applications_dir/avis-imgv.desktop 
+
+    echo "Updating desktop database"
+    update-desktop-database -v $applications_dir
+fi
+ 
+

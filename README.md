@@ -6,6 +6,7 @@ As of now it's only been tested in Linux but I don't see why it wouldn't work in
 
 ## Dependencies
 
+- coreutils (for installation)
 - sqlite
 - exiftool
 - libwebp for WebP
