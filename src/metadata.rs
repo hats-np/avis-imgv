@@ -43,11 +43,11 @@ impl Orientation {
 pub struct Metadata {}
 
 impl Metadata {
-    pub fn cache_metadata_for_images(image_paths: &Vec<PathBuf>) {
+    pub fn cache_metadata_for_images(image_paths: &[PathBuf]) {
         let mut image_paths = image_paths
-            .into_iter()
-            .map(|p| String::from(p.to_string_lossy()))
-            .collect();
+            .iter()
+            .map(|p| p.to_string_lossy().to_string())
+            .collect::<Vec<String>>();
 
         thread::spawn(move || {
             let timer = Instant::now();
@@ -63,10 +63,7 @@ impl Metadata {
                 }
             };
 
-            image_paths = image_paths
-                .into_iter()
-                .filter(|x| !cached_paths.contains(x))
-                .collect();
+            image_paths.retain(|x| !cached_paths.contains(x));
 
             //A bit of a hack but simpler than diverging code paths
             let single_image_path = if image_paths.len() == 1 {
@@ -114,7 +111,7 @@ impl Metadata {
 
         let mut metadata_to_insert: Vec<(String, String)> = vec![];
         for image_metadata in re.split(&string_output) {
-            if let Some((path, tags)) = Self::parse_exiftool_output_str(&image_metadata) {
+            if let Some((path, tags)) = Self::parse_exiftool_output_str(image_metadata) {
                 let metadata_json = match serde_json::to_string(&tags) {
                     Ok(json) => json,
                     Err(e) => {
@@ -128,9 +125,8 @@ impl Metadata {
 
         //This is required because exiftool doesn't print the filename
         //When only one image is passed
-        match path {
-            Some(path) => metadata_to_insert[0].0 = path.clone(),
-            None => {}
+        if let Some(path) = path {
+            metadata_to_insert[0].0 = path.clone()
         }
 
         match db::Db::insert_files_metadata(metadata_to_insert) {
@@ -142,8 +138,8 @@ impl Metadata {
     }
 
     pub fn parse_exiftool_output_str(output: &str) -> Option<(String, HashMap<String, String>)> {
-        let lines: Vec<&str> = output.split("\n").collect();
-        let file_path = lines.get(0)?;
+        let lines: Vec<&str> = output.split('\n').collect();
+        let file_path = lines.first()?;
 
         if file_path.is_empty() {
             return None;
@@ -151,9 +147,9 @@ impl Metadata {
 
         let tags = output
             .lines()
-            .filter(|x| !x.is_empty() && x.contains(":"))
+            .filter(|x| !x.is_empty() && x.contains(':'))
             .filter_map(|x| {
-                let split: Vec<&str> = x.split(":").collect();
+                let split: Vec<&str> = x.split(':').collect();
 
                 if split.len() < 2 {
                     return None;
@@ -171,10 +167,11 @@ impl Metadata {
 
     pub fn get_image_metadata(path: &str) -> Option<HashMap<String, String>> {
         match db::Db::get_image_metadata(path) {
-            Ok(opt) => match opt {
-                Some(data) => return Some(serde_json::from_str(&data).unwrap_or_default()),
-                None => {}
-            },
+            Ok(opt) => {
+                if let Some(data) = opt {
+                    return Some(serde_json::from_str(&data).unwrap_or_default());
+                }
+            }
             Err(e) => println!("Error fetching image metadata from db -> {}", e),
         };
 
@@ -202,10 +199,8 @@ impl Metadata {
             }
         };
 
-        match Self::parse_exiftool_output_str(String::from_utf8_lossy(&output.stdout).as_ref()) {
-            Some((_, metadata)) => Some(metadata),
-            None => None,
-        }
+        Self::parse_exiftool_output_str(String::from_utf8_lossy(&output.stdout).as_ref())
+            .map(|(_, metadata)| metadata)
     }
 
     pub fn extract_icc_from_image(path: &PathBuf) -> Option<Vec<u8>> {
@@ -219,31 +214,29 @@ impl Metadata {
         match cmd {
             Ok(cmd) => match cmd.wait_with_output() {
                 Ok(output) => {
-                    return {
-                        if output.stdout.len() > 0 {
-                            Some(output.stdout)
-                        } else {
-                            None
-                        }
+                    if !output.stdout.is_empty() {
+                        Some(output.stdout)
+                    } else {
+                        None
                     }
                 }
                 Err(e) => {
                     println!("Error fetching image icc -> {}", e);
-                    return None;
+                    None
                 }
             },
             Err(e) => {
                 println!("Error fetching image icc -> {}", e);
-                return None;
+                None
             }
-        };
+        }
     }
 
     pub fn format_string_with_metadata(
         input: String,
         metadata: &HashMap<String, String>,
     ) -> String {
-        let mut input = input.clone();
+        let mut input = input;
         for (tag, value) in metadata {
             if input.contains(tag) {
                 input = input.replace(&format!("#{}#", tag), value);

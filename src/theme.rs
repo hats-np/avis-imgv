@@ -27,7 +27,6 @@ pub fn apply_theme(ctx: &egui::Context) {
             hovered: create_widget_visuals(previous_theme.widgets.hovered, light_bg, bg),
             active: create_widget_visuals(previous_theme.widgets.active, wbg, light_bg),
             open: create_widget_visuals(previous_theme.widgets.open, wbg, bg),
-            ..previous_theme.widgets
         },
         ..previous_theme
     });

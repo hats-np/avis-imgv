@@ -20,7 +20,7 @@ pub struct GalleryImage {
 
 impl GalleryImage {
     pub fn from_paths(
-        paths: &Vec<PathBuf>,
+        paths: &[PathBuf],
         should_wait: bool,
         //add a lifetime in the future.
         output_profile: &String,
@@ -84,7 +84,7 @@ impl GalleryImage {
             size[0] = aspect_ratio * size[1];
         }
 
-        let mut display_size = size.clone();
+        let mut display_size = size;
         size[0] *= zoom_factor;
         size[1] *= zoom_factor;
 
@@ -139,8 +139,8 @@ impl GalleryImage {
 
             let aspect_ratio = display_size[0] / display_size[1];
 
-            display_size[0] = display_size[0] - stroke;
-            display_size[1] = display_size[1] - (stroke / aspect_ratio);
+            display_size[0] -= stroke;
+            display_size[1] -= stroke / aspect_ratio;
 
             let image = egui::Image::new(texture, display_size).uv(visible_rect);
 
@@ -207,12 +207,7 @@ impl GalleryImage {
 
         //not ideal can't match because of problem case #3 in https://rust-lang.github.io/rfcs/2094-nll.html
         let lih = self.load_image_handle.take().unwrap();
-        if self.should_wait {
-            match lih.join() {
-                Ok(image) => self.image = image,
-                Err(_) => println!("Failure joining load image thread"),
-            }
-        } else if lih.is_finished() {
+        if self.should_wait || lih.is_finished() {
             match lih.join() {
                 Ok(image) => self.image = image,
                 Err(_) => println!("Failure joining load image thread"),
@@ -257,7 +252,7 @@ impl GalleryImage {
     }
 
     pub fn load(&mut self) {
-        if !self.load_image_handle.is_some() {
+        if self.load_image_handle.is_none() {
             println!("Loading image -> {}", self.path.display());
             self.load_image_handle = Some(Image::load(
                 self.path.clone(),

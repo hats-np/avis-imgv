@@ -131,7 +131,7 @@ impl Shortcut {
         };
 
         self.kbd_shortcut = KeyboardShortcut {
-            key: key.clone(),
+            key: *key,
             modifiers,
         }
     }
@@ -281,7 +281,7 @@ pub fn default_should_wait() -> bool {
     true
 }
 pub fn default_metadata_tags() -> Vec<String> {
-    return vec![
+    vec![
         "Date/Time Original".to_string(),
         "Created Date".to_string(),
         "Camera Model Name".to_string(),
@@ -293,7 +293,7 @@ pub fn default_metadata_tags() -> Vec<String> {
         "Image Size".to_string(),
         "Color Space".to_string(),
         "Directory".to_string(),
-    ];
+    ]
 }
 pub fn default_frame_size_relative_to_image() -> f32 {
     0.2
@@ -357,11 +357,14 @@ pub fn default_shortcut() -> KeyboardShortcut {
     //Bogus shortcut as default so we don't have to use option
     //Easier when implementing the shortcuts
     //We use F20 as most users don't have it and all modifiers
-    let mut modi = Modifiers::default();
-    modi.alt = true;
-    modi.ctrl = true;
-    modi.shift = true;
-    modi.command = true;
+    let modi = Modifiers {
+        alt: true,
+        ctrl: true,
+        shift: true,
+        command: true,
+        mac_cmd: false,
+    };
+
     KeyboardShortcut::new(modi, Key::F20)
 }
 
