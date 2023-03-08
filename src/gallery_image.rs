@@ -1,4 +1,5 @@
 use crate::image::Image;
+use crate::metadata;
 use eframe::egui::{self, RichText};
 use eframe::epaint::{Pos2, Vec2};
 use std;
@@ -8,6 +9,7 @@ use std::thread::JoinHandle;
 pub struct GalleryImage {
     pub path: PathBuf,
     pub name: String,
+    pub display_name: Option<String>,
     scroll_pos: Pos2,
     should_wait: bool,
     image: Option<Image>,
@@ -38,6 +40,7 @@ impl GalleryImage {
                 should_wait,
                 output_profile: output_profile.to_owned(),
                 display_metadata: None,
+                display_name: None,
             })
             .collect()
     }
@@ -209,15 +212,13 @@ impl GalleryImage {
                 Ok(image) => self.image = image,
                 Err(_) => println!("Failure joining load image thread"),
             }
-        } else {
-            if lih.is_finished() {
-                match lih.join() {
-                    Ok(image) => self.image = image,
-                    Err(_) => println!("Failure joining load image thread"),
-                }
-            } else {
-                self.load_image_handle = Some(lih);
+        } else if lih.is_finished() {
+            match lih.join() {
+                Ok(image) => self.image = image,
+                Err(_) => println!("Failure joining load image thread"),
             }
+        } else {
+            self.load_image_handle = Some(lih);
         }
     }
 
@@ -282,5 +283,30 @@ impl GalleryImage {
             })
             // .fill(egui::Color32::from_rgb(119, 119, 119))
             .show(ui, |ui| ui.add(egui::Spinner::new().size(spinner_size)));
+    }
+
+    pub fn set_display_name(&mut self, format: String) {
+        if self.display_name.is_none() {
+            if let Some(img) = &self.image {
+                let mut display_name = self.name.clone();
+                display_name.push_str(&format);
+
+                self.display_name = Some(metadata::Metadata::format_string_with_metadata(
+                    display_name,
+                    &img.metadata,
+                ))
+            }
+        }
+    }
+
+    pub fn get_display_name(&mut self, format: String) -> String {
+        //Implement a loading scheme like in multi gallery
+        //this way we can run these actions only once
+        self.set_display_name(format);
+
+        match &self.display_name {
+            Some(dn) => dn.clone(),
+            None => self.name.clone(),
+        }
     }
 }

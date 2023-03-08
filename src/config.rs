@@ -4,11 +4,11 @@ use std::{collections::HashMap, fs, path::PathBuf, vec};
 
 use crate::{APPLICATION, ORGANIZATION, QUALIFIER};
 
-const MOD_ALT: &'static str = "alt";
-const MOD_SHIFT: &'static str = "shift";
-const MOD_CTRL: &'static str = "ctrl";
-const MOD_MAC_CMD: &'static str = "mac_cmd";
-const MOD_CMD: &'static str = "cmd";
+const MOD_ALT: &str = "alt";
+const MOD_SHIFT: &str = "shift";
+const MOD_CTRL: &str = "ctrl";
+const MOD_MAC_CMD: &str = "mac_cmd";
+const MOD_CMD: &str = "cmd";
 
 #[derive(Deserialize, Serialize)]
 pub struct Config {
@@ -39,6 +39,8 @@ pub struct GalleryConfig {
     pub frame_size_relative_to_image: f32,
     #[serde(default = "default_scroll_navigation")]
     pub scroll_navigation: bool,
+    #[serde(default = "default_name_format")]
+    pub name_format: String,
     #[serde(default = "default_user_actions")]
     pub user_actions: Vec<UserAction>,
     #[serde(default = "default_ctx_menu")]
@@ -159,6 +161,7 @@ impl Default for GalleryConfig {
             scroll_navigation: default_scroll_navigation(),
             user_actions: default_user_actions(),
             context_menu: default_ctx_menu(),
+            name_format: default_name_format(),
 
             sc_fit: default_sc_fit(),
             sc_frame: default_sc_frame(),
@@ -297,6 +300,9 @@ pub fn default_frame_size_relative_to_image() -> f32 {
 }
 pub fn default_scroll_navigation() -> bool {
     true
+}
+pub fn default_name_format() -> String {
+    "".to_string()
 }
 pub fn default_user_actions() -> Vec<UserAction> {
     vec![]

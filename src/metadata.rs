@@ -9,9 +9,9 @@ use std::{
 };
 
 //for exiftool, the bigger the chunk the better as the startup time is slow
-pub const CHUNK_SIZE: &'static usize = &500;
-pub const METADATA_PROFILE_DESCRIPTION: &'static str = "Profile Description";
-pub const METADATA_ORIENTATION: &'static str = "Orientation";
+pub const CHUNK_SIZE: &usize = &500;
+pub const METADATA_PROFILE_DESCRIPTION: &str = "Profile Description";
+pub const METADATA_ORIENTATION: &str = "Orientation";
 
 pub enum Orientation {
     Normal,
@@ -237,5 +237,19 @@ impl Metadata {
                 return None;
             }
         };
+    }
+
+    pub fn format_string_with_metadata(
+        input: String,
+        metadata: &HashMap<String, String>,
+    ) -> String {
+        let mut input = input.clone();
+        for (tag, value) in metadata {
+            if input.contains(tag) {
+                input = input.replace(&format!("#{}#", tag), value);
+            }
+        }
+
+        input
     }
 }

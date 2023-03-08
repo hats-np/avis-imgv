@@ -9,7 +9,7 @@ use sqlite::{Connection, State, Value};
 
 use crate::{APPLICATION, ORGANIZATION, QUALIFIER};
 
-pub const IN_CHUNKS: &'static usize = &500;
+pub const IN_CHUNKS: &usize = &500;
 
 pub struct Db {}
 

@@ -12,9 +12,8 @@ pub mod theme;
 pub mod thumbnail_image;
 pub mod user_action;
 
-pub const QUALIFIER: &'static str = "com";
-pub const ORGANIZATION: &'static str = "avis-imgv";
-pub const APPLICATION: &'static str = "avis-imgv";
+pub const QUALIFIER: &str = "com";
+pub const ORGANIZATION: &str = "avis-imgv";
+pub const APPLICATION: &str = "avis-imgv";
 
-pub const VALID_EXTENSIONS: &'static [&'static str] =
-    &["jpg", "png", "jpeg", "webp", "gif", "bmp", "tiff"];
+pub const VALID_EXTENSIONS: &[&str] = &["jpg", "png", "jpeg", "webp", "gif", "bmp", "tiff"];

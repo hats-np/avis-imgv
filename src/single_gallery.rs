@@ -200,10 +200,11 @@ impl SingleGallery {
         None
     }
 
-    pub fn get_active_img_name(&self) -> &str {
-        match self.get_active_img() {
-            Some(img) => img.name.as_str(),
-            None => "",
+    pub fn get_active_img_name(&mut self) -> String {
+        let format = self.config.name_format.clone();
+        match self.get_active_img_mut() {
+            Some(img) => img.get_display_name(format),
+            None => "".to_string(),
         }
     }
 
