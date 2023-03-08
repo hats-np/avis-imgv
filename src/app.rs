@@ -32,14 +32,14 @@ impl App {
         let mut style = (*cc.egui_ctx.style()).clone();
 
         for t_styles in style.text_styles.iter_mut() {
-            t_styles.1.size = t_styles.1.size * cfg.text_scaling;
+            t_styles.1.size *= cfg.text_scaling;
         }
 
         cc.egui_ctx.set_style(style);
 
         let (mut img_paths, opened_img_path) = crawler::paths_from_args();
 
-        img_paths.sort_by(|a, b| a.cmp(&b));
+        img_paths.sort();
 
         match Db::init_db() {
             Ok(_) => {
@@ -59,7 +59,7 @@ impl App {
         //Not sure about cloning the config here
         //Maybe use lifetime or specify another struct for "general" configs,
         //This way we can borrow instead
-        let app = Self {
+        Self {
             gallery: SingleGallery::new(
                 &img_paths,
                 &opened_img_path,
@@ -80,9 +80,7 @@ impl App {
             current_frametime: 0,
             sc_exit: cfg.sc_exit,
             sc_toggle_gallery: cfg.sc_toggle_gallery,
-        };
-
-        app
+        }
     }
 
     fn calc_frametime(&mut self) {
@@ -137,13 +135,10 @@ impl eframe::App for App {
 
         if self.multi_gallery_visible {
             self.multi_gallery.ui(ctx, &mut self.gallery_selected_index);
-            match self.multi_gallery.selected_image_name() {
-                Some(img_name) => {
-                    self.gallery.select_by_name(img_name);
-                    self.multi_gallery_visible = false;
-                }
-                None => {}
-            };
+            if let Some(img_name) = self.multi_gallery.selected_image_name() {
+                self.gallery.select_by_name(img_name);
+                self.multi_gallery_visible = false;
+            }
         } else {
             self.gallery.ui(ctx);
         }

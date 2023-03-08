@@ -22,7 +22,7 @@ pub struct SingleGallery {
 
 impl SingleGallery {
     pub fn new(
-        image_paths: &Vec<PathBuf>,
+        image_paths: &[PathBuf],
         selected_image_path: &Option<PathBuf>,
         config: GalleryConfig,
         output_profile: &String,
@@ -32,10 +32,7 @@ impl SingleGallery {
         imgs.sort_by(|a, b| a.name.cmp(&b.name));
 
         let index = match selected_image_path {
-            Some(path) => match imgs.iter().position(|x| &x.path == path) {
-                Some(i) => i,
-                None => 0,
-            },
+            Some(path) => imgs.iter().position(|x| &x.path == path).unwrap_or(0),
             None => 0,
         };
 
@@ -59,7 +56,7 @@ impl SingleGallery {
         };
 
         sg.img_count = sg.imgs.len();
-        sg.preload_active = !(sg.config.nr_loaded_images * 2 > sg.img_count);
+        sg.preload_active = sg.config.nr_loaded_images * 2 <= sg.img_count;
 
         sg.load();
 
@@ -91,10 +88,11 @@ impl SingleGallery {
     }
 
     pub fn select_by_name(&mut self, img_name: String) {
-        self.selected_img_index = match self.imgs.iter().position(|x| x.name == img_name) {
-            Some(i) => i,
-            None => 0,
-        };
+        self.selected_img_index = self
+            .imgs
+            .iter()
+            .position(|x| x.name == img_name)
+            .unwrap_or(0);
 
         self.load();
     }
@@ -209,10 +207,7 @@ impl SingleGallery {
     }
 
     pub fn get_active_img_path(&self) -> Option<PathBuf> {
-        match self.get_active_img() {
-            Some(img) => Some(img.path.clone()),
-            None => None,
-        }
+        self.get_active_img().map(|img| img.path.clone())
     }
 
     pub fn jump_to_image(&mut self) {
@@ -324,9 +319,8 @@ impl SingleGallery {
             self.scroll_delta.y = 0.;
         }
 
-        match self.get_active_img_path() {
-            Some(path) => build_context_menu(&self.config.context_menu, image_pannel_resp, path),
-            None => {}
+        if let Some(path) = self.get_active_img_path() {
+            build_context_menu(&self.config.context_menu, image_pannel_resp, path)
         }
     }
 
@@ -371,11 +365,11 @@ impl SingleGallery {
 }
 
 fn get_vec_index_subtracted_by(vec_len: usize, current_index: usize, to_subtract: usize) -> usize {
-    return if current_index < to_subtract {
+    if current_index < to_subtract {
         vec_len - (to_subtract - current_index)
     } else {
         current_index - to_subtract
-    };
+    }
 }
 
 fn get_vec_index_sum_by(vec_len: usize, current_index: usize, to_sum: usize) -> usize {

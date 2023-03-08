@@ -13,7 +13,7 @@ pub struct ThumbnailImage {
 }
 
 impl ThumbnailImage {
-    pub fn from_paths(paths: &Vec<PathBuf>, output_profile: &String) -> Vec<Self> {
+    pub fn from_paths(paths: &[PathBuf], output_profile: &String) -> Vec<Self> {
         paths
             .iter()
             .map(|p| Self {
@@ -40,7 +40,7 @@ impl ThumbnailImage {
         let mut outer_margin_size = *margin_size;
         size[1] -= outer_margin_size;
         size[0] -= outer_margin_size;
-        outer_margin_size = outer_margin_size / 2.;
+        outer_margin_size /= 2.;
 
         self.finish_img_loading();
 
@@ -77,12 +77,12 @@ impl ThumbnailImage {
         let prev = [size[0], size[1]];
 
         if texture.aspect_ratio() > 1. {
-            size[1] = size[1] / texture.aspect_ratio();
+            size[1] /= texture.aspect_ratio();
             let half_free_y = (prev[1] - size[1]) / 2.;
             margin.top = half_free_y;
             margin.bottom = half_free_y;
         } else {
-            size[0] = size[0] * texture.aspect_ratio();
+            size[0] *= texture.aspect_ratio();
             let half_free_x = (prev[0] - size[0]) / 2.;
             margin.right = half_free_x;
             margin.left = half_free_x;
@@ -144,7 +144,7 @@ impl ThumbnailImage {
     }
 
     pub fn load(&mut self, image_size: u32) -> bool {
-        if !self.load_image_handle.is_some() && !self.image.is_some() {
+        if self.load_image_handle.is_none() && self.image.is_none() {
             println!("Loading image -> {}", self.path.display());
             self.should_unload = false;
             self.load_image_handle = Some(Image::load(

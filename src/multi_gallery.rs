@@ -23,7 +23,7 @@ pub struct MultiGallery {
 
 impl MultiGallery {
     pub fn new(
-        image_paths: &Vec<PathBuf>,
+        image_paths: &[PathBuf],
         config: MultiGalleryConfig,
         output_profile: &String,
     ) -> MultiGallery {
@@ -76,17 +76,14 @@ impl MultiGallery {
                 });
             }
 
-            match jump_to_index.take() {
-                Some(mut i) => {
-                    //Get start of the row index so it's easier to calculate the offset
-                    i = i - (i % self.images_per_row);
-                    let scroll_offset = ((i as f32) / self.images_per_row as f32) * img_size;
-                    scroll_area = scroll_area.scroll_offset(Vec2 {
-                        x: 0.,
-                        y: scroll_offset,
-                    })
-                }
-                None => {}
+            if let Some(mut i) = jump_to_index.take() {
+                //Get start of the row index so it's easier to calculate the offset
+                i = i - (i % self.images_per_row);
+                let scroll_offset = ((i as f32) / self.images_per_row as f32) * img_size;
+                scroll_area = scroll_area.scroll_offset(Vec2 {
+                    x: 0.,
+                    y: scroll_offset,
+                })
             };
 
             let scroll_area_response =
@@ -214,19 +211,16 @@ impl MultiGallery {
         margin_size: &f32,
         context_menu: &Vec<ContextMenuEntry>,
     ) {
-        match image.ui(ui, [max_size, max_size], margin_size) {
-            Some(resp) => {
-                if resp.clicked() {
-                    *select_image_name = Some(image.name.clone());
-                }
-                if resp.hovered() {
-                    ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
-                }
-
-                build_context_menu(context_menu, resp, image.path.clone())
+        if let Some(resp) = image.ui(ui, [max_size, max_size], margin_size) {
+            if resp.clicked() {
+                *select_image_name = Some(image.name.clone());
             }
-            None => {}
-        };
+            if resp.hovered() {
+                ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+
+            build_context_menu(context_menu, resp, image.path.clone())
+        }
     }
 
     pub fn handle_input(&mut self, ui: &egui::Context) {

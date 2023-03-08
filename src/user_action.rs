@@ -37,7 +37,7 @@ pub fn execute(mut exec: String, path: PathBuf) {
     }
 
     println!("exec -> {}", exec);
-    let mut exec_split = exec.split(" ");
+    let mut exec_split = exec.split(' ');
 
     let cmd = match exec_split.next() {
         Some(cmd) => cmd,
@@ -46,7 +46,7 @@ pub fn execute(mut exec: String, path: PathBuf) {
 
     let mut cmd = Command::new(cmd);
 
-    while let Some(arg) = exec_split.next() {
+    for arg in exec_split {
         cmd.arg(arg);
     }
 
@@ -60,7 +60,7 @@ pub fn execute(mut exec: String, path: PathBuf) {
 }
 
 pub fn build_context_menu(entries: &Vec<ContextMenuEntry>, response: Response, path: PathBuf) {
-    if entries.len() == 0 {
+    if entries.is_empty() {
         return;
     }
 

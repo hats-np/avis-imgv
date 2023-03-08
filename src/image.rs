@@ -59,8 +59,7 @@ impl Image {
             }
 
             let metadata =
-                metadata::Metadata::get_image_metadata(&path.to_string_lossy().to_string())
-                    .unwrap_or_default();
+                metadata::Metadata::get_image_metadata(&path.to_string_lossy()).unwrap_or_default();
 
             image = Self::orient(image, &metadata);
 
@@ -68,16 +67,15 @@ impl Image {
             let mut flat_samples = image.into_rgb8().into_flat_samples();
             let pixels = flat_samples.as_mut_slice();
 
-            match metadata.get(METADATA_PROFILE_DESCRIPTION) {
-                Some(cpd) => Self::apply_cc(&cpd, pixels, &path, &output_icc_profile),
-                None => {}
+            if let Some(cpd) = metadata.get(METADATA_PROFILE_DESCRIPTION) {
+                Self::apply_cc(cpd, pixels, &path, &output_icc_profile);
             };
 
-            return Some(Image {
+            Some(Image {
                 color_image: Some(ColorImage::from_rgb(size, pixels)),
                 texture: None,
                 metadata,
-            });
+            })
         })
     }
 
@@ -90,7 +88,7 @@ impl Image {
                     img.height()
                 };
 
-                let largest_side = largest_side as u32;
+                let largest_side = largest_side;
                 t_size = if t_size > largest_side {
                     largest_side
                 } else {
@@ -106,7 +104,7 @@ impl Image {
     pub fn orient(img: DynamicImage, metadata: &HashMap<String, String>) -> DynamicImage {
         //see https://magnushoff.com/articles/jpeg-orientation/
         match metadata.get(METADATA_ORIENTATION) {
-            Some(o) => match metadata::Orientation::from_orientation_metadata(&o) {
+            Some(o) => match metadata::Orientation::from_orientation_metadata(o) {
                 Orientation::Normal => img,
                 Orientation::MirrorHorizontal => img.fliph(),
                 Orientation::Rotate180 => img.rotate180(),
@@ -122,7 +120,7 @@ impl Image {
 
     pub fn apply_cc(
         color_profile_desc: &str,
-        mut pixels: &mut [u8],
+        pixels: &mut [u8],
         path: &PathBuf,
         output_profile: &String,
     ) {
@@ -144,7 +142,7 @@ impl Image {
                     "No built in icc profile matching {} extracting from image",
                     color_profile_desc
                 );
-                match metadata::Metadata::extract_icc_from_image(&path) {
+                match metadata::Metadata::extract_icc_from_image(path) {
                     Some(icc_bytes) => {
                         println!("Successfully extract icc profile from image");
                         icc_bytes
@@ -154,7 +152,7 @@ impl Image {
             }
         };
 
-        let output_icc_bytes = match profile_desc_to_icc(&output_profile) {
+        let output_icc_bytes = match profile_desc_to_icc(output_profile) {
             Some(icc_bytes) => icc_bytes.to_vec(),
             None => {
                 println!("Badly configured output icc profile -> {}", output_profile);
@@ -186,7 +184,7 @@ impl Image {
             qcms::DataType::RGB8,
             qcms::Intent::default(),
         ) {
-            Some(transform) => transform.apply(&mut pixels),
+            Some(transform) => transform.apply(pixels),
             None => println!("Failure applying icc profile to image"),
         }
     }

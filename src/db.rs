@@ -24,7 +24,7 @@ impl Db {
         q.push_str(
             &data
                 .iter()
-                .map(|(path, data)| format!("('{}', '{}')", path, data.replace("'", "")))
+                .map(|(path, data)| format!("('{}', '{}')", path, data.replace('\'', "")))
                 .collect::<Vec<String>>()
                 .join(","),
         );
@@ -36,7 +36,7 @@ impl Db {
         Ok(())
     }
 
-    pub fn get_cached_images_by_paths(paths: &Vec<String>) -> Result<Vec<String>, Box<dyn Error>> {
+    pub fn get_cached_images_by_paths(paths: &[String]) -> Result<Vec<String>, Box<dyn Error>> {
         let mut existing_files: Vec<String> = vec![];
         let conn = Self::get_sqlite_conn()?;
 
@@ -45,7 +45,7 @@ impl Db {
         for chunk in chunks {
             let mut q = conn.prepare(format!(
                 "SELECT path FROM file where path in ({})",
-                Utilities::arr_param_from_slice(&chunk)
+                Utilities::arr_param_from(chunk)
             ))?;
 
             while let Ok(State::Row) = q.next() {
@@ -59,8 +59,9 @@ impl Db {
     pub fn get_image_metadata(path: &str) -> Result<Option<String>, Box<dyn Error>> {
         let conn = Self::get_sqlite_conn()?;
         let mut q = conn.prepare("select metadata from file where path = :path")?;
-        q.bind::<&[(_, Value)]>(&[(":path", path.clone().into())][..])?;
-        while let Ok(State::Row) = q.next() {
+        q.bind::<&[(_, Value)]>(&[(":path", path.to_owned().into())][..])?;
+
+        if q.next().is_ok() {
             return Ok(Some(q.read::<String, _>("metadata")?));
         }
 
@@ -121,11 +122,7 @@ impl Db {
 pub struct Utilities {}
 
 impl Utilities {
-    pub fn arr_param_from_vec(strings: &Vec<String>) -> String {
-        String::from(format!("\"{}\"", &strings.join("\", \"")))
-    }
-
-    pub fn arr_param_from_slice(strings: &[String]) -> String {
-        String::from(format!("\"{}\"", &strings.join("\", \"")))
+    pub fn arr_param_from(strings: &[String]) -> String {
+        format!("\"{}\"", &strings.join("\", \""))
     }
 }
