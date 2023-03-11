@@ -48,8 +48,7 @@ impl SingleGallery {
     }
 
     pub fn set_images(&mut self, image_paths: &[PathBuf], selected_image_path: &Option<PathBuf>) {
-        let mut imgs =
-            GalleryImage::from_paths(image_paths, self.config.should_wait, &self.output_profile);
+        let mut imgs = GalleryImage::from_paths(image_paths, &self.output_profile);
 
         imgs.sort_by(|a, b| a.name.cmp(&b.name));
 
@@ -106,6 +105,10 @@ impl SingleGallery {
 
     pub fn next_image(&mut self) {
         if self.img_count == 0 {
+            return;
+        }
+
+        if self.config.should_wait && self.active_img_is_loading() {
             return;
         }
 
@@ -215,6 +218,13 @@ impl SingleGallery {
 
     pub fn get_active_img_path(&self) -> Option<PathBuf> {
         self.get_active_img().map(|img| img.path.clone())
+    }
+
+    pub fn active_img_is_loading(&self) -> bool {
+        match self.get_active_img() {
+            Some(img) => img.is_loading(),
+            None => false,
+        }
     }
 
     pub fn jump_to_image(&mut self) {

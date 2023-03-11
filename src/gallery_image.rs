@@ -11,7 +11,6 @@ pub struct GalleryImage {
     pub name: String,
     pub display_name: Option<String>,
     scroll_pos: Pos2,
-    should_wait: bool,
     image: Option<Image>,
     load_image_handle: Option<JoinHandle<Option<Image>>>,
     output_profile: String,
@@ -21,7 +20,6 @@ pub struct GalleryImage {
 impl GalleryImage {
     pub fn from_paths(
         paths: &[PathBuf],
-        should_wait: bool,
         //add a lifetime in the future.
         output_profile: &String,
     ) -> Vec<Self> {
@@ -37,7 +35,6 @@ impl GalleryImage {
                 scroll_pos: Pos2::new(0.0, 0.0),
                 image: None,
                 load_image_handle: None,
-                should_wait,
                 output_profile: output_profile.to_owned(),
                 display_metadata: None,
                 display_name: None,
@@ -207,7 +204,7 @@ impl GalleryImage {
 
         //not ideal can't match because of problem case #3 in https://rust-lang.github.io/rfcs/2094-nll.html
         let lih = self.load_image_handle.take().unwrap();
-        if self.should_wait || lih.is_finished() {
+        if lih.is_finished() {
             match lih.join() {
                 Ok(image) => self.image = image,
                 Err(_) => println!("Failure joining load image thread"),
@@ -303,5 +300,9 @@ impl GalleryImage {
             Some(dn) => dn.clone(),
             None => self.name.clone(),
         }
+    }
+
+    pub fn is_loading(&self) -> bool {
+        return self.load_image_handle.is_some();
     }
 }
