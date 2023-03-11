@@ -246,48 +246,60 @@ impl SingleGallery {
     pub fn ui(&mut self, ctx: &egui::Context) {
         self.handle_input(ctx);
 
-        egui::TopBottomPanel::bottom("bottom_info").show(ctx, |ui| {
-            ui.horizontal_centered(|ui| {
-                let response = ui.add_sized(
-                    Vec2::new(65., ui.available_height()),
-                    egui::TextEdit::singleline(&mut self.jump_to),
-                );
+        egui::TopBottomPanel::bottom("gallery_bottom")
+            .show_separator_line(false)
+            .show(ctx, |ui| {
+                ui.horizontal_centered(|ui| {
+                    let response = ui.add_sized(
+                        Vec2::new(65., ui.available_height()),
+                        egui::TextEdit::singleline(&mut self.jump_to),
+                    );
 
-                if response.lost_focus() && response.ctx.input(|i| i.key_pressed(egui::Key::Enter))
-                {
-                    self.jump_to_image();
-                }
+                    if response.lost_focus()
+                        && response.ctx.input(|i| i.key_pressed(egui::Key::Enter))
+                    {
+                        self.jump_to_image();
+                    }
 
-                ui.add_sized(
-                    Vec2::new(35., ui.available_height()),
-                    egui::Label::new(format!("{}/{}", self.get_active_img_nr(), self.img_count)),
-                );
+                    ui.add_sized(
+                        Vec2::new(35., ui.available_height()),
+                        egui::Label::new(format!(
+                            "{}/{}",
+                            self.get_active_img_nr(),
+                            self.img_count
+                        )),
+                    );
 
-                let mut label = egui::Label::new(self.get_active_img_name());
-                label = label.wrap(true);
-                ui.add_sized(
-                    Vec2::new(ui.available_width() - 180., ui.available_height()),
-                    label,
-                );
+                    let mut label = egui::Label::new(self.get_active_img_name());
+                    label = label.wrap(true);
+                    ui.add_sized(
+                        Vec2::new(ui.available_width() - 200., ui.available_height()),
+                        label,
+                    );
 
-                // if we do not limit the size the slider will continue to grow indefinitely.
-                ui.add(egui::Slider::new(&mut self.zoom_factor, 0.5..=10.0).text("🔎"));
-            });
-        });
-
-        if self.metadata_pannel_visible {
-            egui::SidePanel::left("image_metadata")
-                .resizable(true)
-                .default_width(500.)
-                .show(ctx, |ui| {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        ui.heading("Image Metadata");
-                        ui.add(egui::Separator::default());
-                        self.imgs[self.selected_img_index]
-                            .metadata_ui(ui, &self.config.metadata_tags);
-                    })
+                    ui.with_layout(
+                        egui::Layout::right_to_left(eframe::emath::Align::Max),
+                        |ui| {
+                            ui.add_sized(
+                                Vec2::new(200., ui.available_height()),
+                                egui::Slider::new(&mut self.zoom_factor, 0.5..=10.0).text("🔎"),
+                            );
+                        },
+                    )
                 });
-        }
+            });
+
+        egui::SidePanel::left("image_metadata")
+            .resizable(true)
+            .default_width(500.)
+            .show_separator_line(false)
+            .show_animated(ctx, self.metadata_pannel_visible, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    ui.heading("Image Metadata");
+                    ui.add(egui::Separator::default());
+                    self.imgs[self.selected_img_index].metadata_ui(ui, &self.config.metadata_tags);
+                })
+            });
 
         let image_pannel_resp = egui::CentralPanel::default()
             .show(ctx, |ui| {

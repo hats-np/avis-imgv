@@ -176,15 +176,16 @@ impl eframe::App for App {
         self.start_of_frame = Instant::now();
         self.handle_input(ctx);
 
-        if self.perf_metrics_visible {
-            egui::TopBottomPanel::top("top_pannel").show(ctx, |ui| {
+        egui::TopBottomPanel::top("top_pannel")
+            .show_separator_line(false)
+            .show_animated(ctx, self.perf_metrics_visible, |ui| {
                 self.show_frametime(ui);
                 ctx.texture_ui(ui);
             });
-        }
 
-        if self.top_menu_visible {
-            egui::TopBottomPanel::top("menu").show(ctx, |ui| {
+        egui::TopBottomPanel::top("menu")
+            .show_separator_line(false)
+            .show_animated(ctx, self.top_menu_visible, |ui| {
                 ui.menu_button("File", |ui| {
                     if ui.button("Open Folder").clicked() {
                         self.folder_picker();
@@ -197,7 +198,6 @@ impl eframe::App for App {
                     }
                 });
             });
-        }
 
         if self.multi_gallery_visible {
             self.multi_gallery.ui(ctx, &mut self.gallery_selected_index);

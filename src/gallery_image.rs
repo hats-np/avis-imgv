@@ -303,6 +303,6 @@ impl GalleryImage {
     }
 
     pub fn is_loading(&self) -> bool {
-        return self.load_image_handle.is_some();
+        self.load_image_handle.is_some()
     }
 }
