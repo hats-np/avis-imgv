@@ -136,8 +136,8 @@ impl GalleryImage {
 
             let aspect_ratio = display_size[0] / display_size[1];
 
-            display_size[0] -= stroke;
-            display_size[1] -= stroke / aspect_ratio;
+            display_size[0] -= stroke * 2.;
+            display_size[1] -= (stroke / aspect_ratio) * 2.;
 
             let image = egui::Image::new(texture, display_size).uv(visible_rect);
 

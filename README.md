@@ -41,10 +41,6 @@ Default feature flag for the `image` crate is used by default.
 - Allow to sort by name or date
 - Theme Configuration
 
-## Known Issues
-
-- White Frame goes out of bounds in some situations.
-
 ## User Actions and Context Menu
 
 avis-imgv supports adding user actions, both with a shortcut or a context menu when right clicking on an image.
