@@ -126,7 +126,7 @@ impl App {
     }
 
     fn folder_picker(&mut self) {
-        let folder = FileDialog::new().set_directory("/").pick_folder();
+        let folder = self.get_file_dialog().pick_folder();
 
         if let Some(folder) = folder {
             let paths = crawler::crawl(&folder);
@@ -135,9 +135,9 @@ impl App {
     }
 
     fn files_picker(&mut self) {
-        let files = FileDialog::new()
+        let files = self
+            .get_file_dialog()
             .add_filter("image", VALID_EXTENSIONS)
-            .set_directory("/")
             .pick_files();
 
         if files.is_none() {
@@ -150,6 +150,18 @@ impl App {
                 self.new_images(&paths, &Some(files[0].clone()))
             }
         }
+    }
+
+    fn get_file_dialog(&mut self) -> FileDialog {
+        let mut file_dialog = FileDialog::new();
+
+        if let Some(path) = self.gallery.get_active_img_path() {
+            if let Some(parent) = path.parent() {
+                file_dialog = file_dialog.set_directory(parent);
+            }
+        }
+
+        file_dialog
     }
 
     fn new_images(&mut self, paths: &[PathBuf], selected_img: &Option<PathBuf>) {
