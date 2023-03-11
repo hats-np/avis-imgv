@@ -105,6 +105,7 @@ Key | Action
 --- | --- 
 Esc | Toggle between Single and Multi Gallery
 Q | Exit
+F1 | Toggles a menu which allows to open a folder or file
 
 ### Single Gallery
 

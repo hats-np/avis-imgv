@@ -5,9 +5,11 @@ use crate::{
     metadata::Metadata,
     multi_gallery::MultiGallery,
     single_gallery::SingleGallery,
+    VALID_EXTENSIONS,
 };
 use eframe::egui;
-use std::time::Instant;
+use rfd::FileDialog;
+use std::{path::PathBuf, time::Instant};
 
 pub struct App {
     gallery: SingleGallery,
@@ -16,6 +18,7 @@ pub struct App {
     multi_gallery: MultiGallery,
     perf_metrics_visible: bool,
     multi_gallery_visible: bool,
+    top_menu_visible: bool,
     start_of_frame: Instant,
     longest_frametime: u128,
     longest_recent_frametime: u128,
@@ -56,9 +59,6 @@ impl App {
             }
         };
 
-        //Not sure about cloning the config here
-        //Maybe use lifetime or specify another struct for "general" configs,
-        //This way we can borrow instead
         Self {
             gallery: SingleGallery::new(
                 &img_paths,
@@ -74,6 +74,7 @@ impl App {
             ),
             perf_metrics_visible: false,
             multi_gallery_visible: false,
+            top_menu_visible: false,
             start_of_frame: Instant::now(),
             longest_frametime: 0,
             longest_recent_frametime: 0,
@@ -110,14 +111,51 @@ impl App {
             std::process::exit(0);
         }
 
-        if ctx.input(|i| i.key_pressed(egui::Key::F1)) {
+        if ctx.input(|i| i.key_pressed(egui::Key::F10)) {
             self.perf_metrics_visible = !self.perf_metrics_visible;
+        }
+
+        if ctx.input(|i| i.key_pressed(egui::Key::F1)) {
+            self.top_menu_visible = !self.top_menu_visible;
         }
 
         if ctx.input_mut(|i| i.consume_shortcut(&self.sc_toggle_gallery.kbd_shortcut)) {
             self.multi_gallery_visible = !self.multi_gallery_visible;
             self.gallery_selected_index = Some(self.gallery.selected_img_index);
         }
+    }
+
+    fn folder_picker(&mut self) {
+        let folder = FileDialog::new().set_directory("/").pick_folder();
+
+        if let Some(folder) = folder {
+            let paths = crawler::crawl(&folder);
+            self.new_images(&paths, &None)
+        }
+    }
+
+    fn files_picker(&mut self) {
+        let files = FileDialog::new()
+            .add_filter("image", VALID_EXTENSIONS)
+            .set_directory("/")
+            .pick_files();
+
+        if files.is_none() {
+            return;
+        }
+
+        if let Some(files) = files {
+            if let Some(parent) = &files[0].parent() {
+                let paths = crawler::crawl(parent);
+                self.new_images(&paths, &Some(files[0].clone()))
+            }
+        }
+    }
+
+    fn new_images(&mut self, paths: &[PathBuf], selected_img: &Option<PathBuf>) {
+        self.gallery.set_images(paths, selected_img);
+        self.multi_gallery.set_images(paths);
+        Metadata::cache_metadata_for_images(paths);
     }
 }
 
@@ -130,6 +168,22 @@ impl eframe::App for App {
             egui::TopBottomPanel::top("top_pannel").show(ctx, |ui| {
                 self.show_frametime(ui);
                 ctx.texture_ui(ui);
+            });
+        }
+
+        if self.top_menu_visible {
+            egui::TopBottomPanel::top("menu").show(ctx, |ui| {
+                ui.menu_button("File", |ui| {
+                    if ui.button("Open Folder").clicked() {
+                        self.folder_picker();
+                        ui.close_menu();
+                    }
+
+                    if ui.button("Open Files").clicked() {
+                        self.files_picker();
+                        ui.close_menu();
+                    }
+                });
             });
         }
 

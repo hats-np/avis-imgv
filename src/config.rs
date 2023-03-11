@@ -275,7 +275,7 @@ pub fn default_sc_exit() -> Shortcut {
 
 //Gallery
 pub fn default_nr_loaded_images() -> usize {
-    5
+    4
 }
 pub fn default_should_wait() -> bool {
     true
@@ -331,10 +331,10 @@ pub fn default_sc_prev() -> Shortcut {
 
 //Multi Gallery
 pub fn default_images_per_row() -> usize {
-    3
+    5
 }
 pub fn default_preloaded_rows() -> usize {
-    2
+    1
 }
 pub fn default_simultaneous_load() -> usize {
     8

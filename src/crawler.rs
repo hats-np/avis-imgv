@@ -28,7 +28,7 @@ pub fn paths_from_args() -> (Vec<PathBuf>, Option<PathBuf>) {
                 path = current_dir.join(path.strip_prefix(PathBuf::from(".")).unwrap_or(&path));
             }
 
-            let paths = crawler(&path);
+            let paths = crawl(&path);
             return (paths, None);
         }
 
@@ -41,7 +41,7 @@ pub fn paths_from_args() -> (Vec<PathBuf>, Option<PathBuf>) {
             None => return (vec![path], None),
         };
 
-        let paths = crawler(parent);
+        let paths = crawl(parent);
         return (paths, Some(path));
     }
 
@@ -59,7 +59,7 @@ pub fn paths_from_args() -> (Vec<PathBuf>, Option<PathBuf>) {
     (paths, None)
 }
 
-fn crawler(path: &Path) -> Vec<PathBuf> {
+pub fn crawl(path: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = Vec::new();
 
     let dir_info = match fs::read_dir(path) {

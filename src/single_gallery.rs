@@ -18,6 +18,7 @@ pub struct SingleGallery {
     scroll_delta: Vec2,
     config: GalleryConfig,
     jump_to: String,
+    output_profile: String,
 }
 
 impl SingleGallery {
@@ -27,40 +28,46 @@ impl SingleGallery {
         config: GalleryConfig,
         output_profile: &String,
     ) -> SingleGallery {
-        let mut imgs = GalleryImage::from_paths(image_paths, config.should_wait, output_profile);
-
-        imgs.sort_by(|a, b| a.name.cmp(&b.name));
-
-        let index = match selected_image_path {
-            Some(path) => imgs.iter().position(|x| &x.path == path).unwrap_or(0),
-            None => 0,
-        };
-
-        println!(
-            "Starting gallery with {} images on image {}",
-            imgs.len(),
-            index + 1
-        );
-
         let mut sg = SingleGallery {
-            imgs,
+            imgs: vec![],
             img_count: 0,
             zoom_factor: 1.0,
-            selected_img_index: index,
+            selected_img_index: 0,
             config,
             preload_active: true,
             image_frame: false,
             metadata_pannel_visible: false,
             scroll_delta: Vec2::new(0., 0.),
             jump_to: String::new(),
+            output_profile: output_profile.to_owned(),
         };
 
-        sg.img_count = sg.imgs.len();
-        sg.preload_active = sg.config.nr_loaded_images * 2 <= sg.img_count;
-
-        sg.load();
+        sg.set_images(image_paths, selected_image_path);
 
         sg
+    }
+
+    pub fn set_images(&mut self, image_paths: &[PathBuf], selected_image_path: &Option<PathBuf>) {
+        let mut imgs =
+            GalleryImage::from_paths(image_paths, self.config.should_wait, &self.output_profile);
+
+        imgs.sort_by(|a, b| a.name.cmp(&b.name));
+
+        self.imgs = imgs;
+        self.selected_img_index = match selected_image_path {
+            Some(path) => self.imgs.iter().position(|x| &x.path == path).unwrap_or(0),
+            None => 0,
+        };
+        self.img_count = self.imgs.len();
+        self.preload_active = self.config.nr_loaded_images * 2 <= self.img_count;
+
+        println!(
+            "Starting gallery with {} images on image {}",
+            self.img_count,
+            self.selected_img_index + 1
+        );
+
+        self.load();
     }
 
     pub fn load(&mut self) {
@@ -74,7 +81,7 @@ impl SingleGallery {
         if self.preload_active {
             self.imgs[self.selected_img_index].load();
 
-            for i in 1..self.config.nr_loaded_images {
+            for i in 1..self.config.nr_loaded_images + 1 {
                 let b_i = get_vec_index_subtracted_by(self.img_count, self.selected_img_index, i);
                 let i = get_vec_index_sum_by(self.img_count, self.selected_img_index, i);
                 self.imgs[i].load();

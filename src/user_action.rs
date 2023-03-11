@@ -65,6 +65,7 @@ pub fn build_context_menu(entries: &Vec<ContextMenuEntry>, response: Response, p
     }
 
     response.context_menu(|ui| {
+        ui.set_max_width(300.);
         for entry in entries {
             if ui.button(&entry.description).clicked() {
                 execute(entry.exec.clone(), path.clone());
