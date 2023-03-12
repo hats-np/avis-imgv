@@ -59,12 +59,7 @@ pub fn ui(input: &mut String, ctx: &egui::Context) -> bool {
                             }
                         }
 
-                        if !suggestions.is_empty() && ctx.input(|i| i.key_pressed(egui::Key::Tab)) {
-                            *input = suggestions[selected_index].clone();
-                            utils::textedit_move_cursor_to_end(&editor_resp, ui, input.len());
-                        }
-
-                        if selected_index > suggestions.len() {
+                        if selected_index >= suggestions.len() {
                             selected_index = 0;
                         }
 
@@ -82,6 +77,11 @@ pub fn ui(input: &mut String, ctx: &egui::Context) -> bool {
                         }
 
                         set_index(ctx, selected_index);
+
+                        if !suggestions.is_empty() && ctx.input(|i| i.key_pressed(egui::Key::Tab)) {
+                            *input = suggestions[selected_index].clone();
+                            utils::textedit_move_cursor_to_end(&editor_resp, ui, input.len());
+                        }
 
                         if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
                             *input = suggestions[selected_index].clone();
