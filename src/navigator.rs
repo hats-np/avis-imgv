@@ -54,9 +54,6 @@ pub fn ui(input: &mut String, ctx: &egui::Context) -> bool {
                                 *input = suggestion.clone();
                                 utils::textedit_move_cursor_to_end(&editor_resp, ui, input.len());
                             }
-                            if sl.double_clicked() {
-                                return Some(sl);
-                            }
                         }
 
                         if selected_index >= suggestions.len() {
@@ -91,8 +88,6 @@ pub fn ui(input: &mut String, ctx: &egui::Context) -> bool {
                                 utils::textedit_move_cursor_to_end(&editor_resp, ui, input.len());
                             }
                         }
-
-                        None
                     })
                 })
         });
