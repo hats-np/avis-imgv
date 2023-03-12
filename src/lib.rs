@@ -7,10 +7,12 @@ pub mod icc;
 pub mod image;
 pub mod metadata;
 pub mod multi_gallery;
+pub mod navigator;
 pub mod single_gallery;
 pub mod theme;
 pub mod thumbnail_image;
 pub mod user_action;
+pub mod utils;
 
 pub const QUALIFIER: &str = "com";
 pub const ORGANIZATION: &str = "avis-imgv";

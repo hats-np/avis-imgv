@@ -2,6 +2,7 @@ use crate::{
     config::{ContextMenuEntry, MultiGalleryConfig},
     thumbnail_image::ThumbnailImage,
     user_action::build_context_menu,
+    utils,
 };
 use eframe::{
     egui::{self, Ui},
@@ -177,7 +178,9 @@ impl MultiGallery {
                         });
                     }
 
-                    if ui.input_mut(|i| i.consume_shortcut(&self.config.sc_scroll.kbd_shortcut)) {
+                    if !utils::are_inputs_muted(ctx)
+                        && ui.input_mut(|i| i.consume_shortcut(&self.config.sc_scroll.kbd_shortcut))
+                    {
                         ui.scroll_with_delta(Vec2::new(0., (img_size * 0.5) * -1.));
                     }
 
@@ -238,17 +241,21 @@ impl MultiGallery {
         }
     }
 
-    pub fn handle_input(&mut self, ui: &egui::Context) {
-        if (ui.input_mut(|i| i.consume_shortcut(&self.config.sc_more_per_row.kbd_shortcut))
-            || ui.input(|i| i.zoom_delta() < 1.))
+    pub fn handle_input(&mut self, ctx: &egui::Context) {
+        if utils::are_inputs_muted(ctx) {
+            return;
+        }
+
+        if (ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_more_per_row.kbd_shortcut))
+            || ctx.input(|i| i.zoom_delta() < 1.))
             && self.images_per_row <= 15
         {
             self.images_per_row += 1;
             self.total_rows = Self::calc_total_rows(self.imgs.len(), self.images_per_row);
         }
 
-        if (ui.input_mut(|i| i.consume_shortcut(&self.config.sc_less_per_row.kbd_shortcut))
-            || ui.input(|i| i.zoom_delta() > 1.))
+        if (ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_less_per_row.kbd_shortcut))
+            || ctx.input(|i| i.zoom_delta() > 1.))
             && self.images_per_row != 1
         {
             self.images_per_row -= 1;

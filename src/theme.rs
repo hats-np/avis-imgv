@@ -8,6 +8,7 @@ pub fn apply_theme(ctx: &egui::Context) {
     let accent = Color32::from_rgb(220, 220, 220);
     let bg = Color32::from_rgb(48, 48, 48);
     let wbg = Color32::from_rgb(200, 200, 200);
+    let extreme_bg = Color32::from_rgb(70, 70, 70);
     let light_bg = Color32::from_rgb(150, 150, 150);
     let font = Color32::from_rgb(185, 185, 185);
 
@@ -16,7 +17,7 @@ pub fn apply_theme(ctx: &egui::Context) {
         window_fill: bg,
         panel_fill: bg,
         button_frame: true,
-        extreme_bg_color: Color32::from_rgb(127, 127, 127),
+        extreme_bg_color: extreme_bg,
         widgets: style::Widgets {
             noninteractive: create_widget_visuals(
                 previous_theme.widgets.noninteractive,

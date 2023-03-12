@@ -99,9 +99,10 @@ Shortcuts can be configured in the settings. Check examples/config.yaml for a an
 
 Key | Action
 --- | --- 
-Esc | Toggle between Single and Multi Gallery
+Backspace | Toggle between Single and Multi Gallery
 Q | Exit
 F1 | Toggles a menu which allows to open a folder or file
+Ctrl + L | Shows navigation bar
 
 ### Single Gallery
 
