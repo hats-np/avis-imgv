@@ -286,7 +286,7 @@ pub fn default_sc_menu() -> Shortcut {
 }
 
 pub fn default_sc_navigator() -> Shortcut {
-    Shortcut::from("i", &[MOD_CTRL])
+    Shortcut::from("l", &[MOD_CTRL])
 }
 
 //Gallery

@@ -73,3 +73,10 @@ sc_exit:
   key: q
   modifiers:
     - alt
+sc_menu:
+  key: F1
+  modifiers: []
+sc_navigator:
+  key: l
+  modifiers:
+  - ctrl
