@@ -8,7 +8,7 @@ use eframe::{
     epaint::{Color32, Pos2, Shadow},
 };
 
-use crate::utils;
+use crate::{utils, VALID_EXTENSIONS};
 
 pub fn ui(input: &mut String, ctx: &egui::Context) -> bool {
     let mut is_selected = false;
@@ -84,11 +84,11 @@ pub fn ui(input: &mut String, ctx: &egui::Context) -> bool {
                         }
 
                         if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
-                            *input = suggestions[selected_index].clone();
-                            utils::textedit_move_cursor_to_end(&editor_resp, ui, input.len());
-
-                            if selected_index == 0 {
+                            if selected_index == 0 && is_valid_path(Path::new(&input)) {
                                 is_selected = true;
+                            } else if !suggestions.is_empty() {
+                                *input = suggestions[selected_index].clone();
+                                utils::textedit_move_cursor_to_end(&editor_resp, ui, input.len());
                             }
                         }
 
@@ -180,4 +180,28 @@ fn path_is_hidden(path: &Path) -> bool {
         .to_str()
         .unwrap_or_default()
         .starts_with('.')
+}
+
+fn is_valid_path(path: &Path) -> bool {
+    let dir_info = match path.read_dir() {
+        Ok(dir) => dir,
+        Err(_) => return false,
+    };
+
+    for path in dir_info {
+        if let Ok(path) = path {
+            if VALID_EXTENSIONS.contains(
+                &path
+                    .path()
+                    .extension()
+                    .unwrap_or_default()
+                    .to_str()
+                    .unwrap_or_default(),
+            ) {
+                return true;
+            }
+        }
+    }
+
+    false
 }
