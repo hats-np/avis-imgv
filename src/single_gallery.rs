@@ -5,6 +5,7 @@ use crate::{
     config::GalleryConfig,
     gallery_image::GalleryImage,
     user_action::{self, build_context_menu},
+    utils,
 };
 
 pub struct SingleGallery {
@@ -354,6 +355,10 @@ impl SingleGallery {
     }
 
     pub fn handle_input(&mut self, ctx: &egui::Context) {
+        if utils::are_inputs_muted(ctx) {
+            return;
+        }
+
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_fit.kbd_shortcut)) {
             self.reset_zoom();
         }

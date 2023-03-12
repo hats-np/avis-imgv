@@ -25,6 +25,10 @@ pub struct Config {
     pub sc_toggle_gallery: Shortcut,
     #[serde(default = "default_sc_exit")]
     pub sc_exit: Shortcut,
+    #[serde(default = "default_sc_menu")]
+    pub sc_menu: Shortcut,
+    #[serde(default = "default_sc_navigator")]
+    pub sc_navigator: Shortcut,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -147,6 +151,8 @@ impl Default for Config {
             text_scaling: default_text_scaling(),
             sc_toggle_gallery: default_sc_toggle_gallery(),
             sc_exit: default_sc_exit(),
+            sc_menu: default_sc_menu(),
+            sc_navigator: default_sc_navigator(),
         }
     }
 }
@@ -235,6 +241,8 @@ impl Config {
         //automatically build the shortcut on deserialization.
         self.sc_exit.build(&keys);
         self.sc_toggle_gallery.build(&keys);
+        self.sc_menu.build(&keys);
+        self.sc_navigator.build(&keys);
 
         self.gallery.sc_fit.build(&keys);
         self.gallery.sc_frame.build(&keys);
@@ -266,11 +274,19 @@ pub fn default_text_scaling() -> f32 {
 }
 
 pub fn default_sc_toggle_gallery() -> Shortcut {
-    Shortcut::from("escape", &[])
+    Shortcut::from("backspace", &[])
 }
 
 pub fn default_sc_exit() -> Shortcut {
     Shortcut::from("q", &[])
+}
+
+pub fn default_sc_menu() -> Shortcut {
+    Shortcut::from("F1", &[])
+}
+
+pub fn default_sc_navigator() -> Shortcut {
+    Shortcut::from("i", &[MOD_CTRL])
 }
 
 //Gallery

@@ -4,8 +4,9 @@ use crate::{
     db::Db,
     metadata::Metadata,
     multi_gallery::MultiGallery,
+    navigator,
     single_gallery::SingleGallery,
-    VALID_EXTENSIONS,
+    utils, VALID_EXTENSIONS,
 };
 use eframe::egui;
 use rfd::FileDialog;
@@ -19,12 +20,16 @@ pub struct App {
     perf_metrics_visible: bool,
     multi_gallery_visible: bool,
     top_menu_visible: bool,
+    navigator_visible: bool,
+    navigator_search: String,
     start_of_frame: Instant,
     longest_frametime: u128,
     longest_recent_frametime: u128,
     current_frametime: u128,
     sc_toggle_gallery: Shortcut,
     sc_exit: Shortcut,
+    sc_menu: Shortcut,
+    sc_navigator: Shortcut,
 }
 
 impl App {
@@ -75,12 +80,23 @@ impl App {
             perf_metrics_visible: false,
             multi_gallery_visible: false,
             top_menu_visible: false,
+            navigator_visible: false,
+            navigator_search: img_paths
+                .get(0)
+                .unwrap_or(&PathBuf::default())
+                .parent()
+                .unwrap_or(&PathBuf::default())
+                .to_str()
+                .unwrap_or_default()
+                .to_string(),
             start_of_frame: Instant::now(),
             longest_frametime: 0,
             longest_recent_frametime: 0,
             current_frametime: 0,
             sc_exit: cfg.sc_exit,
             sc_toggle_gallery: cfg.sc_toggle_gallery,
+            sc_menu: cfg.sc_menu,
+            sc_navigator: cfg.sc_navigator,
         }
     }
 
@@ -111,17 +127,39 @@ impl App {
             std::process::exit(0);
         }
 
+        if utils::are_inputs_muted(ctx) {
+            return;
+        }
+
         if ctx.input(|i| i.key_pressed(egui::Key::F10)) {
             self.perf_metrics_visible = !self.perf_metrics_visible;
         }
 
-        if ctx.input(|i| i.key_pressed(egui::Key::F1)) {
+        if ctx.input_mut(|i| i.consume_shortcut(&self.sc_menu.kbd_shortcut)) {
             self.top_menu_visible = !self.top_menu_visible;
         }
 
         if ctx.input_mut(|i| i.consume_shortcut(&self.sc_toggle_gallery.kbd_shortcut)) {
             self.multi_gallery_visible = !self.multi_gallery_visible;
             self.gallery_selected_index = Some(self.gallery.selected_img_index);
+        }
+    }
+
+    //Muter inputs will block all other inputs
+    //This is required so typing in text boxes and the like doesn't
+    //trigger shortcuts
+    fn handle_input_muters(&mut self, ctx: &egui::Context) {
+        if ctx.input_mut(|i| i.consume_shortcut(&self.sc_navigator.kbd_shortcut))
+            || (self.navigator_visible && ctx.input(|i| i.key_pressed(egui::Key::Escape)))
+        {
+            self.navigator_visible = !self.navigator_visible;
+
+            if self.navigator_visible {
+                utils::set_mute_state(ctx, true);
+                return;
+            } else {
+                utils::set_mute_state(ctx, false);
+            }
         }
     }
 
@@ -167,6 +205,15 @@ impl App {
     fn new_images(&mut self, paths: &[PathBuf], selected_img: &Option<PathBuf>) {
         self.gallery.set_images(paths, selected_img);
         self.multi_gallery.set_images(paths);
+        self.navigator_search = self
+            .gallery
+            .get_active_img_path()
+            .unwrap_or_default()
+            .parent()
+            .unwrap_or(&PathBuf::default())
+            .to_str()
+            .unwrap_or_default()
+            .to_string();
         Metadata::cache_metadata_for_images(paths);
     }
 }
@@ -174,6 +221,7 @@ impl App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.start_of_frame = Instant::now();
+        self.handle_input_muters(ctx);
         self.handle_input(ctx);
 
         egui::TopBottomPanel::top("top_pannel")
@@ -198,6 +246,15 @@ impl eframe::App for App {
                     }
                 });
             });
+
+        if self.navigator_visible && navigator::ui(&mut self.navigator_search, ctx) {
+            self.navigator_visible = false;
+            utils::set_mute_state(ctx, false);
+            self.new_images(
+                &crawler::crawl(&PathBuf::from(&self.navigator_search)),
+                &None,
+            );
+        }
 
         if self.multi_gallery_visible {
             self.multi_gallery.ui(ctx, &mut self.gallery_selected_index);
