@@ -133,7 +133,7 @@ impl Image {
                 let mut dest_image =
                     fir::Image::new(dest_width, dest_height, src_image.pixel_type());
 
-                match fir::Resizer::new(fir::ResizeAlg::Convolution(fir::FilterType::CatmullRom))
+                match fir::Resizer::new(fir::ResizeAlg::Convolution(fir::FilterType::Bilinear))
                     .resize(&src_image.view(), &mut dest_image.view_mut())
                 {
                     Ok(_) => {}
