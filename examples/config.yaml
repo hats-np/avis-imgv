@@ -26,6 +26,7 @@ gallery:
       description: "Open in GIMP"
     - exec: "darktable {.}.RAF"
       description: "Open RAW in Darktable"
+  delete_cmd: "rm {}"
   sc_fit:
     key: f
     modifiers: []
@@ -43,6 +44,9 @@ gallery:
     modifiers: []
   sc_prev:
     key: left
+    modifiers: []
+  sc_del:
+    key: delete
     modifiers: []
 multi_gallery:
   images_per_row: 5

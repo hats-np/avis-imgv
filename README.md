@@ -4,6 +4,8 @@ avis-imgv is a fast, configurable and color managed image viewer built with Rust
 
 As of now it's only been tested in Linux but I don't see why it wouldn't work in Windows/MacOS. Configuration and cache directories are obtained through the `directories` crate which is platform agnostic.
 
+[Changelog](docs/changelog.md)
+
 ## Dependencies
 
 - coreutils (for installation)

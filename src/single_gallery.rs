@@ -2,7 +2,7 @@ use eframe::{egui, epaint::Vec2};
 use std::path::PathBuf;
 
 use crate::{
-    config::GalleryConfig,
+    config::{GalleryConfig, UserAction},
     gallery_image::GalleryImage,
     user_action::{self, build_context_menu},
     utils,
@@ -10,7 +10,6 @@ use crate::{
 
 pub struct SingleGallery {
     imgs: Vec<GalleryImage>,
-    img_count: usize,
     pub selected_img_index: usize,
     metadata_pannel_visible: bool,
     zoom_factor: f32,
@@ -31,7 +30,6 @@ impl SingleGallery {
     ) -> SingleGallery {
         let mut sg = SingleGallery {
             imgs: vec![],
-            img_count: 0,
             zoom_factor: 1.0,
             selected_img_index: 0,
             config,
@@ -58,12 +56,12 @@ impl SingleGallery {
             Some(path) => self.imgs.iter().position(|x| &x.path == path).unwrap_or(0),
             None => 0,
         };
-        self.img_count = self.imgs.len();
-        self.preload_active = self.config.nr_loaded_images * 2 <= self.img_count;
+        self.preload_active =
+            Self::is_valid_for_preload(self.config.nr_loaded_images, self.imgs.len());
 
         println!(
             "Starting gallery with {} images on image {}",
-            self.img_count,
+            self.imgs.len(),
             self.selected_img_index + 1
         );
 
@@ -71,7 +69,7 @@ impl SingleGallery {
     }
 
     pub fn load(&mut self) {
-        if self.img_count == 0 {
+        if self.imgs.is_empty() {
             return;
         }
         for image in &mut self.imgs {
@@ -82,13 +80,13 @@ impl SingleGallery {
             self.imgs[self.selected_img_index].load();
 
             for i in 1..self.config.nr_loaded_images + 1 {
-                let b_i = get_vec_index_subtracted_by(self.img_count, self.selected_img_index, i);
-                let i = get_vec_index_sum_by(self.img_count, self.selected_img_index, i);
+                let b_i = get_vec_index_subtracted_by(self.imgs.len(), self.selected_img_index, i);
+                let i = get_vec_index_sum_by(self.imgs.len(), self.selected_img_index, i);
                 self.imgs[i].load();
                 self.imgs[b_i].load();
             }
         } else {
-            for i in 0..self.img_count {
+            for i in 0..self.imgs.len() {
                 self.imgs[i].load();
             }
         }
@@ -105,7 +103,7 @@ impl SingleGallery {
     }
 
     pub fn next_image(&mut self) {
-        if self.img_count == 0 {
+        if self.imgs.is_empty() {
             return;
         }
 
@@ -115,13 +113,13 @@ impl SingleGallery {
 
         if self.preload_active {
             let index_to_clear = get_vec_index_subtracted_by(
-                self.img_count,
+                self.imgs.len(),
                 self.selected_img_index,
                 self.config.nr_loaded_images,
             );
 
             let index_to_preload = get_vec_index_sum_by(
-                self.img_count,
+                self.imgs.len(),
                 self.selected_img_index,
                 self.config.nr_loaded_images,
             );
@@ -130,7 +128,7 @@ impl SingleGallery {
             self.imgs[index_to_preload].load();
         }
 
-        if self.selected_img_index == self.img_count - 1 {
+        if self.selected_img_index == self.imgs.len() - 1 {
             self.selected_img_index = 0;
         } else {
             self.selected_img_index += 1;
@@ -138,19 +136,19 @@ impl SingleGallery {
     }
 
     pub fn previous_image(&mut self) {
-        if self.img_count == 0 {
+        if self.imgs.is_empty() {
             return;
         }
 
         if self.preload_active {
             let index_to_clear = get_vec_index_sum_by(
-                self.img_count,
+                self.imgs.len(),
                 self.selected_img_index,
                 self.config.nr_loaded_images,
             );
 
             let index_to_preload = get_vec_index_subtracted_by(
-                self.img_count,
+                self.imgs.len(),
                 self.selected_img_index,
                 self.config.nr_loaded_images,
             );
@@ -160,7 +158,7 @@ impl SingleGallery {
         }
 
         if self.selected_img_index == 0 {
-            self.selected_img_index = self.img_count - 1;
+            self.selected_img_index = self.imgs.len() - 1;
         } else {
             self.selected_img_index -= 1;
         }
@@ -194,7 +192,7 @@ impl SingleGallery {
     }
 
     pub fn get_active_img_mut(&mut self) -> Option<&mut GalleryImage> {
-        if self.img_count > 0 {
+        if !self.imgs.is_empty() {
             return Some(&mut self.imgs[self.selected_img_index]);
         }
 
@@ -202,7 +200,7 @@ impl SingleGallery {
     }
 
     pub fn get_active_img(&self) -> Option<&GalleryImage> {
-        if self.img_count > 0 {
+        if !self.imgs.is_empty() {
             return Some(&self.imgs[self.selected_img_index]);
         }
 
@@ -231,7 +229,7 @@ impl SingleGallery {
     pub fn jump_to_image(&mut self) {
         self.selected_img_index = match self.jump_to.parse::<usize>() {
             Ok(i) => {
-                if i > self.img_count || i < 1 {
+                if i > self.imgs.len() || i < 1 {
                     self.selected_img_index
                 } else {
                     i - 1
@@ -242,6 +240,37 @@ impl SingleGallery {
 
         self.load();
         self.jump_to.clear();
+    }
+
+    pub fn delete(&mut self) {
+        if let Some(path) = self.get_active_img_path() {
+            println!("Deleting {} at {}", self.selected_img_index, path.display());
+
+            self.imgs.remove(self.selected_img_index);
+
+            if self.selected_img_index == self.imgs.len() {
+                self.selected_img_index = self.imgs.len() - 1;
+            }
+
+            self.preload_active =
+                Self::is_valid_for_preload(self.config.nr_loaded_images, self.imgs.len());
+
+            if self.preload_active {
+                let index_to_load = get_vec_index_sum_by(
+                    self.imgs.len(),
+                    self.selected_img_index,
+                    self.config.nr_loaded_images,
+                );
+
+                self.imgs[index_to_load].load();
+            }
+
+            user_action::execute(&self.config.delete_cmd, path);
+        }
+    }
+
+    pub fn is_valid_for_preload(preload_nr: usize, image_count: usize) -> bool {
+        preload_nr * 2 <= image_count
     }
 
     pub fn ui(&mut self, ctx: &egui::Context) {
@@ -267,7 +296,7 @@ impl SingleGallery {
                         egui::Label::new(format!(
                             "{}/{}",
                             self.get_active_img_nr(),
-                            self.img_count
+                            self.imgs.len()
                         )),
                     );
 
@@ -308,7 +337,7 @@ impl SingleGallery {
                     .fill(egui::Color32::from_rgb(119, 119, 119))
                     .show(ui, |ui| {
                         ui.centered_and_justified(|ui| {
-                            if self.img_count > 0 {
+                            if !self.imgs.is_empty() {
                                 let img = &mut self.imgs[self.selected_img_index];
                                 img.ui(
                                     ui,
@@ -383,13 +412,17 @@ impl SingleGallery {
             self.previous_image();
         }
 
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_del.kbd_shortcut)) {
+            self.delete();
+        }
+
         self.multiply_zoom(ctx.input(|i| i.zoom_delta()));
 
         for action in &self.config.user_actions {
             if ctx.input_mut(|i| i.consume_shortcut(&action.shortcut.kbd_shortcut)) {
                 match self.get_active_img_path() {
                     Some(path) => {
-                        user_action::execute(action.exec.clone(), path);
+                        user_action::execute(&action.exec, path);
                     }
                     None => println!("Unable to get active image path for user action"),
                 }

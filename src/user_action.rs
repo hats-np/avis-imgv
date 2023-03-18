@@ -4,7 +4,9 @@ use eframe::egui::Response;
 
 use crate::config::ContextMenuEntry;
 
-pub fn execute(mut exec: String, path: PathBuf) {
+pub fn execute(mut exec: &str, path: PathBuf) {
+    let mut exec = exec.to_string();
+
     let parent = match path.parent() {
         Some(parent) => parent,
         None => return,
@@ -68,7 +70,7 @@ pub fn build_context_menu(entries: &Vec<ContextMenuEntry>, response: Response, p
         ui.set_max_width(300.);
         for entry in entries {
             if ui.button(&entry.description).clicked() {
-                execute(entry.exec.clone(), path.clone());
+                execute(&entry.exec.clone(), path.clone());
                 ui.close_menu();
             }
         }
