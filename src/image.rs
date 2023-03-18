@@ -82,28 +82,6 @@ impl Image {
         })
     }
 
-    pub fn resize_old(img: DynamicImage, target_size: Option<u32>) -> DynamicImage {
-        match target_size {
-            Some(mut t_size) => {
-                let largest_side = if img.width() > img.height() {
-                    img.width()
-                } else {
-                    img.height()
-                };
-
-                let largest_side = largest_side;
-                t_size = if t_size > largest_side {
-                    largest_side
-                } else {
-                    t_size
-                };
-
-                img.resize(t_size, t_size, image::imageops::FilterType::CatmullRom)
-            }
-            None => img,
-        }
-    }
-
     pub fn resize(img: DynamicImage, target_size: Option<u32>) -> DynamicImage {
         match target_size {
             Some(target_size) => {
