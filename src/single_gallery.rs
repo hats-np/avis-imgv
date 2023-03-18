@@ -2,7 +2,7 @@ use eframe::{egui, epaint::Vec2};
 use std::path::PathBuf;
 
 use crate::{
-    config::{GalleryConfig, UserAction},
+    config::GalleryConfig,
     gallery_image::GalleryImage,
     user_action::{self, build_context_menu},
     utils,

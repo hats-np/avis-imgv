@@ -4,7 +4,7 @@ use eframe::egui::Response;
 
 use crate::config::ContextMenuEntry;
 
-pub fn execute(mut exec: &str, path: PathBuf) {
+pub fn execute(exec: &str, path: PathBuf) {
     let mut exec = exec.to_string();
 
     let parent = match path.parent() {
