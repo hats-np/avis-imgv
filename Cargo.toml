@@ -14,3 +14,4 @@ qcms = { version = "0.2.0" }
 sqlite = { version = "0.30.4" }
 regex = { version = "1.7.1" }
 rfd = { version = "0.11.2" }
+fast_image_resize = { version = "2.6.0" }

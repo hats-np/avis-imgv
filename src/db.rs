@@ -59,7 +59,7 @@ impl Db {
     pub fn get_image_metadata(path: &str) -> Result<Option<String>, Box<dyn Error>> {
         let conn = Self::get_sqlite_conn()?;
         let mut q = conn.prepare("select metadata from file where path = :path")?;
-        q.bind::<&[(_, Value)]>(&[(":path", path.to_owned().into())][..])?;
+        q.bind::<&[(_, Value)]>(&[(":path", path.into())][..])?;
 
         if q.next().is_ok() {
             return Ok(Some(q.read::<String, _>("metadata")?));

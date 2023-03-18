@@ -2,7 +2,8 @@ use eframe::{
     egui,
     epaint::{ColorImage, TextureHandle},
 };
-use image::DynamicImage;
+use image::{DynamicImage, RgbImage};
+use std::num::NonZeroU32;
 use std::{
     collections::HashMap,
     fs::File,
@@ -15,6 +16,8 @@ use crate::{
     icc::profile_desc_to_icc,
     metadata::{self, Orientation, METADATA_ORIENTATION, METADATA_PROFILE_DESCRIPTION},
 };
+
+use fast_image_resize as fir;
 
 pub struct Image {
     pub texture: Option<TextureHandle>,
@@ -79,7 +82,7 @@ impl Image {
         })
     }
 
-    pub fn resize(img: DynamicImage, target_size: Option<u32>) -> DynamicImage {
+    pub fn resize_old(img: DynamicImage, target_size: Option<u32>) -> DynamicImage {
         match target_size {
             Some(mut t_size) => {
                 let largest_side = if img.width() > img.height() {
@@ -96,6 +99,83 @@ impl Image {
                 };
 
                 img.resize(t_size, t_size, image::imageops::FilterType::CatmullRom)
+            }
+            None => img,
+        }
+    }
+
+    pub fn resize(img: DynamicImage, target_size: Option<u32>) -> DynamicImage {
+        match target_size {
+            Some(target_size) => {
+                let aspect_ratio = img.width() as f32 / img.height() as f32;
+                let dest_width: u32;
+                let dest_height: u32;
+                if img.width() > img.height() {
+                    dest_width = if img.width() > target_size {
+                        target_size
+                    } else {
+                        img.width()
+                    };
+                    dest_height = (dest_width as f32 / aspect_ratio) as u32;
+                } else {
+                    dest_height = if img.height() > target_size {
+                        target_size
+                    } else {
+                        img.width()
+                    };
+                    dest_width = (dest_height as f32 * aspect_ratio) as u32;
+                };
+
+                if dest_width == 0 || dest_height == 0 {
+                    return img;
+                }
+
+                //Safe unwrap
+                let width = NonZeroU32::new(img.width()).unwrap();
+                let height = NonZeroU32::new(img.height()).unwrap();
+
+                let src_image = match fir::Image::from_vec_u8(
+                    width,
+                    height,
+                    img.to_rgb8().into_raw(),
+                    fir::PixelType::U8x3,
+                ) {
+                    Ok(img) => img,
+                    Err(e) => {
+                        println!(
+                            "Failure building fast_image_resize image from dynamic image -> {e}",
+                        );
+                        return img;
+                    }
+                };
+
+                //Safe unwrap
+                let dest_width = NonZeroU32::new(dest_width).unwrap();
+                let dest_height = NonZeroU32::new(dest_height).unwrap();
+                let mut dest_image =
+                    fir::Image::new(dest_width, dest_height, src_image.pixel_type());
+
+                match fir::Resizer::new(fir::ResizeAlg::Convolution(fir::FilterType::CatmullRom))
+                    .resize(&src_image.view(), &mut dest_image.view_mut())
+                {
+                    Ok(_) => {}
+                    Err(e) => {
+                        println!("Failure resizing image -> {e}");
+                        return img;
+                    }
+                }
+
+                match RgbImage::from_raw(
+                    u32::from(dest_width),
+                    u32::from(dest_height),
+                    dest_image.buffer().to_vec(),
+                ) {
+                    Some(rgb_image) => DynamicImage::from(rgb_image),
+                    None => {
+                        println!("Failure building rgb image from resized image");
+                        img
+                    }
+                }
             }
             None => img,
         }

@@ -183,18 +183,16 @@ fn is_valid_path(path: &Path) -> bool {
         Err(_) => return false,
     };
 
-    for path in dir_info {
-        if let Ok(path) = path {
-            if VALID_EXTENSIONS.contains(
-                &path
-                    .path()
-                    .extension()
-                    .unwrap_or_default()
-                    .to_str()
-                    .unwrap_or_default(),
-            ) {
-                return true;
-            }
+    for path in dir_info.flatten() {
+        if VALID_EXTENSIONS.contains(
+            &path
+                .path()
+                .extension()
+                .unwrap_or_default()
+                .to_str()
+                .unwrap_or_default(),
+        ) {
+            return true;
         }
     }
 

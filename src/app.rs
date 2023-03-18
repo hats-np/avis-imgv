@@ -156,7 +156,7 @@ impl App {
 
             if self.navigator_visible {
                 utils::set_mute_state(ctx, true);
-                return;
+                //return here when more muters are implemented
             } else {
                 utils::set_mute_state(ctx, false);
             }

@@ -1,4 +1,4 @@
-if ! RUSTC_BOOTSTRAP="qcms" cargo build --release ; then
+if ! RUSTFLAGS="-Ctarget-cpu=native" RUSTC_BOOTSTRAP="qcms" cargo build --release ; then
     echo "Build failed -> exiting"
     exit
 fi
