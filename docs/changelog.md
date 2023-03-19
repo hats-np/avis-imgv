@@ -1,5 +1,23 @@
 # Change Log
 
+## 2023-03-19
+ 
+Two new configuration entries were added, "sc_dir_tree".
+ 
+### Added
+
+- Added a directory tree pannel to quickly browser through directories.
+
+### Changed
+
+### Fixed
+
+
+
+---
+
+
+
 ## 2023-03-18
  
 Two new configuration entries were added, "sc_del" and "delete_cmd" both under gallery.
