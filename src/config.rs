@@ -29,6 +29,8 @@ pub struct Config {
     pub sc_menu: Shortcut,
     #[serde(default = "default_sc_navigator")]
     pub sc_navigator: Shortcut,
+    #[serde(default = "default_sc_dir_tree")]
+    pub sc_dir_tree: Shortcut,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -157,6 +159,7 @@ impl Default for Config {
             sc_exit: default_sc_exit(),
             sc_menu: default_sc_menu(),
             sc_navigator: default_sc_navigator(),
+            sc_dir_tree: default_sc_dir_tree(),
         }
     }
 }
@@ -249,6 +252,7 @@ impl Config {
         self.sc_toggle_gallery.build(&keys);
         self.sc_menu.build(&keys);
         self.sc_navigator.build(&keys);
+        self.sc_dir_tree.build(&keys);
 
         self.gallery.sc_fit.build(&keys);
         self.gallery.sc_frame.build(&keys);
@@ -294,6 +298,10 @@ pub fn default_sc_menu() -> Shortcut {
 
 pub fn default_sc_navigator() -> Shortcut {
     Shortcut::from("l", &[MOD_CTRL])
+}
+
+pub fn default_sc_dir_tree() -> Shortcut {
+    Shortcut::from("t", &[])
 }
 
 //Gallery

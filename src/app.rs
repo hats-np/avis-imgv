@@ -6,9 +6,9 @@ use crate::{
     multi_gallery::MultiGallery,
     navigator,
     single_gallery::SingleGallery,
-    utils, VALID_EXTENSIONS,
+    tree, utils, VALID_EXTENSIONS,
 };
-use eframe::egui;
+use eframe::egui::{self, KeyboardShortcut};
 use rfd::FileDialog;
 use std::{path::PathBuf, time::Instant};
 
@@ -20,6 +20,7 @@ pub struct App {
     perf_metrics_visible: bool,
     multi_gallery_visible: bool,
     top_menu_visible: bool,
+    dir_tree_visible: bool,
     navigator_visible: bool,
     navigator_search: String,
     start_of_frame: Instant,
@@ -30,6 +31,7 @@ pub struct App {
     sc_exit: Shortcut,
     sc_menu: Shortcut,
     sc_navigator: Shortcut,
+    sc_dir_tree: Shortcut,
 }
 
 impl App {
@@ -80,6 +82,7 @@ impl App {
             perf_metrics_visible: false,
             multi_gallery_visible: false,
             top_menu_visible: false,
+            dir_tree_visible: false,
             navigator_visible: false,
             navigator_search: img_paths
                 .get(0)
@@ -97,6 +100,7 @@ impl App {
             sc_toggle_gallery: cfg.sc_toggle_gallery,
             sc_menu: cfg.sc_menu,
             sc_navigator: cfg.sc_navigator,
+            sc_dir_tree: cfg.sc_dir_tree,
         }
     }
 
@@ -149,16 +153,24 @@ impl App {
     //This is required so typing in text boxes and the like doesn't
     //trigger shortcuts
     fn handle_input_muters(&mut self, ctx: &egui::Context) {
-        if ctx.input_mut(|i| i.consume_shortcut(&self.sc_navigator.kbd_shortcut))
-            || (self.navigator_visible && ctx.input(|i| i.key_pressed(egui::Key::Escape)))
-        {
-            self.navigator_visible = !self.navigator_visible;
+        let to_check: Vec<(&mut bool, &KeyboardShortcut)> = vec![
+            (&mut self.navigator_visible, &self.sc_navigator.kbd_shortcut),
+            (&mut self.dir_tree_visible, &self.sc_dir_tree.kbd_shortcut),
+        ];
 
-            if self.navigator_visible {
-                utils::set_mute_state(ctx, true);
-                //return here when more muters are implemented
-            } else {
-                utils::set_mute_state(ctx, false);
+        //Assumes all muters can and will be closed with Escape
+        for (val, shortcut) in to_check {
+            if ctx.input_mut(|i| i.consume_shortcut(shortcut))
+                || (*val && ctx.input(|i| i.key_pressed(egui::Key::Escape)))
+            {
+                *val = !*val;
+
+                if *val {
+                    utils::set_mute_state(ctx, true);
+                    return;
+                } else {
+                    utils::set_mute_state(ctx, false);
+                }
             }
         }
     }
@@ -254,6 +266,16 @@ impl eframe::App for App {
                 &crawler::crawl(&PathBuf::from(&self.navigator_search)),
                 &None,
             );
+        }
+
+        if self.dir_tree_visible {
+            if let Some(path) = self.gallery.get_active_img_path() {
+                if let Some(path) = tree::ui(path.to_str().unwrap_or(""), ctx) {
+                    self.dir_tree_visible = false;
+                    utils::set_mute_state(ctx, false);
+                    self.new_images(&crawler::crawl(&path), &None);
+                }
+            }
         }
 
         if self.multi_gallery_visible {

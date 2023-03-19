@@ -8,7 +8,7 @@ use eframe::{
     epaint::{Color32, Pos2, Shadow},
 };
 
-use crate::{utils, VALID_EXTENSIONS};
+use crate::utils;
 
 pub fn ui(input: &mut String, ctx: &egui::Context) -> bool {
     let mut is_selected = false;
@@ -81,7 +81,7 @@ pub fn ui(input: &mut String, ctx: &egui::Context) -> bool {
                         }
 
                         if ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
-                            if selected_index == 0 && is_valid_path(Path::new(&input)) {
+                            if selected_index == 0 && utils::is_valid_path(Path::new(&input)) {
                                 is_selected = true;
                             } else if !suggestions.is_empty() {
                                 *input = suggestions[selected_index].clone();
@@ -145,7 +145,7 @@ fn get_path_strings_from_input(input: &str) -> Option<Vec<String>> {
             .filter_map(|p| match p {
                 Ok(p) => match p.metadata() {
                     Ok(m) => {
-                        if m.is_dir() && !path_is_hidden(&p.path()) {
+                        if m.is_dir() && !utils::is_dir_hidden(&p.path()) {
                             string_from_path(&p.path())
                         } else {
                             None
@@ -167,34 +167,4 @@ fn string_from_path(path: &Path) -> Option<String> {
     } else {
         None
     }
-}
-
-fn path_is_hidden(path: &Path) -> bool {
-    path.file_name()
-        .unwrap_or_default()
-        .to_str()
-        .unwrap_or_default()
-        .starts_with('.')
-}
-
-fn is_valid_path(path: &Path) -> bool {
-    let dir_info = match path.read_dir() {
-        Ok(dir) => dir,
-        Err(_) => return false,
-    };
-
-    for path in dir_info.flatten() {
-        if VALID_EXTENSIONS.contains(
-            &path
-                .path()
-                .extension()
-                .unwrap_or_default()
-                .to_str()
-                .unwrap_or_default(),
-        ) {
-            return true;
-        }
-    }
-
-    false
 }
