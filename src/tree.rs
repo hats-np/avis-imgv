@@ -35,14 +35,10 @@ impl Tree {
 
         for (depth, (i, parent)) in parents.iter().enumerate().enumerate() {
             let path_entries = Self::get_entries_from_path(parent, depth, parents.get(i + 1));
-            let mut parent_pos = tree_entries
-                .iter()
-                .position(|x| &x.path == parent)
-                .unwrap_or(0);
-
-            if parent_pos != 0 {
-                parent_pos += 1;
-            }
+            let mut parent_pos = match tree_entries.iter().position(|x| &x.path == parent) {
+                Some(pos) => pos + 1,
+                None => 0,
+            };
 
             for (j, entry) in path_entries.iter().enumerate() {
                 tree_entries.insert(parent_pos + j, entry.clone());
