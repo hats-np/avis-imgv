@@ -11,6 +11,7 @@ pub mod navigator;
 pub mod single_gallery;
 pub mod theme;
 pub mod thumbnail_image;
+pub mod tree;
 pub mod user_action;
 pub mod utils;
 

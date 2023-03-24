@@ -84,3 +84,6 @@ sc_navigator:
   key: l
   modifiers:
   - ctrl
+sc_dir_tree:
+  key: t
+  modifiers: []
