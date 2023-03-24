@@ -27,7 +27,7 @@ if [ ! -f $applications_dir/avis-imgv.desktop ]; then
     [Desktop Entry]
     Exec=$HOME/.local/bin/avis-imgv
     MimeType=image/png;image/jpeg;image/jpg;image/webp;
-    Name=AvisImgv
+    Name=Avis Image Viewer
     NoDisplay=true
     Type=Application
     " > $applications_dir/avis-imgv.desktop 
