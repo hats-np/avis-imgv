@@ -158,6 +158,7 @@ impl ThumbnailImage {
         }
     }
 
+    ///If image is marked for unloading, unload it
     pub fn unload_delayed(&mut self) {
         if self.should_unload {
             match &mut self.load_image_handle {
@@ -173,6 +174,8 @@ impl ThumbnailImage {
         }
     }
 
+    ///If image is currently loading marks it for unload
+    ///If image is loaded, unloads it
     pub fn unload(&mut self, image_nr: usize) {
         if self.load_image_handle.is_some() {
             self.should_unload = true;

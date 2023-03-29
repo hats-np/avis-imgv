@@ -1,4 +1,5 @@
 pub mod app;
+pub mod callback;
 pub mod config;
 pub mod crawler;
 pub mod db;

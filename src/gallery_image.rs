@@ -81,16 +81,15 @@ impl GalleryImage {
             size[0] = aspect_ratio * size[1];
         }
 
-        let mut display_size = size;
         size[0] *= zoom_factor;
         size[1] *= zoom_factor;
 
-        display_size[0] *= zoom_factor;
+        let mut display_size = size;
+
         if display_size[0] > ui.available_width() {
             display_size[0] = ui.available_width();
         }
 
-        display_size[1] *= zoom_factor;
         if display_size[1] > ui.available_height() {
             display_size[1] = ui.available_height();
         }
@@ -249,7 +248,7 @@ impl GalleryImage {
     }
 
     pub fn load(&mut self) {
-        if self.load_image_handle.is_none() {
+        if self.load_image_handle.is_none() && self.image.is_none() {
             println!("Loading image -> {}", self.path.display());
             self.load_image_handle = Some(Image::load(
                 self.path.clone(),

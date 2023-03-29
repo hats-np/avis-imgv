@@ -1,14 +1,12 @@
 use crate::{
-    config::{ContextMenuEntry, MultiGalleryConfig},
-    thumbnail_image::ThumbnailImage,
-    user_action::build_context_menu,
-    utils,
+    callback::Callback, config::MultiGalleryConfig, thumbnail_image::ThumbnailImage,
+    user_action::show_context_menu, utils,
 };
 use eframe::{
     egui::{self, Ui},
     epaint::Vec2,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub struct MultiGallery {
     imgs: Vec<ThumbnailImage>,
@@ -22,6 +20,7 @@ pub struct MultiGallery {
     prev_images_per_row: usize,
     prev_row_range_start: usize,
     reset_scroll: bool,
+    callback: Option<Callback>,
 }
 
 impl MultiGallery {
@@ -32,7 +31,7 @@ impl MultiGallery {
     ) -> MultiGallery {
         let imgs = ThumbnailImage::from_paths(image_paths, output_profile);
         let mut mg = MultiGallery {
-            total_rows: Self::calc_total_rows(imgs.len(), config.images_per_row),
+            total_rows: 0,
             imgs,
             selected_image_name: None,
             images_per_row: config.images_per_row,
@@ -43,9 +42,10 @@ impl MultiGallery {
             prev_row_range_start: 0,
             output_profile: output_profile.to_owned(),
             reset_scroll: false,
+            callback: None,
         };
 
-        mg.imgs.sort_by(|a, b| a.name.cmp(&b.name));
+        mg.set_total_rows();
 
         mg
     }
@@ -53,7 +53,7 @@ impl MultiGallery {
     pub fn set_images(&mut self, img_paths: &[PathBuf]) {
         self.imgs = ThumbnailImage::from_paths(img_paths, &self.output_profile);
         self.reset_scroll = true;
-        self.total_rows = Self::calc_total_rows(self.imgs.len(), self.images_per_row);
+        self.set_total_rows();
     }
 
     pub fn ui(&mut self, ctx: &egui::Context, jump_to_index: &mut Option<usize>) {
@@ -169,8 +169,8 @@ impl MultiGallery {
                                         ctx,
                                         img_size,
                                         &mut self.selected_image_name,
-                                        &self.config.margin_size,
-                                        &self.config.context_menu,
+                                        &self.config,
+                                        &mut self.callback,
                                     ),
                                     None => {}
                                 }
@@ -226,10 +226,10 @@ impl MultiGallery {
         ctx: &egui::Context,
         max_size: f32,
         select_image_name: &mut Option<String>,
-        margin_size: &f32,
-        context_menu: &Vec<ContextMenuEntry>,
+        config: &MultiGalleryConfig,
+        callback: &mut Option<Callback>,
     ) {
-        if let Some(resp) = image.ui(ui, [max_size, max_size], margin_size) {
+        if let Some(resp) = image.ui(ui, [max_size, max_size], &config.margin_size) {
             if resp.clicked() {
                 *select_image_name = Some(image.name.clone());
             }
@@ -237,7 +237,16 @@ impl MultiGallery {
                 ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
             }
 
-            build_context_menu(context_menu, resp, image.path.clone())
+            let return_callback = show_context_menu(&config.context_menu, resp, &image.path);
+
+            if let Some(return_callback) = return_callback {
+                *callback = Some(Callback::from_callback(
+                    return_callback,
+                    Some(image.path.clone()),
+                ));
+
+                println!("{:?}", callback);
+            }
         }
     }
 
@@ -251,7 +260,7 @@ impl MultiGallery {
             && self.images_per_row <= 15
         {
             self.images_per_row += 1;
-            self.total_rows = Self::calc_total_rows(self.imgs.len(), self.images_per_row);
+            self.set_total_rows();
         }
 
         if (ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_less_per_row.kbd_shortcut))
@@ -259,7 +268,7 @@ impl MultiGallery {
             && self.images_per_row != 1
         {
             self.images_per_row -= 1;
-            self.total_rows = Self::calc_total_rows(self.imgs.len(), self.images_per_row);
+            self.set_total_rows();
         }
     }
 
@@ -268,8 +277,28 @@ impl MultiGallery {
         self.selected_image_name.take()
     }
 
-    pub fn calc_total_rows(imgs_len: usize, imgs_per_row: usize) -> usize {
+    pub fn set_total_rows(&mut self) {
         //div_ceil will be available in the next release. Avoids conversions..
-        (imgs_len as f32 / imgs_per_row as f32).ceil() as usize
+        self.total_rows = (self.imgs.len() as f32 / self.images_per_row as f32).ceil() as usize
+    }
+
+    pub fn pop(&mut self, path: &Path) {
+        if let Some(pos) = self.imgs.iter().position(|x| x.path == path) {
+            self.imgs.remove(pos);
+            self.set_total_rows();
+        }
+    }
+
+    pub fn take_callback(&mut self) -> Option<Callback> {
+        self.callback.take()
+    }
+
+    pub fn reload_at(&mut self, path: &Path) {
+        if let Some(pos) = self.imgs.iter().position(|x| x.path == path) {
+            if let Some(img) = self.imgs.get_mut(pos) {
+                img.unload_delayed();
+                img.unload(pos);
+            }
+        }
     }
 }

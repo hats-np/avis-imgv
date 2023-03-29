@@ -77,12 +77,12 @@ pub fn ui(input: &mut String, ctx: &egui::Context) -> bool {
                             }
                         }
 
-                        if editor_resp.changed() || selected_path.is_some() {
-                            suggestions = get_suggestions(input);
+                        if let Some(selected_path) = &selected_path {
+                            select_path(input, selected_path, &editor_resp, ui);
                         }
 
-                        if let Some(selected_path) = selected_path {
-                            select_path(input, selected_path, &editor_resp, ui);
+                        if editor_resp.changed() || selected_path.is_some() {
+                            suggestions = get_suggestions(input);
                         }
 
                         set_index(ctx, selected_index);
@@ -169,8 +169,8 @@ fn string_from_path(path: &Path) -> Option<String> {
     }
 }
 
-fn select_path(input: &mut String, suggestion: String, editor_resp: &Response, ui: &mut Ui) {
-    let mut suggestion = suggestion;
+fn select_path(input: &mut String, suggestion: &str, editor_resp: &Response, ui: &mut Ui) {
+    let mut suggestion = suggestion.to_owned();
 
     if !suggestion.ends_with(MAIN_SEPARATOR_STR) {
         suggestion += MAIN_SEPARATOR_STR;

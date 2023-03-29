@@ -61,6 +61,14 @@ It is recommended to use simple commands. If you need more complex behaviour, yo
 - 'gimp {}' - Opens the file in GIMP.
 - 'darktable {.}.RAF' - Opens adjacent Fujifilm raw file in darktable. This one will work best with a script that checks if the file exists.
 - 'rate.sh {.}.RAF 5' - Run script which writes a base xmp with image rating. Provided in the examples folder.
+
+#### Callbacks
+
+After successfully executing a user action, we can chose to automatically run a function by specifying a callback. For this just add an entry under either a context menu or a user action. An example is provided under the example config.
+
+- Pop - Removes the selected image from the collection
+- Reload - Reloads the selected image
+- ReloadAll - Reloads the entire collection
  
 ## Configuration
 

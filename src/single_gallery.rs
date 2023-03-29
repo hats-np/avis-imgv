@@ -1,10 +1,11 @@
 use eframe::{egui, epaint::Vec2};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::{
+    callback::Callback,
     config::GalleryConfig,
     gallery_image::GalleryImage,
-    user_action::{self, build_context_menu},
+    user_action::{self, show_context_menu},
     utils,
 };
 
@@ -19,6 +20,7 @@ pub struct SingleGallery {
     config: GalleryConfig,
     jump_to: String,
     output_profile: String,
+    callback: Option<Callback>,
 }
 
 impl SingleGallery {
@@ -39,6 +41,7 @@ impl SingleGallery {
             scroll_delta: Vec2::new(0., 0.),
             jump_to: String::new(),
             output_profile: output_profile.to_owned(),
+            callback: None,
         };
 
         sg.set_images(image_paths, selected_image_path);
@@ -47,9 +50,7 @@ impl SingleGallery {
     }
 
     pub fn set_images(&mut self, image_paths: &[PathBuf], selected_image_path: &Option<PathBuf>) {
-        let mut imgs = GalleryImage::from_paths(image_paths, &self.output_profile);
-
-        imgs.sort_by(|a, b| a.name.cmp(&b.name));
+        let imgs = GalleryImage::from_paths(image_paths, &self.output_profile);
 
         self.imgs = imgs;
         self.selected_img_index = match selected_image_path {
@@ -72,22 +73,36 @@ impl SingleGallery {
         if self.imgs.is_empty() {
             return;
         }
-        for image in &mut self.imgs {
-            image.unload();
-        }
 
-        if self.preload_active {
-            self.imgs[self.selected_img_index].load();
-
-            for i in 1..self.config.nr_loaded_images + 1 {
-                let b_i = get_vec_index_subtracted_by(self.imgs.len(), self.selected_img_index, i);
-                let i = get_vec_index_sum_by(self.imgs.len(), self.selected_img_index, i);
-                self.imgs[i].load();
-                self.imgs[b_i].load();
-            }
-        } else {
+        if !self.preload_active {
             for i in 0..self.imgs.len() {
                 self.imgs[i].load();
+            }
+
+            return;
+        }
+
+        //Not many entries in this vec so it's not worth to use a hasmap
+        let mut indexes_to_load: Vec<usize> = vec![self.selected_img_index];
+
+        for i in 1..self.config.nr_loaded_images + 1 {
+            indexes_to_load.push(get_vec_index_subtracted_by(
+                self.imgs.len(),
+                self.selected_img_index,
+                i,
+            ));
+            indexes_to_load.push(get_vec_index_sum_by(
+                self.imgs.len(),
+                self.selected_img_index,
+                i,
+            ));
+        }
+
+        for (i, img) in &mut self.imgs.iter_mut().enumerate() {
+            if indexes_to_load.contains(&i) {
+                img.load();
+            } else {
+                img.unload();
             }
         }
     }
@@ -168,6 +183,10 @@ impl SingleGallery {
         self.image_frame = !self.image_frame;
     }
 
+    pub fn toggle_metadata(&mut self) {
+        self.metadata_pannel_visible = !self.metadata_pannel_visible;
+    }
+
     pub fn reset_zoom(&mut self) {
         self.zoom_factor = 1.0;
     }
@@ -242,30 +261,27 @@ impl SingleGallery {
         self.jump_to.clear();
     }
 
-    pub fn delete(&mut self) {
-        if let Some(path) = self.get_active_img_path() {
-            println!("Deleting {} at {}", self.selected_img_index, path.display());
+    pub fn reload_at(&mut self, path: &Path) {
+        if let Some(index) = self.imgs.iter().position(|x| x.path == path) {
+            let img = &mut self.imgs[index];
+            img.unload();
+            img.load();
+        }
+    }
 
-            self.imgs.remove(self.selected_img_index);
+    ///Pops image from the collection
+    pub fn pop(&mut self, path: &Path) {
+        if let Some(pos) = self.imgs.iter().position(|x| x.path == path) {
+            self.imgs.remove(pos);
+            self.preload_active =
+                Self::is_valid_for_preload(self.config.nr_loaded_images, self.imgs.len());
 
+            //Last image of the collection, we want to load backwards
             if self.selected_img_index == self.imgs.len() {
                 self.selected_img_index = self.imgs.len() - 1;
             }
 
-            self.preload_active =
-                Self::is_valid_for_preload(self.config.nr_loaded_images, self.imgs.len());
-
-            if self.preload_active {
-                let index_to_load = get_vec_index_sum_by(
-                    self.imgs.len(),
-                    self.selected_img_index,
-                    self.config.nr_loaded_images,
-                );
-
-                self.imgs[index_to_load].load();
-            }
-
-            user_action::execute(&self.config.delete_cmd, path);
+            self.load();
         }
     }
 
@@ -379,7 +395,11 @@ impl SingleGallery {
         }
 
         if let Some(path) = self.get_active_img_path() {
-            build_context_menu(&self.config.context_menu, image_pannel_resp, path)
+            let callback = show_context_menu(&self.config.context_menu, image_pannel_resp, &path);
+
+            if let Some(callback) = callback {
+                self.callback = Some(Callback::from_callback(callback, Some(path)));
+            }
         }
     }
 
@@ -391,29 +411,20 @@ impl SingleGallery {
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_fit.kbd_shortcut)) {
             self.reset_zoom();
         }
-
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_frame.kbd_shortcut)) {
             self.toggle_frame();
         }
-
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_zoom.kbd_shortcut)) {
             self.double_zoom();
         }
-
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_metadata.kbd_shortcut)) {
-            self.metadata_pannel_visible = !self.metadata_pannel_visible;
+            self.toggle_metadata();
         }
-
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_next.kbd_shortcut)) {
             self.next_image();
         }
-
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_prev.kbd_shortcut)) {
             self.previous_image();
-        }
-
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_del.kbd_shortcut)) {
-            self.delete();
         }
 
         self.multiply_zoom(ctx.input(|i| i.zoom_delta()));
@@ -422,12 +433,21 @@ impl SingleGallery {
             if ctx.input_mut(|i| i.consume_shortcut(&action.shortcut.kbd_shortcut)) {
                 match self.get_active_img_path() {
                     Some(path) => {
-                        user_action::execute(&action.exec, path);
+                        if user_action::execute(&action.exec, &path) {
+                            if let Some(callback) = action.callback.to_owned() {
+                                self.callback =
+                                    Some(Callback::from_callback(callback, Some(path.to_owned())));
+                            }
+                        }
                     }
                     None => println!("Unable to get active image path for user action"),
                 }
             }
         }
+    }
+
+    pub fn take_callback(&mut self) -> Option<Callback> {
+        self.callback.take()
     }
 }
 
