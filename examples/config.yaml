@@ -21,11 +21,30 @@ gallery:
         key: 1
         modifiers:
           - alt
+    - exec: "rm {}" 
+      shortcut:
+        key: delete 
+        modifiers:
+          - ctrl
+      callback: Pop
+    - exec: 
+      shortcut:
+        key: f6
+        modifiers: []
+      callback: Reload
+    - exec: 
+      shortcut:
+        key: f5
+        modifiers: []
+      callback: ReloadAll
   context_menu:
     - exec: "gimp {}"
       description: "Open in GIMP"
     - exec: "darktable {.}.RAF"
       description: "Open RAW in Darktable"
+    - exec: "rm {}"
+      description: "Remove"
+      callback: Pop
   delete_cmd: "rm {}"
   sc_fit:
     key: f
@@ -48,6 +67,9 @@ gallery:
   sc_del:
     key: delete
     modifiers: []
+
+
+
 multi_gallery:
   images_per_row: 5
   preloaded_rows: 2
@@ -67,6 +89,11 @@ multi_gallery:
       description: "Open in GIMP"
     - exec: "darktable {.}.RAF"
       description: "Open RAW in Darktable"
+    - exec: "rm {}"
+      description: "Remove"
+      callback: Pop
+
+
 limit_cached: 100000
 output_icc_profile: srgb
 text_scaling: 1.5
