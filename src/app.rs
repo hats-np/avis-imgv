@@ -175,14 +175,17 @@ impl App {
             (&mut self.dir_tree_visible, &self.sc_dir_tree.kbd_shortcut),
         ];
 
-        //Assumes all muters can and will be closed with Escape
-        for (val, shortcut) in to_check {
-            if ctx.input_mut(|i| i.consume_shortcut(shortcut))
-                || (*val && ctx.input(|i| i.key_pressed(egui::Key::Escape)))
-            {
-                *val = !*val;
+        let is_muted = utils::are_inputs_muted(ctx);
 
-                if *val {
+        //Assumes all muters can and will be closed with Escape
+        for (active, shortcut) in to_check {
+            if (is_muted && *active && ctx.input_mut(|i| i.consume_shortcut(shortcut)))
+                || (!is_muted && ctx.input_mut(|i| i.consume_shortcut(shortcut)))
+                || (*active && ctx.input(|i| i.key_pressed(egui::Key::Escape)))
+            {
+                *active = !*active;
+
+                if *active {
                     utils::set_mute_state(ctx, true);
                     return;
                 } else {
