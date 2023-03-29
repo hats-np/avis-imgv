@@ -269,7 +269,7 @@ impl App {
 
     fn callback_reload_all(&mut self) {
         self.new_images(
-            &crawler::crawl(&self.base_path.clone()),
+            &crawler::crawl(&self.base_path),
             &self.gallery.get_active_img_path(),
         )
     }

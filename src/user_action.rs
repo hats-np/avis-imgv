@@ -1,7 +1,4 @@
-use std::{
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::{path::Path, process::Command};
 
 use eframe::egui::Response;
 
@@ -9,7 +6,7 @@ use crate::{callback::Callback, config::ContextMenuEntry};
 
 /// Executes command, returns false if command wasn't executed
 /// or errored out
-pub fn execute(exec: &str, path: PathBuf) -> bool {
+pub fn execute(exec: &str, path: &Path) -> bool {
     if exec.is_empty() {
         return true;
     }
@@ -89,11 +86,10 @@ pub fn show_context_menu(
             let button_resp = ui.button(&entry.description);
 
             if button_resp.clicked() {
-                if execute(&entry.exec.clone(), path.to_owned()) {
+                if execute(&entry.exec, path) {
                     result = entry.callback.clone();
                 }
                 ui.close_menu();
-                break;
             }
         }
     });

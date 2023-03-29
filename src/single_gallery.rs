@@ -433,8 +433,8 @@ impl SingleGallery {
             if ctx.input_mut(|i| i.consume_shortcut(&action.shortcut.kbd_shortcut)) {
                 match self.get_active_img_path() {
                     Some(path) => {
-                        if user_action::execute(&action.exec, path.to_owned()) {
-                            if let Some(callback) = action.callback.clone() {
+                        if user_action::execute(&action.exec, &path) {
+                            if let Some(callback) = action.callback.to_owned() {
                                 self.callback =
                                     Some(Callback::from_callback(callback, Some(path.to_owned())));
                             }
