@@ -1,4 +1,5 @@
 use crate::{
+    callback::Callback,
     config::{Config, Shortcut},
     crawler,
     db::Db,
@@ -14,13 +15,15 @@ use std::{path::PathBuf, time::Instant};
 
 pub struct App {
     gallery: SingleGallery,
-    //used when switching between galleries
+    ///used when switching between galleries
     gallery_selected_index: Option<usize>,
     multi_gallery: MultiGallery,
     perf_metrics_visible: bool,
     multi_gallery_visible: bool,
     top_menu_visible: bool,
     dir_tree_visible: bool,
+    base_path: PathBuf,
+    opened_image_path: Option<PathBuf>,
     navigator_visible: bool,
     navigator_search: String,
     start_of_frame: Instant,
@@ -47,9 +50,7 @@ impl App {
 
         cc.egui_ctx.set_style(style);
 
-        let (mut img_paths, opened_img_path) = crawler::paths_from_args();
-
-        img_paths.sort();
+        let (img_paths, opened_img_path) = crawler::paths_from_args();
 
         match Db::init_db() {
             Ok(_) => {
@@ -83,12 +84,10 @@ impl App {
             multi_gallery_visible: false,
             top_menu_visible: false,
             dir_tree_visible: false,
+            base_path: Self::get_base_path(&img_paths),
+            opened_image_path: opened_img_path,
             navigator_visible: false,
-            navigator_search: img_paths
-                .get(0)
-                .unwrap_or(&PathBuf::default())
-                .parent()
-                .unwrap_or(&PathBuf::default())
+            navigator_search: Self::get_base_path(&img_paths)
                 .to_str()
                 .unwrap_or_default()
                 .to_string(),
@@ -102,6 +101,22 @@ impl App {
             sc_navigator: cfg.sc_navigator,
             sc_dir_tree: cfg.sc_dir_tree,
         }
+    }
+
+    ///Returns the path to the opened image directory, if it's not unable to do this it then
+    ///tries to return the users home, if this fail it just returns a default PathBuf
+    fn get_base_path(paths: &[PathBuf]) -> PathBuf {
+        if let Some(first_path) = paths.get(0) {
+            if let Some(parent) = first_path.parent() {
+                return parent.to_path_buf();
+            }
+        }
+
+        if let Some(user_dirs) = directories::UserDirs::new() {
+            return user_dirs.home_dir().to_path_buf();
+        }
+
+        PathBuf::default()
     }
 
     fn calc_frametime(&mut self) {
@@ -123,6 +138,8 @@ impl App {
             "Current: {}ms | Recent: {}ms | Longest: {}ms",
             self.current_frametime, self.longest_recent_frametime, self.longest_frametime
         ));
+
+        println!("{}", self.current_frametime);
     }
 
     //Maybe have gallery show this
@@ -217,16 +234,44 @@ impl App {
     fn new_images(&mut self, paths: &[PathBuf], selected_img: &Option<PathBuf>) {
         self.gallery.set_images(paths, selected_img);
         self.multi_gallery.set_images(paths);
-        self.navigator_search = self
-            .gallery
-            .get_active_img_path()
-            .unwrap_or_default()
-            .parent()
-            .unwrap_or(&PathBuf::default())
-            .to_str()
-            .unwrap_or_default()
-            .to_string();
+        self.base_path = Self::get_base_path(paths);
+        self.opened_image_path = selected_img.clone();
+        self.navigator_search = self.base_path.to_str().unwrap_or_default().to_string();
+
         Metadata::cache_metadata_for_images(paths);
+    }
+
+    //Some callbacks affect both collections so it's important
+    //to deal them in the base of the app
+    fn execute_callback(&mut self, callback: Callback) {
+        println!("Executing callback with {:?}", callback);
+        match callback {
+            Callback::Pop(path) => self.callback_pop(path),
+            Callback::Reload(path) => self.callback_reload(path),
+            Callback::ReloadAll => self.callback_reload_all(),
+            Callback::NoAction => {}
+        }
+    }
+
+    fn callback_pop(&mut self, path: Option<PathBuf>) {
+        if let Some(path) = path {
+            self.gallery.pop(&path);
+            self.multi_gallery.pop(&path);
+        }
+    }
+
+    fn callback_reload(&mut self, path: Option<PathBuf>) {
+        if let Some(path) = path {
+            self.gallery.reload_at(&path);
+            self.multi_gallery.reload_at(&path);
+        }
+    }
+
+    fn callback_reload_all(&mut self) {
+        self.new_images(
+            &crawler::crawl(&self.base_path.clone()),
+            &self.gallery.get_active_img_path(),
+        )
     }
 }
 
@@ -236,7 +281,7 @@ impl eframe::App for App {
         self.handle_input_muters(ctx);
         self.handle_input(ctx);
 
-        egui::TopBottomPanel::top("top_pannel")
+        egui::TopBottomPanel::top("performance_metrics")
             .show_separator_line(false)
             .show_animated(ctx, self.perf_metrics_visible, |ui| {
                 self.show_frametime(ui);
@@ -280,12 +325,21 @@ impl eframe::App for App {
 
         if self.multi_gallery_visible {
             self.multi_gallery.ui(ctx, &mut self.gallery_selected_index);
+
             if let Some(img_name) = self.multi_gallery.selected_image_name() {
                 self.gallery.select_by_name(img_name);
                 self.multi_gallery_visible = false;
             }
+
+            if let Some(callback) = self.multi_gallery.take_callback() {
+                self.execute_callback(callback);
+            }
         } else {
             self.gallery.ui(ctx);
+
+            if let Some(callback) = self.gallery.take_callback() {
+                self.execute_callback(callback);
+            }
         }
 
         self.calc_frametime();

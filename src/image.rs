@@ -176,6 +176,7 @@ impl Image {
         }
     }
 
+    ///Applies color conversion to the image
     pub fn apply_cc(
         color_profile_desc: &str,
         pixels: &mut [u8],
@@ -218,7 +219,7 @@ impl Image {
             }
         };
 
-        let input_profile = match qcms::Profile::new_from_slice(&input_icc_bytes) {
+        let input_profile = match qcms::Profile::new_from_slice(&input_icc_bytes, false) {
             Some(profile) => profile,
             None => {
                 println!("Failed constructing input qcms profile from icc data");
@@ -226,7 +227,7 @@ impl Image {
             }
         };
 
-        let mut output_profile = match qcms::Profile::new_from_slice(&output_icc_bytes) {
+        let mut output_profile = match qcms::Profile::new_from_slice(&output_icc_bytes, false) {
             Some(profile) => profile,
             None => {
                 println!("Failed constructing output qcms profile from icc data");

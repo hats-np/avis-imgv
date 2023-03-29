@@ -1,0 +1,3 @@
+{ 
+    "rust-analyzer.server.extraEnv": { "RUSTC_BOOTSTRAP": "qcms" } 
+}

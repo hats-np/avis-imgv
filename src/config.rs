@@ -2,7 +2,7 @@ use eframe::egui::{Key, KeyboardShortcut, Modifiers};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, path::PathBuf, vec};
 
-use crate::{APPLICATION, ORGANIZATION, QUALIFIER};
+use crate::{callback::Callback, APPLICATION, ORGANIZATION, QUALIFIER};
 
 const MOD_ALT: &str = "alt";
 const MOD_SHIFT: &str = "shift";
@@ -104,12 +104,14 @@ pub struct Shortcut {
 pub struct UserAction {
     pub shortcut: Shortcut,
     pub exec: String,
+    pub callback: Option<Callback>,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct ContextMenuEntry {
     pub description: String,
     pub exec: String,
+    pub callback: Option<Callback>,
 }
 
 impl Shortcut {
@@ -231,7 +233,8 @@ impl Config {
 
         let cfg = match serde_yaml::from_str(&config_yaml) {
             Ok(cfg) => cfg,
-            Err(_) => {
+            Err(e) => {
+                println!("{}", e);
                 println!("Failure parsing config yaml, using defaults");
                 Config::default()
             }
