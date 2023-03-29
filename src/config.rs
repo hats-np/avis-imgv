@@ -10,10 +10,15 @@ const MOD_CTRL: &str = "ctrl";
 const MOD_MAC_CMD: &str = "mac_cmd";
 const MOD_CMD: &str = "cmd";
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Default)]
 pub struct Config {
     pub gallery: GalleryConfig,
     pub multi_gallery: MultiGalleryConfig,
+    pub general: GeneralConfig,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct GeneralConfig {
     #[serde(default = "default_limit_cached")]
     pub limit_cached: u32,
     #[serde(default = "default_output_icc_profile")]
@@ -145,11 +150,9 @@ impl Shortcut {
     }
 }
 
-impl Default for Config {
+impl Default for GeneralConfig {
     fn default() -> Self {
-        Config {
-            gallery: GalleryConfig::default(),
-            multi_gallery: MultiGalleryConfig::default(),
+        GeneralConfig {
             limit_cached: default_limit_cached(),
             output_icc_profile: default_output_icc_profile(),
             text_scaling: default_text_scaling(),
@@ -245,11 +248,11 @@ impl Config {
 
         //This solution is quite verbose, would be nice to
         //automatically build the shortcut on deserialization.
-        self.sc_exit.build(&keys);
-        self.sc_toggle_gallery.build(&keys);
-        self.sc_menu.build(&keys);
-        self.sc_navigator.build(&keys);
-        self.sc_dir_tree.build(&keys);
+        self.general.sc_exit.build(&keys);
+        self.general.sc_toggle_gallery.build(&keys);
+        self.general.sc_menu.build(&keys);
+        self.general.sc_navigator.build(&keys);
+        self.general.sc_dir_tree.build(&keys);
 
         self.gallery.sc_fit.build(&keys);
         self.gallery.sc_frame.build(&keys);

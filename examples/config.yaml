@@ -93,24 +93,24 @@ multi_gallery:
       description: "Remove"
       callback: Pop
 
-
-limit_cached: 100000
-output_icc_profile: srgb
-text_scaling: 1.5
-sc_toggle_gallery:
-  key: escape
-  modifiers: []
-sc_exit:
-  key: q
-  modifiers:
-    - alt
-sc_menu:
-  key: F1
-  modifiers: []
-sc_navigator:
-  key: l
-  modifiers:
-  - ctrl
-sc_dir_tree:
-  key: t
-  modifiers: []
+general:
+  limit_cached: 100000
+  output_icc_profile: srgb
+  text_scaling: 1.5
+  sc_toggle_gallery:
+    key: escape
+    modifiers: []
+  sc_exit:
+    key: q
+    modifiers:
+      - alt
+  sc_menu:
+    key: F1
+    modifiers: []
+  sc_navigator:
+    key: l
+    modifiers:
+    - ctrl
+  sc_dir_tree:
+    key: t
+    modifiers: []

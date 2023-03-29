@@ -1,6 +1,6 @@
 use crate::{
     callback::Callback,
-    config::{Config, Shortcut},
+    config::{Config, GeneralConfig},
     crawler,
     db::Db,
     metadata::Metadata,
@@ -28,11 +28,7 @@ pub struct App {
     navigator_visible: bool,
     navigator_search: String,
     perf_metrics: PerfMetrics,
-    sc_toggle_gallery: Shortcut,
-    sc_exit: Shortcut,
-    sc_menu: Shortcut,
-    sc_navigator: Shortcut,
-    sc_dir_tree: Shortcut,
+    config: GeneralConfig,
 }
 
 impl App {
@@ -43,7 +39,7 @@ impl App {
         let mut style = (*cc.egui_ctx.style()).clone();
 
         for t_styles in style.text_styles.iter_mut() {
-            t_styles.1.size *= cfg.text_scaling;
+            t_styles.1.size *= cfg.general.text_scaling;
         }
 
         cc.egui_ctx.set_style(style);
@@ -53,7 +49,7 @@ impl App {
         match Db::init_db() {
             Ok(_) => {
                 println!("Database initiated successfully");
-                match Db::trim_db(&cfg.limit_cached) {
+                match Db::trim_db(&cfg.general.limit_cached) {
                     Ok(_) => Metadata::cache_metadata_for_images(&img_paths),
                     Err(e) => {
                         println!("Failure trimming db {}", e);
@@ -70,13 +66,13 @@ impl App {
                 &img_paths,
                 &opened_img_path,
                 cfg.gallery,
-                &cfg.output_icc_profile,
+                &cfg.general.output_icc_profile,
             ),
             gallery_selected_index: None,
             multi_gallery: MultiGallery::new(
                 &img_paths,
                 cfg.multi_gallery,
-                &cfg.output_icc_profile,
+                &cfg.general.output_icc_profile,
             ),
             perf_metrics_visible: false,
             multi_gallery_visible: false,
@@ -90,11 +86,7 @@ impl App {
                 .unwrap_or_default()
                 .to_string(),
             perf_metrics: PerfMetrics::new(),
-            sc_exit: cfg.sc_exit,
-            sc_toggle_gallery: cfg.sc_toggle_gallery,
-            sc_menu: cfg.sc_menu,
-            sc_navigator: cfg.sc_navigator,
-            sc_dir_tree: cfg.sc_dir_tree,
+            config: cfg.general,
         }
     }
 
@@ -116,7 +108,7 @@ impl App {
 
     //Maybe have gallery show this
     fn handle_input(&mut self, ctx: &egui::Context) {
-        if ctx.input_mut(|i| i.consume_shortcut(&self.sc_exit.kbd_shortcut)) {
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_exit.kbd_shortcut)) {
             std::process::exit(0);
         }
 
@@ -128,11 +120,11 @@ impl App {
             self.perf_metrics_visible = !self.perf_metrics_visible;
         }
 
-        if ctx.input_mut(|i| i.consume_shortcut(&self.sc_menu.kbd_shortcut)) {
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_menu.kbd_shortcut)) {
             self.top_menu_visible = !self.top_menu_visible;
         }
 
-        if ctx.input_mut(|i| i.consume_shortcut(&self.sc_toggle_gallery.kbd_shortcut)) {
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_toggle_gallery.kbd_shortcut)) {
             self.multi_gallery_visible = !self.multi_gallery_visible;
             self.gallery_selected_index = Some(self.gallery.selected_img_index);
         }
@@ -143,8 +135,14 @@ impl App {
     //trigger shortcuts
     fn handle_input_muters(&mut self, ctx: &egui::Context) {
         let to_check: Vec<(&mut bool, &KeyboardShortcut)> = vec![
-            (&mut self.navigator_visible, &self.sc_navigator.kbd_shortcut),
-            (&mut self.dir_tree_visible, &self.sc_dir_tree.kbd_shortcut),
+            (
+                &mut self.navigator_visible,
+                &self.config.sc_navigator.kbd_shortcut,
+            ),
+            (
+                &mut self.dir_tree_visible,
+                &self.config.sc_dir_tree.kbd_shortcut,
+            ),
         ];
 
         let is_muted = utils::are_inputs_muted(ctx);
