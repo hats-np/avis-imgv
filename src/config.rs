@@ -51,8 +51,6 @@ pub struct GalleryConfig {
     pub user_actions: Vec<UserAction>,
     #[serde(default = "default_ctx_menu")]
     pub context_menu: Vec<ContextMenuEntry>,
-    #[serde(default = "default_delete_cmd")]
-    pub delete_cmd: String,
 
     #[serde(default = "default_sc_fit")]
     pub sc_fit: Shortcut,
@@ -66,8 +64,6 @@ pub struct GalleryConfig {
     pub sc_next: Shortcut,
     #[serde(default = "default_sc_prev")]
     pub sc_prev: Shortcut,
-    #[serde(default = "default_sc_del")]
-    pub sc_del: Shortcut,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -177,7 +173,6 @@ impl Default for GalleryConfig {
             user_actions: default_user_actions(),
             context_menu: default_ctx_menu(),
             name_format: default_name_format(),
-            delete_cmd: default_delete_cmd(),
 
             sc_fit: default_sc_fit(),
             sc_frame: default_sc_frame(),
@@ -185,7 +180,6 @@ impl Default for GalleryConfig {
             sc_zoom: default_sc_zoom(),
             sc_next: default_sc_next(),
             sc_prev: default_sc_prev(),
-            sc_del: default_sc_del(),
         }
     }
 }
@@ -263,7 +257,6 @@ impl Config {
         self.gallery.sc_metadata.build(&keys);
         self.gallery.sc_next.build(&keys);
         self.gallery.sc_prev.build(&keys);
-        self.gallery.sc_del.build(&keys);
 
         for action in &mut self.gallery.user_actions {
             action.shortcut.build(&keys);
@@ -338,9 +331,6 @@ pub fn default_scroll_navigation() -> bool {
 pub fn default_name_format() -> String {
     "".to_string()
 }
-pub fn default_delete_cmd() -> String {
-    "rm {}".to_string()
-}
 pub fn default_user_actions() -> Vec<UserAction> {
     vec![]
 }
@@ -364,9 +354,6 @@ pub fn default_sc_next() -> Shortcut {
 }
 pub fn default_sc_prev() -> Shortcut {
     Shortcut::from("left", &[])
-}
-pub fn default_sc_del() -> Shortcut {
-    Shortcut::from("delete", &[])
 }
 
 //Multi Gallery
