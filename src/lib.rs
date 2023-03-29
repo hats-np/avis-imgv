@@ -15,6 +15,7 @@ pub mod thumbnail_image;
 pub mod tree;
 pub mod user_action;
 pub mod utils;
+pub mod perf_metrics;
 
 pub const QUALIFIER: &str = "com";
 pub const ORGANIZATION: &str = "avis-imgv";

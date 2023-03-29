@@ -6,12 +6,13 @@ use crate::{
     metadata::Metadata,
     multi_gallery::MultiGallery,
     navigator,
+    perf_metrics::PerfMetrics,
     single_gallery::SingleGallery,
     tree, utils, VALID_EXTENSIONS,
 };
 use eframe::egui::{self, KeyboardShortcut};
 use rfd::FileDialog;
-use std::{path::PathBuf, time::Instant};
+use std::path::PathBuf;
 
 pub struct App {
     gallery: SingleGallery,
@@ -26,10 +27,7 @@ pub struct App {
     opened_image_path: Option<PathBuf>,
     navigator_visible: bool,
     navigator_search: String,
-    start_of_frame: Instant,
-    longest_frametime: u128,
-    longest_recent_frametime: u128,
-    current_frametime: u128,
+    perf_metrics: PerfMetrics,
     sc_toggle_gallery: Shortcut,
     sc_exit: Shortcut,
     sc_menu: Shortcut,
@@ -91,10 +89,7 @@ impl App {
                 .to_str()
                 .unwrap_or_default()
                 .to_string(),
-            start_of_frame: Instant::now(),
-            longest_frametime: 0,
-            longest_recent_frametime: 0,
-            current_frametime: 0,
+            perf_metrics: PerfMetrics::new(),
             sc_exit: cfg.sc_exit,
             sc_toggle_gallery: cfg.sc_toggle_gallery,
             sc_menu: cfg.sc_menu,
@@ -117,29 +112,6 @@ impl App {
         }
 
         PathBuf::default()
-    }
-
-    fn calc_frametime(&mut self) {
-        let frametime = self.start_of_frame.elapsed().as_millis();
-
-        if frametime > self.longest_frametime {
-            self.longest_frametime = frametime;
-        }
-
-        if frametime > 0 {
-            self.longest_recent_frametime = frametime;
-        }
-
-        self.current_frametime = frametime;
-    }
-
-    fn show_frametime(&mut self, ui: &mut egui::Ui) {
-        ui.monospace(format!(
-            "Current: {}ms | Recent: {}ms | Longest: {}ms",
-            self.current_frametime, self.longest_recent_frametime, self.longest_frametime
-        ));
-
-        println!("{}", self.current_frametime);
     }
 
     //Maybe have gallery show this
@@ -280,14 +252,14 @@ impl App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        self.start_of_frame = Instant::now();
+        self.perf_metrics.new_frame();
         self.handle_input_muters(ctx);
         self.handle_input(ctx);
 
         egui::TopBottomPanel::top("performance_metrics")
             .show_separator_line(false)
             .show_animated(ctx, self.perf_metrics_visible, |ui| {
-                self.show_frametime(ui);
+                self.perf_metrics.display_metrics(ui);
                 ctx.texture_ui(ui);
             });
 
@@ -345,6 +317,6 @@ impl eframe::App for App {
             }
         }
 
-        self.calc_frametime();
+        self.perf_metrics.end_frame();
     }
 }
