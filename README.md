@@ -18,7 +18,7 @@ As of now it's only been tested in Linux but I don't see why it wouldn't work in
 
 With rust [installed](https://rustup.rs/) simply run:
 
-`RUSTC_BOOTSTRAP="qcms" cargo build --release`
+cargo build --release`
 
 To install look at the `install.sh` script and adapt it to your situation. It's still in a rudimentary state and untested in more systems.
 

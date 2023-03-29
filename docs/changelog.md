@@ -1,5 +1,25 @@
 # Change Log
 
+## 2023-03-29
+
+All config keys in the root of the file will need to be put under a "general" config. Please check the example configuration.
+"sc_del" and "delete_cmd" configs were removed as it's prefered to do it using a delete command plus a callback.
+
+### Added
+
+- User actions and Context Menus now can have callbacks. Currently 3 were implemented: Pop, Reload and ReloadAll.
+
+### Changed
+
+- Various bugfixes and adjustments.
+- qcms now pulls directly from its repo as the crate is outdated and requires rust bootstrap.
+
+
+
+---
+
+
+
 ## 2023-03-19
  
 Two new configuration entries were added, "sc_dir_tree".
