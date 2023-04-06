@@ -1,5 +1,5 @@
 use crate::db;
-use regex;
+use regex::{self, Regex};
 use std::{
     collections::HashMap,
     path::PathBuf,
@@ -232,17 +232,58 @@ impl Metadata {
         }
     }
 
-    pub fn format_string_with_metadata(
-        input: String,
-        metadata: &HashMap<String, String>,
-    ) -> String {
-        let mut input = input;
-        for (tag, value) in metadata {
-            if input.contains(tag) {
-                input = input.replace(&format!("#{}#", tag), value);
-            }
+    pub fn format_string_with_metadata(input: &str, metadata: &HashMap<String, String>) -> String {
+        let mut output = String::from(input);
+
+        let tag_regex = Regex::new("(\\$\\(([^\\(\\)]*#([\\w \\s]*)#[^\\(\\)]*)\\))").unwrap();
+
+        for cap_group in tag_regex.captures_iter(input) {
+            //Whole string including  $()
+            let expression = match cap_group.get(0) {
+                Some(m) => m.as_str(),
+                None => continue,
+            };
+
+            //Above sring without $()
+            let string_to_format = match cap_group.get(2) {
+                Some(m) => m.as_str(),
+                None => continue,
+            };
+
+            //Only the metadata key we need to replace
+            let metadata_tag = match cap_group.get(3) {
+                Some(m) => m.as_str(),
+                None => continue,
+            };
+
+            let to_replace = if let Some(metadata_value) = metadata.get(metadata_tag) {
+                string_to_format.replace(&format!("#{}#", metadata_tag), metadata_value)
+            } else {
+                "".to_string()
+            };
+
+            output = output.replace(expression, &to_replace);
         }
 
-        input
+        output
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_string_with_metadata() {
+        let input = "$(#File Name#)$( • ƒ#Aperture#)$( • #Shutter Speed#)$( • #ISO# ISO)";
+        let mut metadata: HashMap<String, String> = HashMap::new();
+        metadata.insert("File Name".to_string(), "test.jpg".to_string());
+        metadata.insert("Aperture".to_string(), "5.0".to_string());
+        metadata.insert("ISO".to_string(), "500".to_string());
+
+        assert_eq!(
+            Metadata::format_string_with_metadata(input, &metadata),
+            "test.jpg • ƒ5.0 • 500 ISO".to_string()
+        );
     }
 }

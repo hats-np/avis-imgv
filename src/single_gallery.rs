@@ -50,7 +50,9 @@ impl SingleGallery {
     }
 
     pub fn set_images(&mut self, image_paths: &[PathBuf], selected_image_path: &Option<PathBuf>) {
-        let imgs = GalleryImage::from_paths(image_paths, &self.output_profile);
+        let mut imgs = GalleryImage::from_paths(image_paths, &self.output_profile);
+
+        imgs.sort_by(|a, b| a.name.cmp(&b.name));
 
         self.imgs = imgs;
         self.selected_img_index = match selected_image_path {
@@ -319,7 +321,7 @@ impl SingleGallery {
                     let mut label = egui::Label::new(self.get_active_img_name());
                     label = label.wrap(true);
                     ui.add_sized(
-                        Vec2::new(ui.available_width() - 200., ui.available_height()),
+                        Vec2::new(ui.available_width() - 245., ui.available_height()),
                         label,
                     );
 
@@ -330,6 +332,13 @@ impl SingleGallery {
                                 Vec2::new(200., ui.available_height()),
                                 egui::Slider::new(&mut self.zoom_factor, 0.5..=10.0).text("🔎"),
                             );
+
+                            if let Some(img) = self.get_active_img() {
+                                ui.add_sized(
+                                    Vec2::new(45., ui.available_height()),
+                                    egui::Label::new(format!("{:.2}%", img.prev_percentage_zoom)),
+                                );
+                            }
                         },
                     )
                 });
@@ -348,23 +357,20 @@ impl SingleGallery {
             });
 
         let image_pannel_resp = egui::CentralPanel::default()
+            .frame(egui::Frame::none().fill(egui::Color32::from_rgb(119, 119, 119)))
             .show(ctx, |ui| {
-                egui::Frame::none()
-                    .fill(egui::Color32::from_rgb(119, 119, 119))
-                    .show(ui, |ui| {
-                        ui.centered_and_justified(|ui| {
-                            if !self.imgs.is_empty() {
-                                let img = &mut self.imgs[self.selected_img_index];
-                                img.ui(
-                                    ui,
-                                    &self.zoom_factor,
-                                    &mut self.scroll_delta,
-                                    &self.image_frame,
-                                    &self.config.frame_size_relative_to_image,
-                                );
-                            }
-                        });
-                    })
+                ui.centered_and_justified(|ui| {
+                    if !self.imgs.is_empty() {
+                        let img = &mut self.imgs[self.selected_img_index];
+                        img.ui(
+                            ui,
+                            &self.zoom_factor,
+                            &mut self.scroll_delta,
+                            &self.image_frame,
+                            &self.config.frame_size_relative_to_image,
+                        );
+                    }
+                });
             })
             .response;
 
@@ -430,18 +436,19 @@ impl SingleGallery {
         self.multiply_zoom(ctx.input(|i| i.zoom_delta()));
 
         for action in &self.config.user_actions {
-            if ctx.input_mut(|i| i.consume_shortcut(&action.shortcut.kbd_shortcut)) {
-                match self.get_active_img_path() {
-                    Some(path) => {
-                        if user_action::execute(&action.exec, &path) {
-                            if let Some(callback) = action.callback.to_owned() {
-                                self.callback =
-                                    Some(Callback::from_callback(callback, Some(path.to_owned())));
-                            }
-                        }
+            if !ctx.input_mut(|i| i.consume_shortcut(&action.shortcut.kbd_shortcut)) {
+                continue;
+            }
+
+            if let Some(path) = self.get_active_img_path() {
+                if user_action::execute(&action.exec, &path) {
+                    if let Some(callback) = action.callback.to_owned() {
+                        self.callback =
+                            Some(Callback::from_callback(callback, Some(path.to_owned())));
                     }
-                    None => println!("Unable to get active image path for user action"),
                 }
+            } else {
+                println!("Unable to get active image path for user action");
             }
         }
     }

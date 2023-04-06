@@ -15,6 +15,7 @@ pub struct GalleryImage {
     load_image_handle: Option<JoinHandle<Option<Image>>>,
     output_profile: String,
     display_metadata: Option<Vec<(String, String)>>,
+    pub prev_percentage_zoom: f32,
 }
 
 impl GalleryImage {
@@ -38,6 +39,7 @@ impl GalleryImage {
                 output_profile: output_profile.to_owned(),
                 display_metadata: None,
                 display_name: None,
+                prev_percentage_zoom: 0.,
             })
             .collect()
     }
@@ -68,23 +70,26 @@ impl GalleryImage {
             }
         };
 
-        let mut size = texture.size_vec2();
+        let original_size = texture.size_vec2();
+        let mut target_size = texture.size_vec2();
         let aspect_ratio = texture.aspect_ratio();
 
-        if ui.available_width() < size[0] {
-            size[0] = ui.available_width();
-            size[1] = size[0] / aspect_ratio;
+        if ui.available_width() < target_size[0] {
+            target_size[0] = ui.available_width();
+            target_size[1] = target_size[0] / aspect_ratio;
         }
 
-        if ui.available_height() < size[1] {
-            size[1] = ui.available_height();
-            size[0] = aspect_ratio * size[1];
+        if ui.available_height() < target_size[1] {
+            target_size[1] = ui.available_height();
+            target_size[0] = aspect_ratio * target_size[1];
         }
 
-        size[0] *= zoom_factor;
-        size[1] *= zoom_factor;
+        target_size[0] *= zoom_factor;
+        target_size[1] *= zoom_factor;
 
-        let mut display_size = size;
+        self.prev_percentage_zoom = target_size[0] * 100. / original_size[0];
+
+        let mut display_size = target_size;
 
         if display_size[0] > ui.available_width() {
             display_size[0] = ui.available_width();
@@ -99,16 +104,16 @@ impl GalleryImage {
             max: egui::Pos2 { x: 1.0, y: 1.0 },
         };
 
-        let out_bounds_y = size[1] - display_size[1];
+        let out_bounds_y = target_size[1] - display_size[1];
         if out_bounds_y > 0.0 {
-            let rect_offset_y = (1.0 - (display_size[1] / size[1])) / 2.0;
+            let rect_offset_y = (1.0 - (display_size[1] / target_size[1])) / 2.0;
             visible_rect.min.y = rect_offset_y;
             visible_rect.max.y = 1.0 - rect_offset_y;
         }
 
-        let out_bounds_x = size[0] - display_size[0];
+        let out_bounds_x = target_size[0] - display_size[0];
         if out_bounds_x > 0.0 {
-            let rect_offset_x = (1.0 - (display_size[0] / size[0])) / 2.0;
+            let rect_offset_x = (1.0 - (display_size[0] / target_size[0])) / 2.0;
             visible_rect.min.x = rect_offset_x;
             visible_rect.max.x = 1.0 - rect_offset_x;
         }
@@ -135,8 +140,10 @@ impl GalleryImage {
 
             let aspect_ratio = display_size[0] / display_size[1];
 
-            display_size[0] -= stroke * 2.;
-            display_size[1] -= (stroke / aspect_ratio) * 2.;
+            //Need to do some more debugging here, behaves differently when
+            //No titlebar is present
+            display_size[0] -= stroke * 1.7;
+            display_size[1] -= (stroke / aspect_ratio) * 1.7;
 
             let image = egui::Image::new(texture, display_size).uv(visible_rect);
 
@@ -242,7 +249,10 @@ impl GalleryImage {
     }
 
     pub fn unload(&mut self) {
-        println!("Unloading image -> {}", self.path.display());
+        if self.image.is_some() || self.load_image_handle.is_some() {
+            println!("Unloading image -> {}", self.path.display());
+        }
+
         self.image = None;
         self.load_image_handle = None;
     }
@@ -259,11 +269,9 @@ impl GalleryImage {
     }
 
     pub fn display_loading_frame(ui: &mut egui::Ui) {
-        let available_w = ui.available_width();
-        let available_h = ui.available_height();
         let spinner_size = ui.available_height() / 3.;
-        let inner_margin_y = (available_h - spinner_size) / 2.;
-        let inner_margin_x = (available_w - spinner_size) / 2.;
+        let inner_margin_y = (ui.available_height() - spinner_size) / 2.;
+        let inner_margin_x = (ui.available_width() - spinner_size) / 2.;
 
         egui::Frame::none()
             .inner_margin(egui::style::Margin {
@@ -272,32 +280,34 @@ impl GalleryImage {
                 top: inner_margin_y,
                 bottom: inner_margin_y,
             })
-            // .fill(egui::Color32::from_rgb(119, 119, 119))
             .show(ui, |ui| ui.add(egui::Spinner::new().size(spinner_size)));
     }
 
-    pub fn set_display_name(&mut self, format: String) {
-        if self.display_name.is_none() {
-            if let Some(img) = &self.image {
-                let mut display_name = self.name.clone();
-                display_name.push_str(&format);
+    pub fn set_display_name(&mut self, format: &str) -> String {
+        if format.is_empty() {
+            self.display_name = Some(self.name.clone());
 
-                self.display_name = Some(metadata::Metadata::format_string_with_metadata(
-                    display_name,
-                    &img.metadata,
-                ))
-            }
+            return self.name.clone();
+        }
+
+        if let Some(img) = &self.image {
+            let display_name =
+                metadata::Metadata::format_string_with_metadata(format, &img.metadata);
+
+            self.display_name = Some(display_name.clone());
+
+            display_name
+        } else {
+            self.display_name = Some(String::new());
+
+            String::new()
         }
     }
 
     pub fn get_display_name(&mut self, format: String) -> String {
-        //Implement a loading scheme like in multi gallery
-        //this way we can run these actions only once
-        self.set_display_name(format);
-
         match &self.display_name {
             Some(dn) => dn.clone(),
-            None => self.name.clone(),
+            None => self.set_display_name(&format),
         }
     }
 

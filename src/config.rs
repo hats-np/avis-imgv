@@ -332,7 +332,7 @@ pub fn default_scroll_navigation() -> bool {
     true
 }
 pub fn default_name_format() -> String {
-    "".to_string()
+    "$(#File Name#)$( • ƒ#Aperture#)$( • #Shutter Speed#)$( • #ISO# ISO)".to_string()
 }
 pub fn default_user_actions() -> Vec<UserAction> {
     vec![]

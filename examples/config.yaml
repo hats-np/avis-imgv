@@ -1,4 +1,5 @@
 gallery:
+  name_format: "$(#File Name#)$( • ƒ#Aperture#)$( • #Shutter Speed#)$( • #ISO# ISO)"
   nr_loaded_images: 5
   should_wait: true
   metadata_tags:
