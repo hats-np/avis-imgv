@@ -8,13 +8,14 @@ use crate::{
     navigator,
     perf_metrics::PerfMetrics,
     single_gallery::SingleGallery,
-    tree, utils, VALID_EXTENSIONS,
+    tree, utils, Order, VALID_EXTENSIONS,
 };
 use eframe::egui::{self, KeyboardShortcut};
 use rfd::FileDialog;
 use std::path::PathBuf;
 
 pub struct App {
+    paths: Vec<PathBuf>,
     gallery: SingleGallery,
     ///used when switching between galleries
     gallery_selected_index: Option<usize>,
@@ -24,11 +25,11 @@ pub struct App {
     top_menu_visible: bool,
     dir_tree_visible: bool,
     base_path: PathBuf,
-    opened_image_path: Option<PathBuf>,
     navigator_visible: bool,
     navigator_search: String,
     perf_metrics: PerfMetrics,
     config: GeneralConfig,
+    order: Order,
 }
 
 impl App {
@@ -44,7 +45,9 @@ impl App {
 
         cc.egui_ctx.set_style(style);
 
-        let (img_paths, opened_img_path) = crawler::paths_from_args();
+        let (mut img_paths, opened_img_path) = crawler::paths_from_args();
+
+        img_paths.sort();
 
         match Db::init_db() {
             Ok(_) => {
@@ -79,7 +82,6 @@ impl App {
             top_menu_visible: false,
             dir_tree_visible: false,
             base_path: Self::get_base_path(&img_paths),
-            opened_image_path: opened_img_path,
             navigator_visible: false,
             navigator_search: Self::get_base_path(&img_paths)
                 .to_str()
@@ -87,6 +89,8 @@ impl App {
                 .to_string(),
             perf_metrics: PerfMetrics::new(),
             config: cfg.general,
+            order: Order::Asc,
+            paths: img_paths,
         }
     }
 
@@ -170,7 +174,7 @@ impl App {
 
         if let Some(folder) = folder {
             let paths = crawler::crawl(&folder);
-            self.new_images(&paths, &None)
+            self.set_new_images(&paths, &None)
         }
     }
 
@@ -187,7 +191,7 @@ impl App {
         if let Some(files) = files {
             if let Some(parent) = &files[0].parent() {
                 let paths = crawler::crawl(parent);
-                self.new_images(&paths, &Some(files[0].clone()))
+                self.set_new_images(&paths, &Some(files[0].clone()))
             }
         }
     }
@@ -204,14 +208,37 @@ impl App {
         file_dialog
     }
 
-    fn new_images(&mut self, paths: &[PathBuf], selected_img: &Option<PathBuf>) {
-        self.gallery.set_images(paths, selected_img);
-        self.multi_gallery.set_images(paths);
-        self.base_path = Self::get_base_path(paths);
-        self.opened_image_path = selected_img.clone();
+    fn set_new_images(&mut self, paths: &[PathBuf], selected_img: &Option<PathBuf>) {
+        self.paths = paths.to_vec();
+        self.load_images(selected_img);
+    }
+
+    fn load_images(&mut self, selected_img: &Option<PathBuf>) {
+        self.gallery.set_images(&self.paths, selected_img);
+        self.multi_gallery.set_images(&self.paths);
+        self.base_path = Self::get_base_path(&self.paths);
         self.navigator_search = self.base_path.to_str().unwrap_or_default().to_string();
 
-        Metadata::cache_metadata_for_images(paths);
+        Metadata::cache_metadata_for_images(&self.paths);
+    }
+
+    fn sort_images(&mut self) {
+        self.paths.sort_by(|a, b| {
+            let first: &PathBuf;
+            let second: &PathBuf;
+
+            if self.order == Order::Asc {
+                first = a;
+                second = b;
+            } else {
+                first = b;
+                second = a;
+            }
+
+            first.cmp(second)
+        });
+
+        self.load_images(&None);
     }
 
     //Some callbacks affect both collections so it's important
@@ -241,15 +268,17 @@ impl App {
     }
 
     fn callback_reload_all(&mut self) {
-        self.new_images(
+        self.set_new_images(
             &crawler::crawl(&self.base_path),
             &self.gallery.get_active_img_path(),
-        )
+        );
     }
 }
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let mut order_changed = false;
+
         self.perf_metrics.new_frame();
         self.handle_input_muters(ctx);
         self.handle_input(ctx);
@@ -280,7 +309,7 @@ impl eframe::App for App {
         if self.navigator_visible && navigator::ui(&mut self.navigator_search, ctx) {
             self.navigator_visible = false;
             utils::set_mute_state(ctx, false);
-            self.new_images(
+            self.set_new_images(
                 &crawler::crawl(&PathBuf::from(&self.navigator_search)),
                 &None,
             );
@@ -291,7 +320,7 @@ impl eframe::App for App {
                 if let Some(path) = tree::ui(path.to_str().unwrap_or(""), ctx) {
                     self.dir_tree_visible = false;
                     utils::set_mute_state(ctx, false);
-                    self.new_images(&crawler::crawl(&path), &None);
+                    self.set_new_images(&crawler::crawl(&path), &None);
                 }
             }
         }
@@ -308,11 +337,15 @@ impl eframe::App for App {
                 self.execute_callback(callback);
             }
         } else {
-            self.gallery.ui(ctx);
+            self.gallery.ui(ctx, &mut self.order, &mut order_changed);
 
             if let Some(callback) = self.gallery.take_callback() {
                 self.execute_callback(callback);
             }
+        }
+
+        if order_changed {
+            self.sort_images();
         }
 
         self.perf_metrics.end_frame();

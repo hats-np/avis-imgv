@@ -5,8 +5,9 @@ use crate::{
     callback::Callback,
     config::GalleryConfig,
     gallery_image::GalleryImage,
+    no_icon,
     user_action::{self, show_context_menu},
-    utils,
+    utils, Order,
 };
 
 pub struct SingleGallery {
@@ -50,9 +51,7 @@ impl SingleGallery {
     }
 
     pub fn set_images(&mut self, image_paths: &[PathBuf], selected_image_path: &Option<PathBuf>) {
-        let mut imgs = GalleryImage::from_paths(image_paths, &self.output_profile);
-
-        imgs.sort_by(|a, b| a.name.cmp(&b.name));
+        let imgs = GalleryImage::from_paths(image_paths, &self.output_profile);
 
         self.imgs = imgs;
         self.selected_img_index = match selected_image_path {
@@ -291,7 +290,7 @@ impl SingleGallery {
         preload_nr * 2 <= image_count
     }
 
-    pub fn ui(&mut self, ctx: &egui::Context) {
+    pub fn ui(&mut self, ctx: &egui::Context, order: &mut Order, order_changed: &mut bool) {
         self.handle_input(ctx);
 
         egui::TopBottomPanel::bottom("gallery_bottom")
@@ -317,6 +316,19 @@ impl SingleGallery {
                             self.imgs.len()
                         )),
                     );
+
+                    egui::ComboBox::from_id_source("order_combo_box")
+                        .width(60.)
+                        .icon(no_icon)
+                        .selected_text(format!("{:?}", order))
+                        .show_ui(ui, |ui| {
+                            let orders = [(Order::Asc, "Asc"), (Order::Desc, "Desc")];
+                            for o in orders {
+                                if ui.selectable_value(order, o.0, o.1).clicked() {
+                                    *order_changed = true;
+                                }
+                            }
+                        });
 
                     let mut label = egui::Label::new(self.get_active_img_name());
                     label = label.wrap(true);
