@@ -298,8 +298,6 @@ impl GalleryImage {
 
             display_name
         } else {
-            self.display_name = Some(String::new());
-
             String::new()
         }
     }

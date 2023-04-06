@@ -91,6 +91,7 @@ should_wait | Should wait for image to finish loading before advancing to the ne
 metadata_tags | Metadata visible in the Image Information side pannel(when opened) | Date/Time Original, Created Date, Camera Model Name, Lens Model, Focal Length, Aperture Value, Exposure Time, ISO, Image Size, Color Space, Directory
 frame_size_relative_to_image | White frame size relative to smallest image side | 0.2
 scroll_navigation | Should scroll be used for navigation | true
+name_format | Format for file name in bottom bar. Uses `$(#exif_tag#)` expressions. If exif tag is not found the entire expression will be ignored. Ex: `$(#File Name#)$( • ƒ#Aperture#)$( • #Shutter Speed#)$( • #ISO# ISO)` -> `DSCF6114.JPG • ƒ5.6 • 1/500 • 200 ISO`
 
 ### Multi Gallery
 
@@ -126,7 +127,6 @@ Spacebar | Toggle Zoom
 Ctrl+Scroll | Zoom image
 Scroll | Next or Previous 
 Arrow Keys | Next or Previous
-
 
 ### Multi Gallery
 Key | Action
