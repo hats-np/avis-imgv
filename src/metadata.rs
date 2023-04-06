@@ -233,11 +233,11 @@ impl Metadata {
     }
 
     pub fn format_string_with_metadata(input: &str, metadata: &HashMap<String, String>) -> String {
-        let mut input = input.to_owned();
+        let mut output = String::from(input);
 
         let tag_regex = Regex::new("(\\$\\(([^\\(\\)]*#([\\w \\s]*)#[^\\(\\)]*)\\))").unwrap();
 
-        for cap_group in tag_regex.captures_iter(&input.to_owned()) {
+        for cap_group in tag_regex.captures_iter(input) {
             //Whole string including  $()
             let expression = match cap_group.get(0) {
                 Some(m) => m.as_str(),
@@ -257,15 +257,15 @@ impl Metadata {
             };
 
             let to_replace = if let Some(metadata_value) = metadata.get(metadata_tag) {
-                string_to_format.replace(&format!("#{}#", metadata_tag), &metadata_value)
+                string_to_format.replace(&format!("#{}#", metadata_tag), metadata_value)
             } else {
                 "".to_string()
             };
 
-            input = input.replace(expression, &to_replace);
+            output = output.replace(expression, &to_replace);
         }
 
-        input
+        output
     }
 }
 

@@ -284,6 +284,12 @@ impl GalleryImage {
     }
 
     pub fn set_display_name(&mut self, format: &str) -> String {
+        if format.is_empty() {
+            self.display_name = Some(self.name.clone());
+
+            return self.name.clone();
+        }
+
         if let Some(img) = &self.image {
             let display_name =
                 metadata::Metadata::format_string_with_metadata(format, &img.metadata);
@@ -292,6 +298,8 @@ impl GalleryImage {
 
             display_name
         } else {
+            self.display_name = Some(String::new());
+
             String::new()
         }
     }
