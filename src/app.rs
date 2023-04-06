@@ -210,6 +210,9 @@ impl App {
 
     fn set_new_images(&mut self, paths: &[PathBuf], selected_img: &Option<PathBuf>) {
         self.paths = paths.to_vec();
+
+        Metadata::cache_metadata_for_images(&self.paths);
+
         self.load_images(selected_img);
     }
 
@@ -218,8 +221,6 @@ impl App {
         self.multi_gallery.set_images(&self.paths);
         self.base_path = Self::get_base_path(&self.paths);
         self.navigator_search = self.base_path.to_str().unwrap_or_default().to_string();
-
-        Metadata::cache_metadata_for_images(&self.paths);
     }
 
     fn sort_images(&mut self) {
