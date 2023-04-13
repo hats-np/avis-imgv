@@ -18,9 +18,11 @@ As of now it's only been tested in Linux but I don't see why it wouldn't work in
 
 With rust [installed](https://rustup.rs/) simply run:
 
-cargo build --release`
+`cargo build --release`
 
-To install look at the `install.sh` script and adapt it to your situation. It's still in a rudimentary state and untested in more systems.
+## Install
+
+Take a look at the `install.sh` script. Works in most systems but might need to be adapted. It's still in a rudimentary state and untested in most systems. Linux only for now.
 
 ## Color Management
 
