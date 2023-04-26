@@ -3,40 +3,40 @@ gallery:
   nr_loaded_images: 5
   should_wait: true
   metadata_tags:
-  - Date/Time Original
-  - Created Date
-  - Camera Model Name
-  - Lens Model
-  - Focal Length
-  - Aperture Value
-  - Exposure Time
-  - ISO
-  - Image Size
-  - Color Space
-  - Directory
+    - Date/Time Original
+    - Created Date
+    - Camera Model Name
+    - Lens Model
+    - Focal Length
+    - Aperture Value
+    - Exposure Time
+    - ISO
+    - Image Size
+    - Color Space
+    - Directory
   frame_size_relative_to_image: 0.1
   scroll_navigation: true
   user_actions:
-    - exec: "gimp {}" 
+    - exec: "gimp {}"
       shortcut:
         key: 1
         modifiers:
           - alt
-    - exec: "rm {}" 
+    - exec: "rm {}"
       shortcut:
-        key: delete 
+        key: delete
         modifiers:
           - ctrl
       callback: Pop
-    - exec: 
+    - exec:
       shortcut:
         key: f6
-        modifiers: []
+        modifiers: [ ]
       callback: Reload
-    - exec: 
+    - exec:
       shortcut:
         key: f5
-        modifiers: []
+        modifiers: [ ]
       callback: ReloadAll
   context_menu:
     - exec: "gimp {}"
@@ -49,42 +49,41 @@ gallery:
   delete_cmd: "rm {}"
   sc_fit:
     key: f
-    modifiers: []
+    modifiers: [ ]
   sc_frame:
     key: g
-    modifiers: []
+    modifiers: [ ]
   sc_metadata:
     key: i
-    modifiers: []
+    modifiers: [ ]
   sc_zoom:
     key: space
-    modifiers: []
+    modifiers: [ ]
   sc_next:
     key: right
-    modifiers: []
+    modifiers: [ ]
   sc_prev:
     key: left
-    modifiers: []
-  sc_del:
-    key: delete
-    modifiers: []
-
+    modifiers: [ ]
+  sc_one_to_one:
+    key: 1
+    modifiers: [ ctrl ]
 
 
 multi_gallery:
   images_per_row: 5
   preloaded_rows: 2
-  simultaneous_load: 8 
+  simultaneous_load: 8
   margin_size: 10.0
   sc_scroll:
     key: space
-    modifiers: []
+    modifiers: [ ]
   sc_more_per_row:
     key: plus
-    modifiers: []
+    modifiers: [ ]
   sc_less_per_row:
     key: minus
-    modifiers: []
+    modifiers: [ ]
   context_menu:
     - exec: "gimp {}"
       description: "Open in GIMP"
@@ -100,18 +99,18 @@ general:
   text_scaling: 1.5
   sc_toggle_gallery:
     key: escape
-    modifiers: []
+    modifiers: [ ]
   sc_exit:
     key: q
     modifiers:
       - alt
   sc_menu:
     key: F1
-    modifiers: []
+    modifiers: [ ]
   sc_navigator:
     key: l
     modifiers:
-    - ctrl
+      - ctrl
   sc_dir_tree:
     key: t
-    modifiers: []
+    modifiers: [ ]

@@ -1,3 +1,4 @@
+use eframe::egui::Sense;
 use eframe::{egui, epaint::Vec2};
 use std::path::{Path, PathBuf};
 
@@ -9,6 +10,8 @@ use crate::{
     user_action::{self, show_context_menu},
     utils, Order,
 };
+
+pub const PERCENTAGES: &[f32] = &[200., 100., 75., 50., 25.];
 
 pub struct SingleGallery {
     imgs: Vec<GalleryImage>,
@@ -207,6 +210,22 @@ impl SingleGallery {
         }
     }
 
+    ///Sets zoom factor based on percentage and opened image size
+    pub fn set_zoom_factor_from_percentage(&mut self, percentage: &f32) {
+        let img = match self.get_active_img() {
+            Some(img) => img,
+            None => return,
+        };
+
+        let original_size = match img.image_size() {
+            Some(org_size) => org_size,
+            None => return,
+        };
+
+        self.zoom_factor = ((original_size[0] * percentage / 100.) * self.zoom_factor)
+            / (img.prev_target_size[0] * self.zoom_factor);
+    }
+
     pub fn get_active_img_nr(&mut self) -> usize {
         self.selected_img_index + 1
     }
@@ -346,10 +365,20 @@ impl SingleGallery {
                             );
 
                             if let Some(img) = self.get_active_img() {
-                                ui.add_sized(
+                                let resp = ui.add_sized(
                                     Vec2::new(45., ui.available_height()),
-                                    egui::Label::new(format!("{:.2}%", img.prev_percentage_zoom)),
+                                    egui::Label::new(format!("{:.1}%", img.prev_percentage_zoom))
+                                        .sense(Sense::click()),
                                 );
+
+                                resp.context_menu(|ui| {
+                                    for percentage in PERCENTAGES {
+                                        if ui.button(format!("{:.0}%", percentage)).clicked() {
+                                            self.set_zoom_factor_from_percentage(percentage);
+                                            ui.close_menu();
+                                        }
+                                    }
+                                });
                             }
                         },
                     )
@@ -443,6 +472,9 @@ impl SingleGallery {
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_prev.kbd_shortcut)) {
             self.previous_image();
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_one_to_one.kbd_shortcut)) {
+            self.set_zoom_factor_from_percentage(&100.);
         }
 
         self.multiply_zoom(ctx.input(|i| i.zoom_delta()));
