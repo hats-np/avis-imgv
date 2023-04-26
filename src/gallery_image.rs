@@ -50,7 +50,7 @@ impl GalleryImage {
     pub fn ui(
         &mut self,
         ui: &mut egui::Ui,
-        zoom_factor: &mut f32,
+        zoom_factor: &f32,
         scroll_delta: &mut Vec2,
         frame: &bool,
         frame_size_r: &f32,

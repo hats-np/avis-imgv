@@ -405,7 +405,7 @@ impl SingleGallery {
                         let img = &mut self.imgs[self.selected_img_index];
                         img.ui(
                             ui,
-                            &mut self.zoom_factor,
+                            &self.zoom_factor,
                             &mut self.scroll_delta,
                             &self.image_frame,
                             &self.config.frame_size_relative_to_image,
