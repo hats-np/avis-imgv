@@ -1,3 +1,5 @@
+[![Actions Status](https://github.com/hats-np/avis-imgv/blob/master/.github/workflows/rust.yml/badge.svg)]
+
 # avis-imgv
 
 avis-imgv is a fast, configurable and color managed image viewer built with Rust and [egui](https://github.com/emilk/egui). My goal was for it to be fast and to be able to adapt to any kind of hardware power through user configuration.
