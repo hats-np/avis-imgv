@@ -1,4 +1,4 @@
-[![Actions Status](https://github.com/hats-np/avis-imgv/blob/master/.github/workflows/rust.yml/badge.svg)]
+[![Build](https://github.com/hats-np/avis-imgv/actions/workflows/rust.yml/badge.svg)]
 
 # avis-imgv
 
