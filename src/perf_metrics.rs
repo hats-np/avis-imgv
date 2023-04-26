@@ -1,5 +1,4 @@
 use std::time::Instant;
-
 use eframe::egui;
 
 pub struct PerfMetrics {
