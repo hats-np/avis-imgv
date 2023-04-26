@@ -1,6 +1,6 @@
 use crate::image::Image;
 use crate::metadata;
-use eframe::egui::{self, RichText};
+use eframe::egui::{self, vec2, Rect, RichText};
 use eframe::epaint::{Pos2, Vec2};
 use std;
 use std::path::PathBuf;
@@ -16,6 +16,8 @@ pub struct GalleryImage {
     output_profile: String,
     display_metadata: Option<Vec<(String, String)>>,
     pub prev_percentage_zoom: f32,
+    ///prev target size before zoom
+    pub prev_target_size: Vec2,
 }
 
 impl GalleryImage {
@@ -40,6 +42,7 @@ impl GalleryImage {
                 display_metadata: None,
                 display_name: None,
                 prev_percentage_zoom: 0.,
+                prev_target_size: vec2(0., 0.),
             })
             .collect()
     }
@@ -47,7 +50,7 @@ impl GalleryImage {
     pub fn ui(
         &mut self,
         ui: &mut egui::Ui,
-        zoom_factor: &f32,
+        zoom_factor: &mut f32,
         scroll_delta: &mut Vec2,
         frame: &bool,
         frame_size_r: &f32,
@@ -74,6 +77,8 @@ impl GalleryImage {
         let mut target_size = texture.size_vec2();
         let aspect_ratio = texture.aspect_ratio();
 
+        //Fits image to available screen space, therefore images will never be cropped
+        //By default
         if ui.available_width() < target_size[0] {
             target_size[0] = ui.available_width();
             target_size[1] = target_size[0] / aspect_ratio;
@@ -84,9 +89,13 @@ impl GalleryImage {
             target_size[0] = aspect_ratio * target_size[1];
         }
 
-        target_size[0] *= zoom_factor;
-        target_size[1] *= zoom_factor;
+        self.prev_target_size = target_size;
 
+        //Scales image based on zoom
+        target_size[0] *= *zoom_factor;
+        target_size[1] *= *zoom_factor;
+
+        //Sets zoom percentage
         self.prev_percentage_zoom = target_size[0] * 100. / original_size[0];
 
         let mut display_size = target_size;
@@ -99,11 +108,13 @@ impl GalleryImage {
             display_size[1] = ui.available_height();
         }
 
-        let mut visible_rect = egui::Rect {
-            min: egui::Pos2 { x: 0.0, y: 0.0 },
-            max: egui::Pos2 { x: 1.0, y: 1.0 },
+        //Visible rect of the image (target_size)
+        let mut visible_rect = Rect {
+            min: Pos2 { x: 0.0, y: 0.0 },
+            max: Pos2 { x: 1.0, y: 1.0 },
         };
 
+        //Conform visible rect to display_size by cropping the image
         let out_bounds_y = target_size[1] - display_size[1];
         if out_bounds_y > 0.0 {
             let rect_offset_y = (1.0 - (display_size[1] / target_size[1])) / 2.0;
@@ -118,13 +129,9 @@ impl GalleryImage {
             visible_rect.max.x = 1.0 - rect_offset_x;
         }
 
-        let free_space = Pos2::new(
-            1.0 - (visible_rect.max.x - visible_rect.min.x),
-            1.0 - (visible_rect.max.y - visible_rect.min.y),
-        );
+        Self::update_scroll_pos(&mut self.scroll_pos, &visible_rect, scroll_delta);
 
-        Self::update_scroll_pos(&mut self.scroll_pos, free_space, scroll_delta);
-
+        //Move the visible rect based on the scroll position
         visible_rect.min.y += self.scroll_pos.y / 2.0;
         visible_rect.max.y += self.scroll_pos.y / 2.0;
         visible_rect.min.x += self.scroll_pos.x / 2.0;
@@ -141,7 +148,7 @@ impl GalleryImage {
             let aspect_ratio = display_size[0] / display_size[1];
 
             //Need to do some more debugging here, behaves differently when
-            //No titlebar is present
+            //No title bar is present
             display_size[0] -= stroke * 1.7;
             display_size[1] -= (stroke / aspect_ratio) * 1.7;
 
@@ -169,11 +176,13 @@ impl GalleryImage {
         }
     }
 
-    fn update_scroll_pos(
-        scroll_pos: &mut Pos2,
-        free_space: Pos2,
-        scroll_delta: &mut eframe::egui::Vec2,
-    ) {
+    ///If there is free space, the scroll position will be moved
+    fn update_scroll_pos(scroll_pos: &mut Pos2, visible_rect: &Rect, scroll_delta: &mut Vec2) {
+        let free_space = Pos2::new(
+            1.0 - (visible_rect.max.x - visible_rect.min.x),
+            1.0 - (visible_rect.max.y - visible_rect.min.y),
+        );
+
         //reverse scroll directions
         scroll_delta.x *= -1.0;
         scroll_delta.y *= -1.0;
@@ -246,6 +255,16 @@ impl GalleryImage {
             }
             None => {}
         }
+    }
+
+    pub fn image_size(&self) -> Option<Vec2> {
+        if let Some(img) = &self.image {
+            if let Some(texture) = &img.texture {
+                return Some(texture.size_vec2());
+            }
+        }
+
+        None
     }
 
     pub fn unload(&mut self) {

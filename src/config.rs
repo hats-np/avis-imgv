@@ -69,6 +69,8 @@ pub struct GalleryConfig {
     pub sc_next: Shortcut,
     #[serde(default = "default_sc_prev")]
     pub sc_prev: Shortcut,
+    #[serde(default = "default_sc_one_to_one")]
+    pub sc_one_to_one: Shortcut,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -183,6 +185,7 @@ impl Default for GalleryConfig {
             sc_zoom: default_sc_zoom(),
             sc_next: default_sc_next(),
             sc_prev: default_sc_prev(),
+            sc_one_to_one: default_sc_one_to_one(),
         }
     }
 }
@@ -260,6 +263,7 @@ impl Config {
         self.gallery.sc_metadata.build(&keys);
         self.gallery.sc_next.build(&keys);
         self.gallery.sc_prev.build(&keys);
+        self.gallery.sc_one_to_one.build(&keys);
 
         for action in &mut self.gallery.user_actions {
             action.shortcut.build(&keys);
@@ -357,6 +361,9 @@ pub fn default_sc_next() -> Shortcut {
 }
 pub fn default_sc_prev() -> Shortcut {
     Shortcut::from("left", &[])
+}
+pub fn default_sc_one_to_one() -> Shortcut {
+    Shortcut::from("1", &[MOD_CTRL])
 }
 
 //Multi Gallery
