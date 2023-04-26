@@ -226,6 +226,24 @@ impl SingleGallery {
             / (img.prev_target_size[0] * self.zoom_factor);
     }
 
+    pub fn fit_vertical(&mut self) {
+        let img = match self.get_active_img() {
+            Some(img) => img,
+            None => return,
+        };
+
+        self.zoom_factor = img.prev_available_size.y / img.prev_target_size.y;
+    }
+
+    pub fn fit_horizontal(&mut self) {
+        let img = match self.get_active_img() {
+            Some(img) => img,
+            None => return,
+        };
+
+        self.zoom_factor = img.prev_available_size.x / img.prev_target_size.x;
+    }
+
     pub fn get_active_img_nr(&mut self) -> usize {
         self.selected_img_index + 1
     }
@@ -372,6 +390,23 @@ impl SingleGallery {
                                 );
 
                                 resp.context_menu(|ui| {
+                                    if ui.button("Fit to screen").clicked() {
+                                        self.reset_zoom();
+                                        ui.close_menu();
+                                    }
+
+                                    if ui.button("Fit horizontal").clicked() {
+                                        self.fit_horizontal();
+                                        ui.close_menu();
+                                    }
+
+                                    if ui.button("Fit vertical").clicked() {
+                                        self.fit_vertical();
+                                        ui.close_menu();
+                                    }
+
+                                    ui.separator();
+
                                     for percentage in PERCENTAGES {
                                         if ui.button(format!("{:.0}%", percentage)).clicked() {
                                             self.set_zoom_factor_from_percentage(percentage);
@@ -475,6 +510,12 @@ impl SingleGallery {
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_one_to_one.kbd_shortcut)) {
             self.set_zoom_factor_from_percentage(&100.);
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_fit_horizontal.kbd_shortcut)) {
+            self.fit_horizontal();
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_fit_vertical.kbd_shortcut)) {
+            self.fit_vertical();
         }
 
         self.multiply_zoom(ctx.input(|i| i.zoom_delta()));

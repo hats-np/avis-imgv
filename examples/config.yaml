@@ -68,7 +68,12 @@ gallery:
   sc_one_to_one:
     key: 1
     modifiers: [ ctrl ]
-
+  sc_fit_vertical:
+    key: h
+    modifiers: [ ]
+  sc_fit_horizontal:
+    key: h
+    modifiers: [ ]
 
 multi_gallery:
   images_per_row: 5

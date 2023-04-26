@@ -143,11 +143,13 @@ modifiers.
 | F           | Fit image to screen                   |
 | G           | Toggle a white frame around the image |
 | I           | Display side tab with image metadata  |
-| Spacebar    | Toggle Zoom                           |
+| Space-bar   | Toggle Zoom                           |
 | Ctrl+Scroll | Zoom image                            |
 | Scroll      | Next or Previous                      |
 | Arrow Keys  | Next or Previous                      |
 | Ctrl + 1    | Set Magnification at 100%             |
+| H           | Fit Horizontal                        |
+| V           | Fit Vertical                          |
 
 ### Multi Gallery
 

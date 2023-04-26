@@ -16,6 +16,7 @@ pub struct GalleryImage {
     output_profile: String,
     display_metadata: Option<Vec<(String, String)>>,
     pub prev_percentage_zoom: f32,
+    pub prev_available_size: Vec2,
     ///prev target size before zoom
     pub prev_target_size: Vec2,
 }
@@ -42,6 +43,7 @@ impl GalleryImage {
                 display_metadata: None,
                 display_name: None,
                 prev_percentage_zoom: 0.,
+                prev_available_size: vec2(0., 0.),
                 prev_target_size: vec2(0., 0.),
             })
             .collect()
@@ -90,6 +92,7 @@ impl GalleryImage {
         }
 
         self.prev_target_size = target_size;
+        self.prev_available_size = ui.available_size();
 
         //Scales image based on zoom
         target_size[0] *= *zoom_factor;

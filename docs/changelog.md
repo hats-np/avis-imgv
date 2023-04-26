@@ -6,6 +6,8 @@
 
 - Right click menu for image magnification. Shortcut to set magnification as one to one (100%). Shortcut `sc_one_to_one`
   under `gallery`.
+- Right click menu on magnification now also has "fit to screen", "fit horizontal" and "fit vertical". Shortcut
+  `sc_fit_horizontal` and `sc_fit_vertical` under `gallery`.
 
 ## 2023-03-29
 
