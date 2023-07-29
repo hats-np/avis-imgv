@@ -4,8 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-#eframe = { version = "0.21.0" }
-eframe = { git = "https://github.com/emilk/egui.git" }
+eframe = { version = "0.22.0" }
 image = { version = "0.24.6", default-features = true }
 serde = { version = "1.0.152" }
 serde_yaml = { version = "0.9.17" }
@@ -14,5 +13,5 @@ directories = { version = "4.0.1" }
 qcms = { git = "https://github.com/FirefoxGraphics/qcms.git" }
 sqlite = { version = "0.30.4" }
 regex = { version = "1.7.1" }
-rfd = { version = "0.11.2" }
-fast_image_resize = { version = "2.6.0" }
+rfd = { version = "0.11.4" }
+fast_image_resize = { version = "2.7.3" }
