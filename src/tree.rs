@@ -52,7 +52,7 @@ impl Tree {
                 .position(|x| &x.path == parents.last().unwrap_or(&PathBuf::default()))
                 .unwrap_or(0),
             entries: tree_entries,
-            should_scroll: false,
+            should_scroll: true,
         }
     }
 
@@ -144,7 +144,7 @@ impl Tree {
             Err(_) => return vec![],
         };
 
-        dir_info
+        let mut entries = dir_info 
             .filter_map(|p| {
                 let path = match p {
                     Ok(p) => p,
@@ -173,7 +173,11 @@ impl Tree {
                     None
                 }
             })
-            .collect()
+            .collect::<Vec<TreeEntry>>();
+
+        entries.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+
+        entries
     }
 }
 
