@@ -3,18 +3,20 @@ use eframe::{
     epaint::{ColorImage, TextureHandle},
 };
 use image::{DynamicImage, RgbImage};
-use std::num::NonZeroU32;
 use std::{
     collections::HashMap,
     fs::File,
     io::Read,
-    path::PathBuf,
+    path::{PathBuf, Path},
     thread::{self, JoinHandle},
 };
+use std::{num::NonZeroU32, time::Instant};
+use zune_jpeg::JpegDecoder;
 
 use crate::{
     icc::profile_desc_to_icc,
     metadata::{self, Orientation, METADATA_ORIENTATION, METADATA_PROFILE_DESCRIPTION},
+    ZUNE_JPEG_TYPES,
 };
 
 use fast_image_resize as fir;
@@ -32,6 +34,12 @@ impl Image {
         output_icc_profile: String,
     ) -> JoinHandle<Option<Image>> {
         thread::spawn(move || {
+            let file_name = path
+                .file_name()
+                .unwrap_or(path.as_os_str())
+                .to_string_lossy();
+
+            let mut now = Instant::now();
             let mut f = match File::open(&path) {
                 Ok(f) => f,
                 Err(e) => {
@@ -44,27 +52,56 @@ impl Image {
             match f.read_to_end(&mut buffer) {
                 Ok(_) => {}
                 Err(e) => {
-                    println!("{}", e);
+                    println!("{} -> Error reading image into buffer: {}", file_name, e);
                     return None;
                 }
             }
 
-            let mut image = match image::load_from_memory(&buffer) {
-                Ok(img) => img,
-                Err(e) => {
-                    println!("{}", e);
-                    return None;
-                }
-            };
+            println!(
+                "{} -> Spent {}ms reading into buffer",
+                file_name,
+                now.elapsed().as_millis()
+            );
+            now = Instant::now();
+
+            let mut image = Self::decode(&buffer, &file_name, &path)?;
+
+            println!(
+                "{} -> Spent {}ms decoding",
+                file_name,
+                now.elapsed().as_millis()
+            );
+            now = Instant::now();
 
             if image_size.is_some() {
                 image = Self::resize(image, image_size);
             }
 
+            println!(
+                "{} -> Spent {}ms resizing",
+                file_name,
+                now.elapsed().as_millis()
+            );
+            now = Instant::now();
+
             let metadata =
                 metadata::Metadata::get_image_metadata(&path.to_string_lossy()).unwrap_or_default();
 
+            println!(
+                "{} -> Spent {}ms reading metadata",
+                file_name,
+                now.elapsed().as_millis()
+            );
+            now = Instant::now();
+
             image = Self::orient(image, &metadata);
+
+            println!(
+                "{} -> Spent {}ms orienting",
+                file_name,
+                now.elapsed().as_millis()
+            );
+            now = Instant::now();
 
             let size = [image.width() as _, image.height() as _];
             let mut flat_samples = image.into_rgb8().into_flat_samples();
@@ -74,12 +111,79 @@ impl Image {
                 Self::apply_cc(cpd, pixels, &path, &output_icc_profile);
             };
 
+            println!(
+                "{} -> Spent {}ms applying CC",
+                file_name,
+                now.elapsed().as_millis()
+            );
+
             Some(Image {
                 color_image: Some(ColorImage::from_rgb(size, pixels)),
                 texture: None,
                 metadata,
             })
         })
+    }
+
+    pub fn decode(buffer: &[u8], file_name: &str, path: &Path) -> Option<DynamicImage> {
+        let extension = path.extension()?.to_string_lossy().to_lowercase();
+
+        //This is only temporary until zune decoders get merged into rust image crate
+        //The speed difference is worth the trouble here since it can be twice as fast
+        //https://github.com/image-rs/image/issues/1845
+        //https://github.com/image-rs/image/issues/1852
+        if ZUNE_JPEG_TYPES.contains(&extension.as_str()) {
+            let (width, height);
+            let mut decoder = JpegDecoder::new(buffer);
+            match decoder.decode_headers() {
+                Ok(_) => {}
+                Err(e) => {
+                    println!("{} -> Error decoding image headers: {}", file_name, e);
+                    return None;
+                }
+            }
+
+            let image_info = match decoder.info() {
+                Some(image_info) => image_info,
+                None => {
+                    println!(
+                        "{} -> No image info found, therefore can't fetch width and height",
+                        file_name
+                    );
+                    return None;
+                }
+            };
+
+            width = image_info.width as u32;
+            height = image_info.height as u32;
+
+            let pixels = match decoder.decode() {
+                Ok(decoded_image) => decoded_image,
+                Err(e) => {
+                    println!("{} -> Error decoding image: {}", file_name, e);
+                    return None;
+                }
+            };
+
+            match RgbImage::from_raw(width, height, pixels) {
+                Some(rgb_image) => Some(DynamicImage::from(rgb_image)),
+                None => {
+                    println!(
+                        "{} -> Failure building rgb image from raw pixels",
+                        file_name
+                    );
+                    None
+                }
+            }
+        } else {
+            match image::load_from_memory(buffer) {
+                Ok(img) => Some(img),
+                Err(e) => {
+                    println!("{} -> Failure decoding image: {}", file_name, e);
+                    None
+                }
+            }
+        }
     }
 
     pub fn resize(img: DynamicImage, target_size: Option<u32>) -> DynamicImage {

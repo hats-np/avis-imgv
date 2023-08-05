@@ -272,7 +272,7 @@ impl GalleryImage {
 
     pub fn unload(&mut self) {
         if self.image.is_some() || self.load_image_handle.is_some() {
-            println!("Unloading image -> {}", self.path.display());
+            println!("{} -> Unloading image", self.name);
         }
 
         self.image = None;
@@ -281,7 +281,7 @@ impl GalleryImage {
 
     pub fn load(&mut self) {
         if self.load_image_handle.is_none() && self.image.is_none() {
-            println!("Loading image -> {}", self.path.display());
+            println!("{} -> Loading image", self.name);
             self.load_image_handle = Some(Image::load(
                 self.path.clone(),
                 None,

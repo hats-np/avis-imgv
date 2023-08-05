@@ -24,6 +24,7 @@ pub const ORGANIZATION: &str = "avis-imgv";
 pub const APPLICATION: &str = "avis-imgv";
 
 pub const VALID_EXTENSIONS: &[&str] = &["jpg", "png", "jpeg", "webp", "gif", "bmp", "tiff"];
+pub const ZUNE_JPEG_TYPES: &[&str] = &["jpg",  "jpeg"];
 
 #[derive(PartialEq, Debug)]
 pub enum Order {
