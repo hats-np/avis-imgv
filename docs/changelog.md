@@ -3,6 +3,7 @@
 ## 2023-09-32
 
 - Added the ability to flatten the open directory, reading all files from subdirectories. Shortcut `sc_flatten_dir` under general.
+- Allow to sort by random.
 
 ## 2023-04-26
 
