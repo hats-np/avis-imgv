@@ -28,7 +28,7 @@ pub fn paths_from_args() -> (Vec<PathBuf>, Option<PathBuf>) {
                 path = current_dir.join(path.strip_prefix(PathBuf::from(".")).unwrap_or(&path));
             }
 
-            let paths = crawl(&path);
+            let paths = crawl(&path, false);
             return (paths, None);
         }
 
@@ -41,7 +41,7 @@ pub fn paths_from_args() -> (Vec<PathBuf>, Option<PathBuf>) {
             None => return (vec![path], None),
         };
 
-        let paths = crawl(parent);
+        let paths = crawl(parent, false);
         return (paths, Some(path));
     }
 
@@ -59,39 +59,53 @@ pub fn paths_from_args() -> (Vec<PathBuf>, Option<PathBuf>) {
     (paths, None)
 }
 
-pub fn crawl(path: &Path) -> Vec<PathBuf> {
+pub fn crawl(path: &Path, flatten: bool) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = Vec::new();
 
-    let dir_info = match fs::read_dir(path) {
-        Ok(dir_info) => dir_info,
-        Err(e) => {
-            println!("Failure reading directory -> {}", e);
-            return files;
-        }
-    };
+    let mut paths_to_check: Vec<PathBuf> = vec![path.to_path_buf()];
 
-    for file in dir_info {
-        match file {
-            Ok(f) => {
-                let path = f.path();
-                if !VALID_EXTENSIONS.contains(
-                    &path
-                        .extension()
-                        .unwrap_or_default()
-                        .to_str()
-                        .unwrap_or("")
-                        .to_lowercase()
-                        .as_str(),
-                ) {
-                    continue;
-                }
-                files.push(path);
-            }
+    loop {
+        if paths_to_check.is_empty() {
+            break;
+        }
+
+        //safe since we checked if the vec is empty
+        let current_path = paths_to_check.pop().unwrap();
+        let dir_info = match fs::read_dir(current_path) {
+            Ok(dir_info) => dir_info,
             Err(e) => {
-                println!("Failure reading file info -> {}", e);
-                continue;
+                println!("Failure reading directory -> {}", e);
+                return files;
             }
         };
+
+        for file in dir_info {
+            match file {
+                Ok(f) => {
+                    let path = f.path();
+
+                    if flatten && path.is_dir () {
+                        paths_to_check.push(f.path());
+                        continue;
+                    } else if VALID_EXTENSIONS.contains(
+                        &path
+                            .extension()
+                            .unwrap_or_default()
+                            .to_str()
+                            .unwrap_or("")
+                            .to_lowercase()
+                            .as_str()
+                    ) {
+                        files.push(path);
+                        continue;
+                    }
+                }
+                Err(e) => {
+                    println!("Failure reading file info -> {}", e);
+                    continue;
+                }
+            };
+        }
     }
 
     files

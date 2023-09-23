@@ -36,6 +36,8 @@ pub struct GeneralConfig {
     pub sc_navigator: Shortcut,
     #[serde(default = "default_sc_dir_tree")]
     pub sc_dir_tree: Shortcut,
+    #[serde(default = "default_sc_flatten_dir")]
+    pub sc_flatten_dir: Shortcut,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -167,6 +169,7 @@ impl Default for GeneralConfig {
             sc_menu: default_sc_menu(),
             sc_navigator: default_sc_navigator(),
             sc_dir_tree: default_sc_dir_tree(),
+            sc_flatten_dir: default_sc_flatten_dir(),
         }
     }
 }
@@ -262,6 +265,7 @@ impl Config {
         self.general.sc_menu.build(&keys);
         self.general.sc_navigator.build(&keys);
         self.general.sc_dir_tree.build(&keys);
+        self.general.sc_flatten_dir.build(&keys);
 
         self.gallery.sc_fit.build(&keys);
         self.gallery.sc_frame.build(&keys);
@@ -313,6 +317,10 @@ pub fn default_sc_navigator() -> Shortcut {
 
 pub fn default_sc_dir_tree() -> Shortcut {
     Shortcut::from("t", &[])
+}
+
+pub fn default_sc_flatten_dir() -> Shortcut {
+    Shortcut::from("f", &[MOD_CTRL])
 }
 
 //Gallery
@@ -371,7 +379,7 @@ pub fn default_sc_prev() -> Shortcut {
     Shortcut::from("left", &[])
 }
 pub fn default_sc_one_to_one() -> Shortcut {
-    Shortcut::from("1", &[MOD_CTRL])
+    Shortcut::from("1", &[MOD_ALT])
 }
 pub fn default_sc_fit_vertical() -> Shortcut {
     Shortcut::from("v", &[])

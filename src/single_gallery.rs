@@ -355,11 +355,15 @@ impl SingleGallery {
                     );
 
                     egui::ComboBox::from_id_source("order_combo_box")
-                        .width(60.)
+                        .width(90.)
                         .icon(no_icon)
                         .selected_text(format!("{:?}", order))
                         .show_ui(ui, |ui| {
-                            let orders = [(Order::Asc, "Asc"), (Order::Desc, "Desc")];
+                            let orders = [
+                                (Order::Asc, "Asc"),
+                                (Order::Desc, "Desc"),
+                                (Order::Random, "Random"),
+                            ];
                             for o in orders {
                                 if ui.selectable_value(order, o.0, o.1).clicked() {
                                     *order_changed = true;

@@ -1,4 +1,4 @@
-if ! RUSTFLAGS="-Ctarget-cpu=native" cargo build --release ; then
+if ! RUSTFLAGS="-C target-cpu=native" cargo build --release ; then
     echo "Build failed -> exiting"
     exit
 fi

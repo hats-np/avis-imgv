@@ -30,6 +30,7 @@ pub const ZUNE_JPEG_TYPES: &[&str] = &["jpg",  "jpeg"];
 pub enum Order {
     Asc,
     Desc,
+    Random
 }
 
 pub fn no_icon(

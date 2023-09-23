@@ -147,9 +147,10 @@ modifiers.
 | Ctrl+Scroll | Zoom image                            |
 | Scroll      | Next or Previous                      |
 | Arrow Keys  | Next or Previous                      |
-| Ctrl + 1    | Set Magnification at 100%             |
+| Alt + 1     | Set Magnification at 100%             |
 | H           | Fit Horizontal                        |
 | V           | Fit Vertical                          |
+| Ctrl + F    | Flatten (read files from all sub dirs)|
 
 ### Multi Gallery
 

@@ -12,7 +12,9 @@ use crate::{
 };
 use eframe::egui::{self, KeyboardShortcut};
 use rfd::FileDialog;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 
 pub struct App {
     paths: Vec<PathBuf>,
@@ -25,8 +27,9 @@ pub struct App {
     top_menu_visible: bool,
     dir_tree_visible: bool,
     base_path: PathBuf,
+    dir_flattened: bool, //Fetches images for all subdirectories recursively
     navigator_visible: bool,
-    navigator_search: String,
+    navigator_search: String, //TODO: Investigate why this exists in the app struct
     perf_metrics: PerfMetrics,
     config: GeneralConfig,
     order: Order,
@@ -81,6 +84,7 @@ impl App {
             multi_gallery_visible: false,
             top_menu_visible: false,
             dir_tree_visible: false,
+            dir_flattened: false,
             base_path: Self::get_base_path(&img_paths),
             navigator_visible: false,
             navigator_search: Self::get_base_path(&img_paths)
@@ -132,6 +136,10 @@ impl App {
             self.multi_gallery_visible = !self.multi_gallery_visible;
             self.gallery_selected_index = Some(self.gallery.selected_img_index);
         }
+
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_flatten_dir.kbd_shortcut)) {
+            self.flatten_open_dir();
+        }
     }
 
     //Muter inputs will block all other inputs
@@ -173,8 +181,7 @@ impl App {
         let folder = self.get_file_dialog().pick_folder();
 
         if let Some(folder) = folder {
-            let paths = crawler::crawl(&folder);
-            self.set_new_images(&paths, &None)
+            self.set_images_from_path(&folder, &None)
         }
     }
 
@@ -190,8 +197,7 @@ impl App {
 
         if let Some(files) = files {
             if let Some(parent) = &files[0].parent() {
-                let paths = crawler::crawl(parent);
-                self.set_new_images(&paths, &Some(files[0].clone()))
+                self.set_images_from_path(&parent, &Some(files[0].clone()))
             }
         }
     }
@@ -208,38 +214,53 @@ impl App {
         file_dialog
     }
 
-    fn set_new_images(&mut self, paths: &[PathBuf], selected_img: &Option<PathBuf>) {
-        self.paths = paths.to_vec();
+    //Will crawl, assumes new directory
+    fn set_images_from_path(&mut self, path: &Path, selected_img: &Option<PathBuf>) {
+        self.paths = crawler::crawl(path, self.dir_flattened);
 
         Metadata::cache_metadata_for_images(&self.paths);
 
-        self.load_images(selected_img);
+        self.load_images(selected_img, true);
     }
 
-    fn load_images(&mut self, selected_img: &Option<PathBuf>) {
+    fn load_images(&mut self, selected_img: &Option<PathBuf>, new_dir_opened: bool) {
         self.gallery.set_images(&self.paths, selected_img);
         self.multi_gallery.set_images(&self.paths);
-        self.base_path = Self::get_base_path(&self.paths);
-        self.navigator_search = self.base_path.to_str().unwrap_or_default().to_string();
+
+        if new_dir_opened {
+            self.base_path = Self::get_base_path(&self.paths);
+            self.navigator_search = self.base_path.to_str().unwrap_or_default().to_string();
+        }
     }
 
     fn sort_images(&mut self) {
-        self.paths.sort_by(|a, b| {
-            let first: &PathBuf;
-            let second: &PathBuf;
+        if self.order == Order::Random {
+            self.paths.shuffle(&mut thread_rng());
+        } else {
+            self.paths.sort_by(|a, b| {
+                let first: &PathBuf;
+                let second: &PathBuf;
 
-            if self.order == Order::Asc {
-                first = a;
-                second = b;
-            } else {
-                first = b;
-                second = a;
-            }
+                if self.order == Order::Asc {
+                    first = a;
+                    second = b;
+                } else {
+                    first = b;
+                    second = a;
+                }
 
-            first.cmp(second)
-        });
+                first.cmp(second)
+            });
+        }
 
-        self.load_images(&None);
+        self.load_images(&None, false);
+    }
+
+    fn flatten_open_dir(&mut self) {
+        println!("Flattening open directory");
+
+        self.dir_flattened = true;
+        self.set_images_from_path(&self.base_path.clone(), &self.gallery.get_active_img_path());
     }
 
     //Some callbacks affect both collections so it's important
@@ -269,10 +290,7 @@ impl App {
     }
 
     fn callback_reload_all(&mut self) {
-        self.set_new_images(
-            &crawler::crawl(&self.base_path),
-            &self.gallery.get_active_img_path(),
-        );
+        self.set_images_from_path(&self.base_path.clone(), &self.gallery.get_active_img_path());
     }
 }
 
@@ -310,10 +328,7 @@ impl eframe::App for App {
         if self.navigator_visible && navigator::ui(&mut self.navigator_search, ctx) {
             self.navigator_visible = false;
             utils::set_mute_state(ctx, false);
-            self.set_new_images(
-                &crawler::crawl(&PathBuf::from(&self.navigator_search)),
-                &None,
-            );
+            self.set_images_from_path(&PathBuf::from(self.navigator_search.clone()), &None);
         }
 
         if self.dir_tree_visible {
@@ -321,7 +336,7 @@ impl eframe::App for App {
                 if let Some(path) = tree::ui(path.to_str().unwrap_or(""), ctx) {
                     self.dir_tree_visible = false;
                     utils::set_mute_state(ctx, false);
-                    self.set_new_images(&crawler::crawl(&path), &None);
+                    self.set_images_from_path(&path, &None);
                 }
             }
         }
