@@ -38,6 +38,8 @@ pub struct GeneralConfig {
     pub sc_dir_tree: Shortcut,
     #[serde(default = "default_sc_flatten_dir")]
     pub sc_flatten_dir: Shortcut,
+    #[serde(default = "default_sc_watcher_enabled")]
+    pub sc_watcher_enabled: Shortcut,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -170,6 +172,7 @@ impl Default for GeneralConfig {
             sc_navigator: default_sc_navigator(),
             sc_dir_tree: default_sc_dir_tree(),
             sc_flatten_dir: default_sc_flatten_dir(),
+            sc_watcher_enabled: default_sc_watcher_enabled(),
         }
     }
 }
@@ -266,6 +269,7 @@ impl Config {
         self.general.sc_navigator.build(&keys);
         self.general.sc_dir_tree.build(&keys);
         self.general.sc_flatten_dir.build(&keys);
+        self.general.sc_watcher_enabled.build(&keys);
 
         self.gallery.sc_fit.build(&keys);
         self.gallery.sc_frame.build(&keys);
@@ -321,6 +325,10 @@ pub fn default_sc_dir_tree() -> Shortcut {
 
 pub fn default_sc_flatten_dir() -> Shortcut {
     Shortcut::from("f", &[MOD_CTRL])
+}
+
+pub fn default_sc_watcher_enabled() -> Shortcut {
+    Shortcut::from("w", &[MOD_CTRL])
 }
 
 //Gallery

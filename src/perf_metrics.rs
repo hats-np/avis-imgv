@@ -1,5 +1,5 @@
-use std::time::Instant;
 use eframe::egui;
+use std::time::Instant;
 
 pub struct PerfMetrics {
     start_of_frame: Instant,

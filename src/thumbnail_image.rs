@@ -94,14 +94,15 @@ impl ThumbnailImage {
             .outer_margin(outer_margin)
             .fill(egui::Color32::from_rgb(119, 119, 119))
             .show(ui, |ui| {
-                let img_response = ui.add(egui::Image::new(texture, [size[0], size[1]]).sense(
-                    egui::Sense {
-                        click: (true),
-                        drag: (true),
-                        focusable: (true),
-                    },
-                ))
-                .on_hover_text(&self.name);
+                let img_response = ui
+                    .add(
+                        egui::Image::new(texture, [size[0], size[1]]).sense(egui::Sense {
+                            click: (true),
+                            drag: (true),
+                            focusable: (true),
+                        }),
+                    )
+                    .on_hover_text(&self.name);
 
                 response = Some(img_response)
             });

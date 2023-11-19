@@ -11,10 +11,15 @@ use crate::{
     tree, utils, Order, VALID_EXTENSIONS,
 };
 use eframe::egui::{self, KeyboardShortcut};
-use rfd::FileDialog;
-use std::path::{Path, PathBuf};
+use notify::{Event, INotifyWatcher, RecursiveMode, Watcher};
 use rand::seq::SliceRandom;
 use rand::thread_rng;
+use rfd::FileDialog;
+use std::{
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+    time::SystemTime,
+};
 
 pub struct App {
     paths: Vec<PathBuf>,
@@ -33,6 +38,8 @@ pub struct App {
     perf_metrics: PerfMetrics,
     config: GeneralConfig,
     order: Order,
+    watcher: Option<INotifyWatcher>,
+    watcher_events: Arc<Mutex<Vec<Event>>>,
 }
 
 impl App {
@@ -50,6 +57,8 @@ impl App {
 
         let (mut img_paths, opened_img_path) = crawler::paths_from_args();
 
+        //TODO: Implement a default ordering
+        Self::sort_images(&mut img_paths, &Order::DateDesc);
         img_paths.sort();
 
         match Db::init_db() {
@@ -95,6 +104,8 @@ impl App {
             config: cfg.general,
             order: Order::Asc,
             paths: img_paths,
+            watcher: None,
+            watcher_events: Arc::new(Mutex::new(vec![])),
         }
     }
 
@@ -139,6 +150,10 @@ impl App {
 
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_flatten_dir.kbd_shortcut)) {
             self.flatten_open_dir();
+        }
+
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_watcher_enabled.kbd_shortcut)) {
+            self.enable_watcher();
         }
     }
 
@@ -197,7 +212,7 @@ impl App {
 
         if let Some(files) = files {
             if let Some(parent) = &files[0].parent() {
-                self.set_images_from_path(&parent, &Some(files[0].clone()))
+                self.set_images_from_path(parent, &Some(files[0].clone()))
             }
         }
     }
@@ -217,9 +232,24 @@ impl App {
     //Will crawl, assumes new directory
     fn set_images_from_path(&mut self, path: &Path, selected_img: &Option<PathBuf>) {
         self.paths = crawler::crawl(path, self.dir_flattened);
+        Self::sort_images(&mut self.paths, &self.order);
+        self.set_images(selected_img);
+    }
 
+    fn set_images_from_path_reset_index(&mut self, path: &Path, requires_new: bool) {
+        let new_paths = crawler::crawl(path, self.dir_flattened);
+
+        if requires_new && new_paths.iter().all(|x| self.paths.contains(x)) {
+            return;
+        }
+        println!("new file in dir, loading");
+        self.paths = new_paths;
+        Self::sort_images(&mut self.paths, &self.order);
+        self.set_images(&Some(self.paths[0].clone()));
+    }
+
+    fn set_images(&mut self, selected_img: &Option<PathBuf>) {
         Metadata::cache_metadata_for_images(&self.paths);
-
         self.load_images(selected_img, true);
     }
 
@@ -233,29 +263,115 @@ impl App {
         }
     }
 
-    fn sort_images(&mut self) {
-        if self.order == Order::Random {
-            self.paths.shuffle(&mut thread_rng());
-        } else {
-            self.paths.sort_by(|a, b| {
-                let first: &PathBuf;
-                let second: &PathBuf;
+    //TODO: Fix order by date/etc/validate everything
+    fn sort_images(paths: &mut [PathBuf], order: &Order) {
+        println!("sorting images...");
+        for path in paths.iter() {
+            println!("{}", path.display());
+        }
 
-                if self.order == Order::Asc {
-                    first = a;
-                    second = b;
+        if order == &Order::Random {
+            paths.shuffle(&mut thread_rng());
+        } else if order == &Order::Asc || order == &Order::Desc {
+            paths.sort_by(|a, b| {
+                let first: String;
+                let second: String;
+
+                if order == &Order::Asc {
+                    first = a.file_name().unwrap().to_string_lossy().to_string();
+                    second = b.file_name().unwrap().to_string_lossy().to_string();
                 } else {
-                    first = b;
-                    second = a;
+                    first = b.file_name().unwrap().to_string_lossy().to_string();
+                    second = a.file_name().unwrap().to_string_lossy().to_string();
                 }
 
-                first.cmp(second)
+                first.cmp(&second)
+            });
+        } else if order == &Order::DateAsc || order == &Order::DateDesc {
+            paths.sort_by(|a, b| {
+                let first: SystemTime;
+                let second: SystemTime;
+
+                if order == &Order::DateAsc {
+                    first = a.metadata().unwrap().modified().unwrap();
+                    second = b.metadata().unwrap().modified().unwrap();
+                } else {
+                    first = b.metadata().unwrap().modified().unwrap();
+                    second = a.metadata().unwrap().modified().unwrap();
+                }
+
+                first
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+                    .cmp(
+                        &second
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs(),
+                    )
             });
         }
 
-        self.load_images(&None, false);
+        for path in paths.iter() {
+            println!("{}", path.display());
+        }
     }
 
+    fn enable_watcher(&mut self) {
+        //TODO
+        /*if self.dir_flattened {
+            println!("Cannot enable watcher when dir is flattened");
+        }*/
+
+        println!("Enabling watcher at {:?}", self.base_path);
+
+        let watcher_events = self.watcher_events.clone();
+        let mut watcher = notify::recommended_watcher(
+            move |res: Result<notify::Event, notify::Error>| match res {
+                Ok(event) => {
+                    if let Ok(mut lock) = watcher_events.try_lock() {
+                        lock.push(event.clone());
+                    } else {
+                        println!("Failure locking file watcher events queue");
+                    }
+                }
+                Err(e) => println!("Error watching directory: {:?}", e),
+            },
+        )
+        .unwrap();
+
+        watcher
+            .watch(&self.base_path, RecursiveMode::NonRecursive)
+            .unwrap();
+
+        self.watcher = Some(watcher);
+    }
+
+    fn process_file_watcher_events(&mut self) {
+        self.set_images_from_path_reset_index(&self.base_path.clone(), true);
+
+        //Ignore when we can't lock the mutex, it'll try next frame anyway
+        if let Ok(mut events) = self.watcher_events.clone().try_lock() {
+            if events.len() == 0 {
+                return;
+            }
+
+            //New file could skew the order in whichever direction, so we just reload everything, fast either way
+            if events.iter().any(|x| x.kind.is_create()) {
+                self.set_images_from_path_reset_index(&self.base_path.clone(), true);
+                return;
+            }
+
+            for event in events.iter().filter(|x| x.kind.is_modify()) {
+                self.reload_galleries_image(Some(event.paths.first().unwrap().clone()));
+            }
+
+            events.clear();
+        }
+    }
+
+    //TODO: When flattening cancel watcher and vice versa
     fn flatten_open_dir(&mut self) {
         println!("Flattening open directory");
 
@@ -269,7 +385,7 @@ impl App {
         println!("Executing callback with {:?}", callback);
         match callback {
             Callback::Pop(path) => self.callback_pop(path),
-            Callback::Reload(path) => self.callback_reload(path),
+            Callback::Reload(path) => self.reload_galleries_image(path),
             Callback::ReloadAll => self.callback_reload_all(),
             Callback::NoAction => {}
         }
@@ -282,7 +398,7 @@ impl App {
         }
     }
 
-    fn callback_reload(&mut self, path: Option<PathBuf>) {
+    fn reload_galleries_image(&mut self, path: Option<PathBuf>) {
         if let Some(path) = path {
             self.gallery.reload_at(&path);
             self.multi_gallery.reload_at(&path);
@@ -296,6 +412,7 @@ impl App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        ctx.request_repaint();
         let mut order_changed = false;
 
         self.perf_metrics.new_frame();
@@ -361,8 +478,10 @@ impl eframe::App for App {
         }
 
         if order_changed {
-            self.sort_images();
+            self.set_images_from_path_reset_index(&self.base_path.clone(), false);
         }
+
+        self.process_file_watcher_events();
 
         self.perf_metrics.end_frame();
     }

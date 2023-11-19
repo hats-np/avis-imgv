@@ -7,7 +7,7 @@ use std::{
     collections::HashMap,
     fs::File,
     io::Read,
-    path::{PathBuf, Path},
+    path::{Path, PathBuf},
     thread::{self, JoinHandle},
 };
 use std::{num::NonZeroU32, time::Instant};

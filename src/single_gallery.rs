@@ -362,6 +362,8 @@ impl SingleGallery {
                             let orders = [
                                 (Order::Asc, "Asc"),
                                 (Order::Desc, "Desc"),
+                                (Order::DateAsc, "Date Asc"),
+                                (Order::DateDesc, "Date Desc"),
                                 (Order::Random, "Random"),
                             ];
                             for o in orders {

@@ -144,7 +144,7 @@ impl Tree {
             Err(_) => return vec![],
         };
 
-        let mut entries = dir_info 
+        let mut entries = dir_info
             .filter_map(|p| {
                 let path = match p {
                     Ok(p) => p,

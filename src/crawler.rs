@@ -9,12 +9,15 @@ use crate::VALID_EXTENSIONS;
 pub fn paths_from_args() -> (Vec<PathBuf>, Option<PathBuf>) {
     let args: Vec<String> = env::args().collect();
 
-    if args.len() == 1 {
-        return (vec![], None);
-    }
-
-    if args.len() == 2 {
-        let mut path = PathBuf::from(args[1].clone());
+    if args.len() <= 2 {
+        let mut path = if args.len() == 2 {
+            PathBuf::from(args[1].clone())
+        } else {
+            match env::current_dir() {
+                Ok(dir) => dir,
+                Err(_) => return (vec![], None),
+            }
+        };
 
         let current_dir = match env::current_dir() {
             Ok(dir) => dir,
@@ -84,7 +87,7 @@ pub fn crawl(path: &Path, flatten: bool) -> Vec<PathBuf> {
                 Ok(f) => {
                     let path = f.path();
 
-                    if flatten && path.is_dir () {
+                    if flatten && path.is_dir() {
                         paths_to_check.push(f.path());
                         continue;
                     } else if VALID_EXTENSIONS.contains(
@@ -94,7 +97,7 @@ pub fn crawl(path: &Path, flatten: bool) -> Vec<PathBuf> {
                             .to_str()
                             .unwrap_or("")
                             .to_lowercase()
-                            .as_str()
+                            .as_str(),
                     ) {
                         files.push(path);
                         continue;
