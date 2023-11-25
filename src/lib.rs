@@ -1,3 +1,5 @@
+use core::fmt;
+
 use eframe::egui;
 
 pub mod app;
@@ -26,13 +28,25 @@ pub const APPLICATION: &str = "avis-imgv";
 pub const VALID_EXTENSIONS: &[&str] = &["jpg", "png", "jpeg", "webp", "gif", "bmp", "tiff"];
 pub const ZUNE_JPEG_TYPES: &[&str] = &["jpg", "jpeg"];
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Order {
     Asc,
     Desc,
     DateAsc,
     DateDesc,
     Random,
+}
+
+impl fmt::Display for Order {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Order::Asc => write!(f, "Asc"),
+            Order::Desc=> write!(f, "Desc"),
+            Order::DateDesc=> write!(f, "Date Desc"),
+            Order::DateAsc=> write!(f, "Date Asc"),
+            Order::Random=> write!(f, "Random"),
+        }
+    }
 }
 
 pub fn no_icon(

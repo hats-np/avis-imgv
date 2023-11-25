@@ -327,7 +327,12 @@ impl SingleGallery {
         preload_nr * 2 <= image_count
     }
 
-    pub fn ui(&mut self, ctx: &egui::Context, order: &mut Order, order_changed: &mut bool) {
+    pub fn ui(&mut self, 
+        ctx: &egui::Context, 
+        order: &mut Order, 
+        order_changed: &mut bool,
+        flattened: bool,
+        watcher_enabled: bool) {
         self.handle_input(ctx);
 
         egui::TopBottomPanel::bottom("gallery_bottom")
@@ -355,26 +360,38 @@ impl SingleGallery {
                     );
 
                     egui::ComboBox::from_id_source("order_combo_box")
-                        .width(90.)
+                        .width(110.)
                         .icon(no_icon)
-                        .selected_text(format!("{:?}", order))
+                        .selected_text(order.to_string())
                         .show_ui(ui, |ui| {
                             let orders = [
-                                (Order::Asc, "Asc"),
-                                (Order::Desc, "Desc"),
-                                (Order::DateAsc, "Date Asc"),
-                                (Order::DateDesc, "Date Desc"),
-                                (Order::Random, "Random"),
+                                Order::Asc,
+                                Order::Desc,
+                                Order::DateAsc,
+                                Order::DateDesc,
+                                Order::Random,
                             ];
+
                             for o in orders {
-                                if ui.selectable_value(order, o.0, o.1).clicked() {
+                                if ui
+                                    .selectable_value(order, o.clone(), o.to_string())
+                                    .clicked()
+                                {
                                     *order_changed = true;
                                 }
                             }
                         });
 
+                    if flattened {
+                        ui.label("Flattened");
+                    }
+
+                    if watcher_enabled {
+                        ui.label("Watching");
+                    }
+
                     let mut label = egui::Label::new(self.get_active_img_name());
-                    label = label.wrap(true);
+                    label = label.truncate(true);
                     ui.add_sized(
                         Vec2::new(ui.available_width() - 245., ui.available_height()),
                         label,

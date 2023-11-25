@@ -1,5 +1,6 @@
 use crate::image::Image;
 use eframe::egui::{self, Response};
+use eframe::epaint::vec2;
 use std::path::PathBuf;
 use std::thread::JoinHandle;
 
@@ -96,13 +97,15 @@ impl ThumbnailImage {
             .show(ui, |ui| {
                 let img_response = ui
                     .add(
-                        egui::Image::new(texture, [size[0], size[1]]).sense(egui::Sense {
-                            click: (true),
-                            drag: (true),
-                            focusable: (true),
-                        }),
+                        egui::Image::new(texture)
+                            .fit_to_exact_size(vec2(size[0], size[1]))
+                            .sense(egui::Sense {
+                                click: (true),
+                                drag: (true),
+                                focusable: (true),
+                            }),
                     )
-                    .on_hover_text(&self.name);
+                    .on_hover_text_at_pointer(&self.name);
 
                 response = Some(img_response)
             });

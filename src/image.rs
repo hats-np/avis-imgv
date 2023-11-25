@@ -157,7 +157,7 @@ impl Image {
             width = image_info.width as u32;
             height = image_info.height as u32;
 
-            let pixels = match decoder.decode() {
+            let mut pixels = match decoder.decode() {
                 Ok(decoded_image) => decoded_image,
                 Err(e) => {
                     println!("{} -> Error decoding image: {}", file_name, e);
@@ -165,7 +165,13 @@ impl Image {
                 }
             };
 
-            match RgbImage::from_raw(width, height, pixels) {
+            //Zune jpg outputs black and white pics as a single byte for each pixel
+            //But the image crate only accepts rgb
+            if pixels.len() as u32 == width * height {
+                pixels = pixels.iter().flat_map(|m| vec![*m, *m, *m]).collect();
+            }
+
+            match RgbImage::from_vec(width, height, pixels) {
                 Some(rgb_image) => Some(DynamicImage::from(rgb_image)),
                 None => {
                     println!(

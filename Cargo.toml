@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-eframe = { version = "0.22.0" }
+eframe = { version = "0.24.0" }
 image = { version = "0.24.6", default-features = true }
 serde = { version = "1.0.152" }
 serde_yaml = { version = "0.9.17" }
@@ -15,6 +15,6 @@ sqlite = { version = "0.30.4" }
 regex = { version = "1.7.1" }
 rfd = { version = "0.11.4" }
 fast_image_resize = { version = "2.7.3" }
-zune-jpeg = { version = "0.3.17" }
+zune-jpeg = { version = "0.4.0" }
 rand = { version = "0.8.5" }
 notify = "6.1.1"

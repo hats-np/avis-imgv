@@ -152,10 +152,13 @@ impl GalleryImage {
 
             //Need to do some more debugging here, behaves differently when
             //No title bar is present
-            display_size[0] -= stroke * 1.7;
-            display_size[1] -= (stroke / aspect_ratio) * 1.7;
+            display_size[0] -= stroke;
+            display_size[1] -= stroke / aspect_ratio;
 
-            let image = egui::Image::new(texture, display_size).uv(visible_rect);
+            let image = egui::Image::new(texture)
+                .fit_to_exact_size(vec2(display_size[0], display_size[1]))
+                .maintain_aspect_ratio(false)
+                .uv(visible_rect);
 
             let available_width_per_h_side = (ui.available_width() - display_size[0]) / 2.;
             let available_width_per_v_side = (ui.available_height() - display_size[1]) / 2.;
@@ -175,7 +178,12 @@ impl GalleryImage {
                     ui.add(image);
                 });
         } else {
-            ui.add(egui::Image::new(texture, [display_size[0], display_size[1]]).uv(visible_rect));
+            ui.add(
+                egui::Image::new(texture)
+                    .uv(visible_rect)
+                    .fit_to_exact_size(vec2(display_size[0], display_size[1]))
+                    .maintain_aspect_ratio(false),
+            );
         }
     }
 

@@ -229,28 +229,21 @@ impl App {
         file_dialog
     }
 
+    fn sort_and_set(&mut self) {
+        Self::sort_images(&mut self.paths, &self.order);
+        self.set_images(&None, false);
+    }
+
     //Will crawl, assumes new directory
     fn set_images_from_path(&mut self, path: &Path, selected_img: &Option<PathBuf>) {
         self.paths = crawler::crawl(path, self.dir_flattened);
         Self::sort_images(&mut self.paths, &self.order);
-        self.set_images(selected_img);
+        self.set_images(selected_img, true);
     }
 
-    fn set_images_from_path_reset_index(&mut self, path: &Path, requires_new: bool) {
-        let new_paths = crawler::crawl(path, self.dir_flattened);
-
-        if requires_new && new_paths.iter().all(|x| self.paths.contains(x)) {
-            return;
-        }
-        println!("new file in dir, loading");
-        self.paths = new_paths;
-        Self::sort_images(&mut self.paths, &self.order);
-        self.set_images(&Some(self.paths[0].clone()));
-    }
-
-    fn set_images(&mut self, selected_img: &Option<PathBuf>) {
+    fn set_images(&mut self, selected_img: &Option<PathBuf>, new_dir_opened: bool) {
         Metadata::cache_metadata_for_images(&self.paths);
-        self.load_images(selected_img, true);
+        self.load_images(selected_img, new_dir_opened);
     }
 
     fn load_images(&mut self, selected_img: &Option<PathBuf>, new_dir_opened: bool) {
@@ -319,10 +312,11 @@ impl App {
     }
 
     fn enable_watcher(&mut self) {
-        //TODO
-        /*if self.dir_flattened {
-            println!("Cannot enable watcher when dir is flattened");
-        }*/
+        if self.watcher.is_some() {
+            println!("Disabling watcher");
+            self.watcher = None;
+            return;
+        }
 
         println!("Enabling watcher at {:?}", self.base_path);
 
@@ -341,30 +335,40 @@ impl App {
         )
         .unwrap();
 
-        watcher
-            .watch(&self.base_path, RecursiveMode::NonRecursive)
-            .unwrap();
+        //Can be expensive on trees with a lot of files, but it's up to the user.
+        let recursive_mode = if self.dir_flattened {
+            RecursiveMode::Recursive
+        } else {
+            RecursiveMode::NonRecursive
+        };
+
+        watcher.watch(&self.base_path, recursive_mode).unwrap();
 
         self.watcher = Some(watcher);
     }
 
     fn process_file_watcher_events(&mut self) {
-        self.set_images_from_path_reset_index(&self.base_path.clone(), true);
-
         //Ignore when we can't lock the mutex, it'll try next frame anyway
         if let Ok(mut events) = self.watcher_events.clone().try_lock() {
             if events.len() == 0 {
                 return;
             }
 
-            //New file could skew the order in whichever direction, so we just reload everything, fast either way
-            if events.iter().any(|x| x.kind.is_create()) {
-                self.set_images_from_path_reset_index(&self.base_path.clone(), true);
-                return;
+            let mut should_reload = false;
+            let mut selected_img_path = None;
+            for event in events.iter() {
+                if event.kind.is_modify() {
+                    self.reload_galleries_image(Some(event.paths.first().unwrap().clone()));
+                } else if event.kind.is_create() {
+                    let path = event.paths.first().unwrap().clone();
+                    self.paths.push(path.clone());
+                    selected_img_path = Some(path.clone());
+                    should_reload = true;
+                }
             }
 
-            for event in events.iter().filter(|x| x.kind.is_modify()) {
-                self.reload_galleries_image(Some(event.paths.first().unwrap().clone()));
+            if should_reload {
+                self.set_images(&selected_img_path, false);
             }
 
             events.clear();
@@ -373,10 +377,29 @@ impl App {
 
     //TODO: When flattening cancel watcher and vice versa
     fn flatten_open_dir(&mut self) {
-        println!("Flattening open directory");
+        if self.dir_flattened {
+            println!("Returning to original directory");
+            self.dir_flattened = false;
 
-        self.dir_flattened = true;
-        self.set_images_from_path(&self.base_path.clone(), &self.gallery.get_active_img_path());
+            //restart watcher in non-recursive mode
+            if self.watcher.is_some() {
+                self.watcher = None;
+                self.enable_watcher();
+            }
+
+            self.set_images_from_path(&self.base_path.clone(), &None);
+        } else {
+            println!("Flattening open directory");
+            self.dir_flattened = true;
+
+            //restart watcher in recursive mode
+            if self.watcher.is_some() {
+                self.watcher = None;
+                self.enable_watcher();
+            }
+
+            self.set_images_from_path(&self.base_path.clone(), &self.gallery.get_active_img_path());
+        }
     }
 
     //Some callbacks affect both collections so it's important
@@ -470,7 +493,13 @@ impl eframe::App for App {
                 self.execute_callback(callback);
             }
         } else {
-            self.gallery.ui(ctx, &mut self.order, &mut order_changed);
+            self.gallery.ui(
+                ctx,
+                &mut self.order,
+                &mut order_changed,
+                self.dir_flattened,
+                self.watcher.is_some(),
+            );
 
             if let Some(callback) = self.gallery.take_callback() {
                 self.execute_callback(callback);
@@ -478,7 +507,7 @@ impl eframe::App for App {
         }
 
         if order_changed {
-            self.set_images_from_path_reset_index(&self.base_path.clone(), false);
+            self.sort_and_set();
         }
 
         self.process_file_watcher_events();
