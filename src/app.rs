@@ -152,7 +152,7 @@ impl App {
             self.flatten_open_dir();
         }
 
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_watcher_enabled.kbd_shortcut)) {
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_watch_directory.kbd_shortcut)) {
             self.enable_watcher();
         }
     }

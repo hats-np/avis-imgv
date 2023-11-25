@@ -135,6 +135,8 @@ modifiers.
 | F1        | Toggles a menu which allows to open a folder or file |
 | Ctrl + L  | Shows navigation bar                                 |
 | T         | Show Directory Tree                                  |
+| Ctrl + F  | Flatten (read files from all sub dirs)               |
+| Ctrl + W  | Watch a directory for file changes (create, update)  |
 
 ### Single Gallery
 
@@ -150,7 +152,6 @@ modifiers.
 | Alt + 1     | Set Magnification at 100%             |
 | H           | Fit Horizontal                        |
 | V           | Fit Vertical                          |
-| Ctrl + F    | Flatten (read files from all sub dirs)|
 
 ### Multi Gallery
 
