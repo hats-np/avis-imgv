@@ -7,7 +7,7 @@ repository = "https://github.com/hats-np/avis-imgv"
 version = "0.1.0"
 edition = "2021"
 readme = "README.md"
-keywords = ["Image Viewer", "Image"]
+keywords = ["image_viewer", "image"]
 
 [dependencies]
 eframe = { version = "0.25.0" }
