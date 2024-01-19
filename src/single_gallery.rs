@@ -327,12 +327,14 @@ impl SingleGallery {
         preload_nr * 2 <= image_count
     }
 
-    pub fn ui(&mut self, 
-        ctx: &egui::Context, 
-        order: &mut Order, 
+    pub fn ui(
+        &mut self,
+        ctx: &egui::Context,
+        order: &mut Order,
         order_changed: &mut bool,
         flattened: bool,
-        watcher_enabled: bool) {
+        watcher_enabled: bool,
+    ) {
         self.handle_input(ctx);
 
         egui::TopBottomPanel::bottom("gallery_bottom")

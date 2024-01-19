@@ -41,10 +41,10 @@ impl fmt::Display for Order {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Order::Asc => write!(f, "Asc"),
-            Order::Desc=> write!(f, "Desc"),
-            Order::DateDesc=> write!(f, "Date Desc"),
-            Order::DateAsc=> write!(f, "Date Asc"),
-            Order::Random=> write!(f, "Random"),
+            Order::Desc => write!(f, "Desc"),
+            Order::DateDesc => write!(f, "Date Desc"),
+            Order::DateAsc => write!(f, "Date Asc"),
+            Order::Random => write!(f, "Random"),
         }
     }
 }

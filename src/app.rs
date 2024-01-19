@@ -357,12 +357,37 @@ impl App {
             let mut should_reload = false;
             let mut selected_img_path = None;
             for event in events.iter() {
+                let mut event_paths = event.paths.clone();
+
+                event_paths.reverse();
+
+                let first = event_paths
+                    .first()
+                    .unwrap();
+
+                if !VALID_EXTENSIONS.contains(
+                    &first
+                        .extension()
+                        .unwrap_or_default()
+                        .to_str()
+                        .unwrap_or_default()
+                        .to_lowercase()
+                        .as_str(),
+                ) {
+                    continue;
+                }
+
                 if event.kind.is_modify() {
-                    self.reload_galleries_image(Some(event.paths.first().unwrap().clone()));
+                    if self.paths.contains(first) {
+                        self.reload_galleries_image(Some(first.clone()));
+                    } else {
+                        self.paths.push(first.clone());
+                        selected_img_path = Some(first.clone());
+                        should_reload = true;
+                    }
                 } else if event.kind.is_create() {
-                    let path = event.paths.first().unwrap().clone();
-                    self.paths.push(path.clone());
-                    selected_img_path = Some(path.clone());
+                    self.paths.push(first.clone());
+                    selected_img_path = Some(first.clone());
                     should_reload = true;
                 }
             }
