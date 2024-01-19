@@ -154,7 +154,7 @@ impl Shortcut {
         };
 
         self.kbd_shortcut = KeyboardShortcut {
-            key: *key,
+            logical_key: *key,
             modifiers,
         }
     }
@@ -453,7 +453,7 @@ fn keys() -> HashMap<String, Key> {
         ("pageup".to_string(), Key::PageUp),
         ("pagedown".to_string(), Key::PageDown),
         ("minus".to_string(), Key::Minus),
-        ("plus".to_string(), Key::PlusEquals),
+        ("plus".to_string(), Key::Plus),
         ("0".to_string(), Key::Num0),
         ("1".to_string(), Key::Num1),
         ("2".to_string(), Key::Num2),
