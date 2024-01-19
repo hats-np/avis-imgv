@@ -1,7 +1,13 @@
 [package]
 name = "avis-imgv"
+description = "Image viewer based on egui. Makes use of modern RAM amounts by loading images ahead of time for very fast responsiveness. Minimal UI with heavy use of shortcuts."
+license = "GPL-3.0"
+homepage = "https://github.com/hats-np/avis-imgv"
+repository = "https://github.com/hats-np/avis-imgv"
 version = "0.1.0"
 edition = "2021"
+readme = "README.md"
+keywords = ["Image Viewer", "Image"]
 
 [dependencies]
 eframe = { version = "0.25.0" }
@@ -10,7 +16,7 @@ serde = { version = "1.0.152" }
 serde_yaml = { version = "0.9.17" }
 serde_json = { version = "1.0.93" }
 directories = { version = "4.0.1" }
-qcms = { git = "https://github.com/FirefoxGraphics/qcms.git" }
+qcms = { version = "0.3.0" }
 sqlite = { version = "0.30.4" }
 regex = { version = "1.7.1" }
 rfd = { version = "0.11.4" }
