@@ -68,6 +68,8 @@ As of now three parameters are supported:
 
 - {} Full path
 - {.} Path without extension
+- {/} File name only
+- {/.} File stem only
 - {//} Parent path (without last slash)
 
 It is recommended to use simple commands. If you need more complex behaviour, you can use a script and pass the path as

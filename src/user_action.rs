@@ -43,6 +43,26 @@ pub fn execute(exec: &str, path: &Path) -> bool {
         };
         exec = exec.replace("{//}", arg);
     }
+    if exec.contains("{/}") {
+        let arg = match path.file_name() {
+            Some(arg) => match arg.to_str() {
+                Some(arg) => arg,
+                None => return false,
+            },
+            None => return false,
+        };
+        exec = exec.replace("{/}", arg);
+    }
+    if exec.contains("{/.}") {
+        let arg = match path.file_stem() {
+            Some(arg) => match arg.to_str() {
+                Some(arg) => arg,
+                None => return false,
+            },
+            None => return false,
+        };
+        exec = exec.replace("{/.}", arg);
+    }
 
     println!("exec -> {}", exec);
     let mut exec_split = exec.split(' ');
