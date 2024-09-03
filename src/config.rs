@@ -1,8 +1,8 @@
 use eframe::egui::{Key, KeyboardShortcut, Modifiers};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs, path::PathBuf, vec};
+use std::{fs, path::PathBuf, vec};
 
-use crate::{callback::Callback, APPLICATION, ORGANIZATION, QUALIFIER};
+use crate::{callback::Callback, utils, APPLICATION, ORGANIZATION, QUALIFIER};
 
 const MOD_ALT: &str = "alt";
 const MOD_SHIFT: &str = "shift";
@@ -79,6 +79,10 @@ pub struct GalleryConfig {
     pub sc_fit_horizontal: Shortcut,
     #[serde(default = "default_sc_fit_vertical")]
     pub sc_fit_vertical: Shortcut,
+    #[serde(default = "default_sc_fit_maximize")]
+    pub sc_fit_maximize: Shortcut,
+    #[serde(default = "default_sc_latch_fit_maximize")]
+    pub sc_latch_fit_maximize: Shortcut,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -103,12 +107,19 @@ pub struct MultiGalleryConfig {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
+#[serde(from = "ShortcutData")]
 pub struct Shortcut {
     pub key: String,
     pub modifiers: Vec<String>,
     #[serde(skip)]
     #[serde(default = "default_shortcut")]
     pub kbd_shortcut: KeyboardShortcut,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct ShortcutData {
+    pub key: String,
+    pub modifiers: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -127,34 +138,10 @@ pub struct ContextMenuEntry {
 
 impl Shortcut {
     fn from(key: &str, modifiers: &[&str]) -> Shortcut {
+        let modifiers: Vec<String> = modifiers.iter().map(|x| x.to_string()).collect();
         Shortcut {
+            kbd_shortcut: build_keyboard_shortcut(&modifiers, key),
             key: key.to_string(),
-            modifiers: modifiers.iter().map(|x| x.to_string()).collect(),
-            kbd_shortcut: KeyboardShortcut::new(Modifiers::NONE, Key::A),
-        }
-    }
-
-    fn build(&mut self, keys: &HashMap<String, Key>) {
-        let mut modifiers = Modifiers::default();
-
-        for modi in &self.modifiers {
-            match modi.as_str() {
-                MOD_ALT => modifiers.alt = true,
-                MOD_CTRL => modifiers.ctrl = true,
-                MOD_SHIFT => modifiers.shift = true,
-                MOD_CMD => modifiers.command = true,
-                MOD_MAC_CMD => modifiers.mac_cmd = true,
-                _ => {}
-            }
-        }
-
-        let key = match keys.get(&self.key) {
-            Some(k) => k,
-            None => return, //uses default unreachable shortcut
-        };
-
-        self.kbd_shortcut = KeyboardShortcut {
-            logical_key: *key,
             modifiers,
         }
     }
@@ -198,6 +185,8 @@ impl Default for GalleryConfig {
             sc_one_to_one: default_sc_one_to_one(),
             sc_fit_vertical: default_sc_fit_vertical(),
             sc_fit_horizontal: default_sc_fit_horizontal(),
+            sc_fit_maximize: default_sc_fit_maximize(),
+            sc_latch_fit_maximize: default_sc_latch_fit_maximize(),
         }
     }
 }
@@ -220,9 +209,7 @@ impl Default for MultiGalleryConfig {
 
 impl Config {
     pub fn new() -> Config {
-        let mut cfg = Self::fetch_cfg();
-        cfg.build_shortcuts();
-        cfg
+        Self::fetch_cfg()
     }
 
     pub fn fetch_cfg() -> Config {
@@ -232,62 +219,30 @@ impl Config {
             None => return Config::default(),
         };
 
-        let cfg_path = config_dir.join(PathBuf::from("config.yaml"));
+        let cfg_path = config_dir.join(PathBuf::from("config.json"));
         println!("Reading config -> {}", cfg_path.display());
 
-        let config_yaml = match fs::read_to_string(cfg_path) {
-            Ok(yaml) => yaml,
+        let config_json = match fs::read_to_string(cfg_path) {
+            Ok(json) => json,
             Err(e) => {
                 println!("Failure reading config file -> {}", e);
                 return Config::default();
             }
         };
 
-        let cfg = match serde_yaml::from_str(&config_yaml) {
+        let cfg = match serde_json::from_str(&config_json) {
             Ok(cfg) => cfg,
             Err(e) => {
                 println!("{}", e);
-                println!("Failure parsing config yaml, using defaults");
+                println!("Failure parsing config json, using defaults");
                 Config::default()
             }
         };
 
         println!("Using config:");
-        println!("{}", serde_yaml::to_string(&cfg).unwrap());
+        println!("{}", serde_json::to_string(&cfg).unwrap());
 
         cfg
-    }
-
-    pub fn build_shortcuts(&mut self) {
-        let keys = keys();
-
-        //This solution is quite verbose, would be nice to
-        //automatically build the shortcut on deserialization.
-        self.general.sc_exit.build(&keys);
-        self.general.sc_toggle_gallery.build(&keys);
-        self.general.sc_menu.build(&keys);
-        self.general.sc_navigator.build(&keys);
-        self.general.sc_dir_tree.build(&keys);
-        self.general.sc_flatten_dir.build(&keys);
-        self.general.sc_watch_directory.build(&keys);
-
-        self.gallery.sc_fit.build(&keys);
-        self.gallery.sc_frame.build(&keys);
-        self.gallery.sc_zoom.build(&keys);
-        self.gallery.sc_metadata.build(&keys);
-        self.gallery.sc_next.build(&keys);
-        self.gallery.sc_prev.build(&keys);
-        self.gallery.sc_one_to_one.build(&keys);
-        self.gallery.sc_fit_horizontal.build(&keys);
-        self.gallery.sc_fit_vertical.build(&keys);
-
-        for action in &mut self.gallery.user_actions {
-            action.shortcut.build(&keys);
-        }
-
-        self.multi_gallery.sc_scroll.build(&keys);
-        self.multi_gallery.sc_more_per_row.build(&keys);
-        self.multi_gallery.sc_less_per_row.build(&keys);
     }
 }
 
@@ -304,7 +259,7 @@ pub fn default_text_scaling() -> f32 {
 }
 
 pub fn default_sc_toggle_gallery() -> Shortcut {
-    Shortcut::from("backspace", &[])
+    Shortcut::from("Backspace", &[])
 }
 
 pub fn default_sc_exit() -> Shortcut {
@@ -378,13 +333,13 @@ pub fn default_sc_metadata() -> Shortcut {
     Shortcut::from("i", &[])
 }
 pub fn default_sc_zoom() -> Shortcut {
-    Shortcut::from("space", &[])
+    Shortcut::from("Space", &[])
 }
 pub fn default_sc_next() -> Shortcut {
-    Shortcut::from("right", &[])
+    Shortcut::from("ArrowRight", &[])
 }
 pub fn default_sc_prev() -> Shortcut {
-    Shortcut::from("left", &[])
+    Shortcut::from("ArrowLeft", &[])
 }
 pub fn default_sc_one_to_one() -> Shortcut {
     Shortcut::from("1", &[MOD_ALT])
@@ -394,6 +349,12 @@ pub fn default_sc_fit_vertical() -> Shortcut {
 }
 pub fn default_sc_fit_horizontal() -> Shortcut {
     Shortcut::from("h", &[])
+}
+pub fn default_sc_fit_maximize() -> Shortcut {
+    Shortcut::from("m", &[])
+}
+pub fn default_sc_latch_fit_maximize() -> Shortcut {
+    Shortcut::from("m", &[MOD_CTRL])
 }
 
 //Multi Gallery
@@ -410,13 +371,13 @@ pub fn default_margin_size() -> f32 {
     10.
 }
 pub fn default_sc_scroll() -> Shortcut {
-    Shortcut::from("space", &[])
+    Shortcut::from("Space", &[])
 }
 pub fn default_sc_more_per_row() -> Shortcut {
-    Shortcut::from("plus", &[])
+    Shortcut::from("Plus", &[])
 }
 pub fn default_sc_less_per_row() -> Shortcut {
-    Shortcut::from("minus", &[])
+    Shortcut::from("Minus", &[])
 }
 
 //Shortcuts
@@ -435,80 +396,39 @@ pub fn default_shortcut() -> KeyboardShortcut {
     KeyboardShortcut::new(modi, Key::F20)
 }
 
-fn keys() -> HashMap<String, Key> {
-    HashMap::from([
-        ("down".to_string(), Key::ArrowDown),
-        ("left".to_string(), Key::ArrowLeft),
-        ("right".to_string(), Key::ArrowRight),
-        ("up".to_string(), Key::ArrowUp),
-        ("escape".to_string(), Key::Escape),
-        ("tab".to_string(), Key::Tab),
-        ("backspace".to_string(), Key::Backspace),
-        ("enter".to_string(), Key::Enter),
-        ("space".to_string(), Key::Space),
-        ("insert".to_string(), Key::Insert),
-        ("delete".to_string(), Key::Delete),
-        ("home".to_string(), Key::Home),
-        ("end".to_string(), Key::End),
-        ("pageup".to_string(), Key::PageUp),
-        ("pagedown".to_string(), Key::PageDown),
-        ("minus".to_string(), Key::Minus),
-        ("plus".to_string(), Key::Plus),
-        ("0".to_string(), Key::Num0),
-        ("1".to_string(), Key::Num1),
-        ("2".to_string(), Key::Num2),
-        ("3".to_string(), Key::Num3),
-        ("4".to_string(), Key::Num4),
-        ("5".to_string(), Key::Num5),
-        ("6".to_string(), Key::Num6),
-        ("7".to_string(), Key::Num7),
-        ("8".to_string(), Key::Num8),
-        ("9".to_string(), Key::Num9),
-        ("a".to_string(), Key::A),
-        ("b".to_string(), Key::B),
-        ("c".to_string(), Key::C),
-        ("d".to_string(), Key::D),
-        ("e".to_string(), Key::E),
-        ("f".to_string(), Key::F),
-        ("g".to_string(), Key::G),
-        ("h".to_string(), Key::H),
-        ("i".to_string(), Key::I),
-        ("j".to_string(), Key::J),
-        ("k".to_string(), Key::K),
-        ("l".to_string(), Key::L),
-        ("m".to_string(), Key::M),
-        ("n".to_string(), Key::N),
-        ("o".to_string(), Key::O),
-        ("p".to_string(), Key::P),
-        ("q".to_string(), Key::Q),
-        ("r".to_string(), Key::R),
-        ("s".to_string(), Key::S),
-        ("t".to_string(), Key::T),
-        ("u".to_string(), Key::U),
-        ("v".to_string(), Key::V),
-        ("w".to_string(), Key::W),
-        ("x".to_string(), Key::X),
-        ("y".to_string(), Key::Y),
-        ("z".to_string(), Key::Z),
-        ("f1".to_string(), Key::F1),
-        ("f2".to_string(), Key::F2),
-        ("f3".to_string(), Key::F3),
-        ("f4".to_string(), Key::F4),
-        ("f5".to_string(), Key::F5),
-        ("f6".to_string(), Key::F6),
-        ("f7".to_string(), Key::F7),
-        ("f8".to_string(), Key::F8),
-        ("f9".to_string(), Key::F9),
-        ("f10".to_string(), Key::F10),
-        ("f11".to_string(), Key::F11),
-        ("f12".to_string(), Key::F12),
-        ("f13".to_string(), Key::F13),
-        ("f14".to_string(), Key::F14),
-        ("f15".to_string(), Key::F15),
-        ("f16".to_string(), Key::F16),
-        ("f17".to_string(), Key::F17),
-        ("f18".to_string(), Key::F18),
-        ("f19".to_string(), Key::F19),
-        ("f20".to_string(), Key::F20),
-    ])
+impl From<ShortcutData> for Shortcut {
+    fn from(data: ShortcutData) -> Self {
+        Shortcut {
+            kbd_shortcut: build_keyboard_shortcut(&data.modifiers, &data.key),
+            key: data.key,
+            modifiers: data.modifiers,
+        }
+    }
+}
+
+pub fn build_keyboard_shortcut(mods: &[String], key: &str) -> KeyboardShortcut {
+    let mut modifiers = Modifiers::default();
+    for modi in mods {
+        match modi.as_str() {
+            MOD_ALT => modifiers.alt = true,
+            MOD_CTRL => modifiers.ctrl = true,
+            MOD_SHIFT => modifiers.shift = true,
+            MOD_CMD => modifiers.command = true,
+            MOD_MAC_CMD => modifiers.mac_cmd = true,
+            _ => {
+                println!("Invalid modifier({}) in configuration", modi.as_str())
+            }
+        }
+    }
+
+    match Key::from_name(&utils::capitalize_first_char(key)) {
+        Some(key) => KeyboardShortcut {
+            logical_key: key,
+            modifiers,
+        },
+        None => {
+            println!("Invalid shortcut key: {}", key);
+            default_shortcut()
+        } //uses default unreachable shortcut
+    }
 }

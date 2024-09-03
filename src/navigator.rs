@@ -4,7 +4,7 @@ use std::{
 };
 
 use eframe::{
-    egui::{self, Area, Id, Response, Ui},
+    egui::{self, Area, Id, Response, Ui, Vec2},
     epaint::{Color32, Pos2, Shadow},
 };
 
@@ -12,20 +12,28 @@ use crate::utils;
 
 pub fn ui(input: &mut String, ctx: &egui::Context) -> bool {
     let mut is_selected = false;
-    Area::new("navigator")
-        .fixed_pos(Pos2::new(100., 5.))
+    let mut area_width = 700.;
+    let available_width = ctx.available_rect().width();
+    if available_width < area_width {
+        area_width = available_width;
+    }
+    let pos_x = (available_width / 2.) - area_width / 2.;
+    Area::new(Id::new("navigator"))
+        .fixed_pos(Pos2::new(pos_x, 5.))
         .order(egui::Order::Foreground)
         .interactable(true)
         .movable(false)
         .show(ctx, |ui| {
             egui::Frame::window(ui.style())
                 .shadow(Shadow {
-                    extrusion: (0.),
+                    offset: Vec2::new(0., 0.),
+                    blur: 0.,
+                    spread: 0.,
                     color: (Color32::from_white_alpha(0)),
                 })
                 .show(ui, |ui| {
                     ui.vertical(|ui| {
-                        ui.set_width(700.);
+                        ui.set_width(area_width);
 
                         let mut suggestions = match get_prev_suggestions(ctx) {
                             Some(suggestions) => suggestions,

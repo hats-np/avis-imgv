@@ -61,14 +61,14 @@ impl ThumbnailImage {
             }
         };
 
-        let outer_margin = egui::style::Margin {
+        let outer_margin = egui::Margin {
             left: outer_margin_size,
             right: outer_margin_size,
             top: outer_margin_size,
             bottom: outer_margin_size,
         };
 
-        let mut margin = egui::style::Margin {
+        let mut margin = egui::Margin {
             left: 0.,
             right: 0.,
             top: 0.,
@@ -118,13 +118,13 @@ impl ThumbnailImage {
         let inner_margin = (size - spinner_size) / 2.;
 
         egui::Frame::none()
-            .inner_margin(egui::style::Margin {
+            .inner_margin(egui::Margin {
                 left: inner_margin,
                 right: inner_margin,
                 top: inner_margin,
                 bottom: inner_margin,
             })
-            .outer_margin(egui::style::Margin {
+            .outer_margin(egui::Margin {
                 left: outer_margin,
                 right: outer_margin,
                 top: outer_margin,

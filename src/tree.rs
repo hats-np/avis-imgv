@@ -1,10 +1,9 @@
-use std::path::{Path, PathBuf};
-
 use eframe::{
-    egui::{self, Area, Id},
+    egui::{self, Area, Id, Vec2},
     emath::Align,
     epaint::{Color32, Pos2, Shadow},
 };
+use std::path::{Path, PathBuf};
 
 use crate::utils;
 
@@ -22,6 +21,7 @@ struct TreeEntry {
     pub path: PathBuf,
     pub name: String,
     pub expanded: bool,
+    pub img_count: u32,
 }
 
 //Would've been easier to build if we used recursive structs
@@ -153,7 +153,6 @@ impl Tree {
 
                 let metadata = match path.metadata() {
                     Ok(m) => m,
-
                     Err(_) => return None,
                 };
 
@@ -163,11 +162,24 @@ impl Tree {
                         None => false,
                     };
 
+                    let mut img_count = 0;
+                    if let Ok(rd) = path.path().read_dir() {
+                        rd.for_each(|x| match &x {
+                            Ok(p) => {
+                                if utils::is_valid_file(&p.path()) {
+                                    img_count += 1
+                                }
+                            }
+                            Err(_) => {}
+                        })
+                    };
+
                     Some(TreeEntry {
                         path: path.path(),
                         name: path.file_name().to_str().unwrap_or("").to_string(),
                         depth,
                         expanded,
+                        img_count,
                     })
                 } else {
                     None
@@ -183,19 +195,27 @@ impl Tree {
 
 pub fn ui(path: &str, ctx: &egui::Context) -> Option<PathBuf> {
     let mut result: Option<PathBuf> = None;
-    Area::new("tree")
-        .fixed_pos(Pos2::new(100., 5.))
+    let mut area_width = 700.;
+    let available_width = ctx.available_rect().width();
+    if available_width < area_width {
+        area_width = available_width;
+    }
+    let pos_x = (available_width / 2.) - area_width / 2.;
+    Area::new(Id::new("tree"))
+        .fixed_pos(Pos2::new(pos_x, 5.))
         .order(egui::Order::Foreground)
         .interactable(true)
         .movable(false)
         .show(ctx, |ui| {
             egui::Frame::window(ui.style())
                 .shadow(Shadow {
-                    extrusion: (0.),
+                    offset: Vec2::new(0., 0.),
+                    blur: 0.,
+                    spread: 0.,
                     color: (Color32::from_white_alpha(0)),
                 })
                 .show(ui, |ui| {
-                    ui.set_width(ui.available_width() - 100.);
+                    ui.set_width(area_width);
                     ui.heading("Directory Tree");
                     ui.separator();
 
@@ -229,7 +249,11 @@ pub fn ui(path: &str, ctx: &egui::Context) -> Option<PathBuf> {
                                     "{} {} {}",
                                     "   ".repeat(entry.depth * 2),
                                     get_expanded_char(entry.expanded),
-                                    entry.name
+                                    if entry.img_count > 0 {
+                                        format!("{} ({})", entry.name, entry.img_count)
+                                    } else {
+                                        entry.name.clone()
+                                    }
                                 ),
                             );
                             if label.clicked() {

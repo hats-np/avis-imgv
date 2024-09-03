@@ -6,6 +6,18 @@ use std;
 use std::path::PathBuf;
 use std::thread::JoinHandle;
 
+pub struct GalleryImageSizing {
+    pub zoom_factor: f32,
+    pub scroll_delta: Vec2,
+    pub should_maximize: bool,
+    pub has_maximized: bool,
+}
+
+pub struct GalleryImageFrame {
+    pub enabled: bool,
+    pub size_r: f32,
+}
+
 pub struct GalleryImage {
     pub path: PathBuf,
     pub name: String,
@@ -52,10 +64,8 @@ impl GalleryImage {
     pub fn ui(
         &mut self,
         ui: &mut egui::Ui,
-        zoom_factor: &f32,
-        scroll_delta: &mut Vec2,
-        frame: &bool,
-        frame_size_r: &f32,
+        frame: &GalleryImageFrame,
+        sizing: &mut GalleryImageSizing,
     ) {
         self.finish_img_loading();
 
@@ -94,9 +104,23 @@ impl GalleryImage {
         self.prev_target_size = target_size;
         self.prev_available_size = ui.available_size();
 
+        //Not a fan of having this logic here but it seems like the only way to avoid having one
+        //frame where the image is in its default size which causes a slight and unpleasant
+        //"zoom in" effect
+        if sizing.should_maximize && !sizing.has_maximized {
+            sizing.has_maximized = true;
+            if self.prev_available_size.x / self.prev_available_size.y
+                > self.prev_target_size.x / self.prev_target_size.y
+            {
+                sizing.zoom_factor = self.prev_available_size.y / self.prev_target_size.y;
+            } else {
+                sizing.zoom_factor = self.prev_available_size.x / self.prev_target_size.x;
+            }
+        }
+
         //Scales image based on zoom
-        target_size[0] *= *zoom_factor;
-        target_size[1] *= *zoom_factor;
+        target_size[0] *= sizing.zoom_factor;
+        target_size[1] *= sizing.zoom_factor;
 
         //Sets zoom percentage
         self.prev_percentage_zoom = target_size[0] * 100. / original_size[0];
@@ -132,7 +156,11 @@ impl GalleryImage {
             visible_rect.max.x = 1.0 - rect_offset_x;
         }
 
-        Self::update_scroll_pos(&mut self.scroll_pos, &visible_rect, scroll_delta);
+        Self::update_scroll_pos(
+            &mut self.scroll_pos,
+            &visible_rect,
+            &mut sizing.scroll_delta,
+        );
 
         //Move the visible rect based on the scroll position
         visible_rect.min.y += self.scroll_pos.y / 2.0;
@@ -140,12 +168,12 @@ impl GalleryImage {
         visible_rect.min.x += self.scroll_pos.x / 2.0;
         visible_rect.max.x += self.scroll_pos.x / 2.0;
 
-        if *frame {
+        if frame.enabled {
             //we use the shortest side
             let stroke = if display_size[0] > display_size[1] {
-                display_size[1] * frame_size_r
+                display_size[1] * frame.size_r
             } else {
-                display_size[0] * frame_size_r
+                display_size[0] * frame.size_r
             };
 
             let aspect_ratio = display_size[0] / display_size[1];
@@ -160,23 +188,21 @@ impl GalleryImage {
                 .maintain_aspect_ratio(false)
                 .uv(visible_rect);
 
-            let available_width_per_h_side = (ui.available_width() - display_size[0]) / 2.;
-            let available_width_per_v_side = (ui.available_height() - display_size[1]) / 2.;
+            let offset_x = (ui.available_width() - (display_size[0] + stroke)) / 2.;
+            let offset_y = (ui.available_height() - (display_size[1] + stroke)) / 2.;
+            ui.painter().rect_filled(
+                Rect {
+                    min: Pos2::new(offset_x, offset_y),
+                    max: Pos2::new(
+                        offset_x + display_size[0] + stroke,
+                        offset_y + display_size[1] + stroke,
+                    ),
+                },
+                1.,
+                egui::Color32::WHITE,
+            );
 
-            egui::Frame::none()
-                .outer_margin(egui::style::Margin {
-                    left: available_width_per_h_side,
-                    right: available_width_per_h_side,
-                    top: available_width_per_v_side,
-                    bottom: available_width_per_v_side,
-                })
-                .stroke(egui::Stroke {
-                    color: egui::Color32::WHITE,
-                    width: stroke,
-                })
-                .show(ui, |ui| {
-                    ui.add(image);
-                });
+            ui.add(image);
         } else {
             ui.add(
                 egui::Image::new(texture)
@@ -304,7 +330,7 @@ impl GalleryImage {
         let inner_margin_x = (ui.available_width() - spinner_size) / 2.;
 
         egui::Frame::none()
-            .inner_margin(egui::style::Margin {
+            .inner_margin(egui::Margin {
                 left: inner_margin_x,
                 right: inner_margin_x,
                 top: inner_margin_y,

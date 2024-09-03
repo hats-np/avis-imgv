@@ -7,19 +7,18 @@ use std::{
     collections::HashMap,
     fs::File,
     io::Read,
-    path::{Path, PathBuf},
+    path::PathBuf,
     thread::{self, JoinHandle},
 };
-use std::{num::NonZeroU32, time::Instant};
-use zune_jpeg::JpegDecoder;
+use std::time::Instant;
 
 use crate::{
     icc::profile_desc_to_icc,
-    metadata::{self, Orientation, METADATA_ORIENTATION, METADATA_PROFILE_DESCRIPTION},
-    ZUNE_JPEG_TYPES,
+    metadata::{self, Orientation, METADATA_ORIENTATION, METADATA_PROFILE_DESCRIPTION}
 };
 
-use fast_image_resize as fir;
+use fast_image_resize::{images::Image as FirImage, ResizeOptions};
+use fast_image_resize::{PixelType, Resizer};
 
 pub struct Image {
     pub texture: Option<TextureHandle>,
@@ -64,7 +63,7 @@ impl Image {
             );
             now = Instant::now();
 
-            let mut image = Self::decode(&buffer, &file_name, &path)?;
+            let mut image = Self::decode(&buffer, &file_name)?;
 
             println!(
                 "{} -> Spent {}ms decoding",
@@ -125,69 +124,12 @@ impl Image {
         })
     }
 
-    pub fn decode(buffer: &[u8], file_name: &str, path: &Path) -> Option<DynamicImage> {
-        let extension = path.extension()?.to_string_lossy().to_lowercase();
-
-        //This is only temporary until zune decoders get merged into rust image crate
-        //The speed difference is worth the trouble here since it can be twice as fast
-        //https://github.com/image-rs/image/issues/1845
-        //https://github.com/image-rs/image/issues/1852
-        if ZUNE_JPEG_TYPES.contains(&extension.as_str()) {
-            let (width, height);
-            let mut decoder = JpegDecoder::new(buffer);
-            match decoder.decode_headers() {
-                Ok(_) => {}
-                Err(e) => {
-                    println!("{} -> Error decoding image headers: {}", file_name, e);
-                    return None;
-                }
-            }
-
-            let image_info = match decoder.info() {
-                Some(image_info) => image_info,
-                None => {
-                    println!(
-                        "{} -> No image info found, therefore can't fetch width and height",
-                        file_name
-                    );
-                    return None;
-                }
-            };
-
-            width = image_info.width as u32;
-            height = image_info.height as u32;
-
-            let mut pixels = match decoder.decode() {
-                Ok(decoded_image) => decoded_image,
-                Err(e) => {
-                    println!("{} -> Error decoding image: {}", file_name, e);
-                    return None;
-                }
-            };
-
-            //Zune jpg outputs black and white pics as a single byte for each pixel
-            //But the image crate only accepts rgb
-            if pixels.len() as u32 == width * height {
-                pixels = pixels.iter().flat_map(|m| vec![*m, *m, *m]).collect();
-            }
-
-            match RgbImage::from_vec(width, height, pixels) {
-                Some(rgb_image) => Some(DynamicImage::from(rgb_image)),
-                None => {
-                    println!(
-                        "{} -> Failure building rgb image from raw pixels",
-                        file_name
-                    );
-                    None
-                }
-            }
-        } else {
-            match image::load_from_memory(buffer) {
-                Ok(img) => Some(img),
-                Err(e) => {
-                    println!("{} -> Failure decoding image: {}", file_name, e);
-                    None
-                }
+    pub fn decode(buffer: &[u8], file_name: &str) -> Option<DynamicImage> {
+        match image::load_from_memory(buffer) {
+            Ok(img) => Some(img),
+            Err(e) => {
+                println!("{} -> Failure decoding image: {}", file_name, e);
+                None
             }
         }
     }
@@ -218,15 +160,11 @@ impl Image {
                     return img;
                 }
 
-                //Safe unwrap
-                let width = NonZeroU32::new(img.width()).unwrap();
-                let height = NonZeroU32::new(img.height()).unwrap();
-
-                let src_image = match fir::Image::from_vec_u8(
-                    width,
-                    height,
+                let src_image = match FirImage::from_vec_u8(
+                    img.width(),
+                    img.height(),
                     img.to_rgb8().into_raw(),
-                    fir::PixelType::U8x3,
+                    PixelType::U8x3,
                 ) {
                     Ok(img) => img,
                     Err(e) => {
@@ -237,14 +175,13 @@ impl Image {
                     }
                 };
 
-                //Safe unwrap
-                let dest_width = NonZeroU32::new(dest_width).unwrap();
-                let dest_height = NonZeroU32::new(dest_height).unwrap();
                 let mut dest_image =
-                    fir::Image::new(dest_width, dest_height, src_image.pixel_type());
+                    FirImage::new(dest_width, dest_height, src_image.pixel_type());
 
-                match fir::Resizer::new(fir::ResizeAlg::Convolution(fir::FilterType::Bilinear))
-                    .resize(&src_image.view(), &mut dest_image.view_mut())
+                let mut resizer = Resizer::new();
+                // By default, Resizer multiplies and divides by alpha channel
+                // images with U8x2, U8x4, U16x2 and U16x4 pixels.
+                match resizer.resize(&src_image, &mut dest_image, &ResizeOptions::new())
                 {
                     Ok(_) => {}
                     Err(e) => {
@@ -254,8 +191,8 @@ impl Image {
                 }
 
                 match RgbImage::from_raw(
-                    u32::from(dest_width),
-                    u32::from(dest_height),
+                    dest_width,
+                    dest_height,
                     dest_image.buffer().to_vec(),
                 ) {
                     Some(rgb_image) => DynamicImage::from(rgb_image),

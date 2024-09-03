@@ -2,6 +2,7 @@ use eframe::egui::Sense;
 use eframe::{egui, epaint::Vec2};
 use std::path::{Path, PathBuf};
 
+use crate::gallery_image::{GalleryImageFrame, GalleryImageSizing};
 use crate::{
     callback::Callback,
     config::GalleryConfig,
@@ -17,10 +18,9 @@ pub struct SingleGallery {
     imgs: Vec<GalleryImage>,
     pub selected_img_index: usize,
     metadata_pannel_visible: bool,
-    zoom_factor: f32,
     preload_active: bool,
-    image_frame: bool,
-    scroll_delta: Vec2,
+    frame: GalleryImageFrame,
+    sizing: GalleryImageSizing,
     config: GalleryConfig,
     jump_to: String,
     output_profile: String,
@@ -36,16 +36,23 @@ impl SingleGallery {
     ) -> SingleGallery {
         let mut sg = SingleGallery {
             imgs: vec![],
-            zoom_factor: 1.0,
             selected_img_index: 0,
-            config,
             preload_active: true,
-            image_frame: false,
+            frame: GalleryImageFrame {
+                enabled: false,
+                size_r: config.frame_size_relative_to_image,
+            },
+            sizing: GalleryImageSizing {
+                zoom_factor: 1.0,
+                scroll_delta: Vec2::new(0., 0.),
+                should_maximize: false,
+                has_maximized: false,
+            },
             metadata_pannel_visible: false,
-            scroll_delta: Vec2::new(0., 0.),
             jump_to: String::new(),
             output_profile: output_profile.to_owned(),
             callback: None,
+            config,
         };
 
         sg.set_images(image_paths, selected_image_path);
@@ -152,6 +159,8 @@ impl SingleGallery {
         } else {
             self.selected_img_index += 1;
         }
+
+        self.sizing.has_maximized = false;
     }
 
     pub fn previous_image(&mut self) {
@@ -181,10 +190,12 @@ impl SingleGallery {
         } else {
             self.selected_img_index -= 1;
         }
+
+        self.sizing.has_maximized = false;
     }
 
     pub fn toggle_frame(&mut self) {
-        self.image_frame = !self.image_frame;
+        self.frame.enabled = !self.frame.enabled;
     }
 
     pub fn toggle_metadata(&mut self) {
@@ -192,21 +203,21 @@ impl SingleGallery {
     }
 
     pub fn reset_zoom(&mut self) {
-        self.zoom_factor = 1.0;
+        self.sizing.zoom_factor = 1.0;
     }
 
     pub fn double_zoom(&mut self) {
-        if self.zoom_factor <= 7.0 {
+        if self.sizing.zoom_factor <= 7.0 {
             //make limit a config
-            self.zoom_factor *= 2.0;
+            self.sizing.zoom_factor *= 2.0;
         } else {
-            self.zoom_factor = 1.0;
+            self.sizing.zoom_factor = 1.0;
         }
     }
 
     pub fn multiply_zoom(&mut self, zoom_delta: f32) {
         if zoom_delta != 1.0 {
-            self.zoom_factor *= zoom_delta;
+            self.sizing.zoom_factor *= zoom_delta;
         }
     }
 
@@ -222,8 +233,9 @@ impl SingleGallery {
             None => return,
         };
 
-        self.zoom_factor = ((original_size[0] * percentage / 100.) * self.zoom_factor)
-            / (img.prev_target_size[0] * self.zoom_factor);
+        self.sizing.zoom_factor = ((original_size[0] * percentage / 100.)
+            * self.sizing.zoom_factor)
+            / (img.prev_target_size[0] * self.sizing.zoom_factor);
     }
 
     pub fn fit_vertical(&mut self) {
@@ -232,7 +244,7 @@ impl SingleGallery {
             None => return,
         };
 
-        self.zoom_factor = img.prev_available_size.y / img.prev_target_size.y;
+        self.sizing.zoom_factor = img.prev_available_size.y / img.prev_target_size.y;
     }
 
     pub fn fit_horizontal(&mut self) {
@@ -241,7 +253,26 @@ impl SingleGallery {
             None => return,
         };
 
-        self.zoom_factor = img.prev_available_size.x / img.prev_target_size.x;
+        self.sizing.zoom_factor = img.prev_available_size.x / img.prev_target_size.x;
+    }
+
+    pub fn fit_maximize(&mut self) {
+        let img = match self.get_active_img() {
+            Some(img) => img,
+            None => return,
+        };
+
+        if img.prev_available_size.x / img.prev_available_size.y
+            > img.prev_target_size.x / img.prev_target_size.y
+        {
+            self.sizing.zoom_factor = img.prev_available_size.y / img.prev_target_size.y;
+        } else {
+            self.sizing.zoom_factor = img.prev_available_size.x / img.prev_target_size.x;
+        }
+    }
+
+    pub fn latch_fit_maximize(&mut self) {
+        self.sizing.should_maximize = !self.sizing.should_maximize;
     }
 
     pub fn get_active_img_nr(&mut self) -> usize {
@@ -392,8 +423,12 @@ impl SingleGallery {
                         ui.label("Watching");
                     }
 
+                    if self.sizing.should_maximize {
+                        ui.label("Maximizing");
+                    }
+
                     let mut label = egui::Label::new(self.get_active_img_name());
-                    label = label.truncate(true);
+                    label = label.truncate();
                     ui.add_sized(
                         Vec2::new(ui.available_width() - 245., ui.available_height()),
                         label,
@@ -404,7 +439,8 @@ impl SingleGallery {
                         |ui| {
                             ui.add_sized(
                                 Vec2::new(200., ui.available_height()),
-                                egui::Slider::new(&mut self.zoom_factor, 0.5..=10.0).text("🔎"),
+                                egui::Slider::new(&mut self.sizing.zoom_factor, 0.5..=10.0)
+                                    .text("🔎"),
                             );
 
                             if let Some(img) = self.get_active_img() {
@@ -462,14 +498,8 @@ impl SingleGallery {
             .show(ctx, |ui| {
                 ui.centered_and_justified(|ui| {
                     if !self.imgs.is_empty() {
-                        let img = &mut self.imgs[self.selected_img_index];
-                        img.ui(
-                            ui,
-                            &self.zoom_factor,
-                            &mut self.scroll_delta,
-                            &self.image_frame,
-                            &self.config.frame_size_relative_to_image,
-                        );
+                        let img: &mut GalleryImage = &mut self.imgs[self.selected_img_index];
+                        img.ui(ui, &self.frame, &mut self.sizing);
                     }
                 });
             })
@@ -477,28 +507,30 @@ impl SingleGallery {
 
         //unfortunately we'll always be one frame behind
         //when advancing with the scroll wheel
-        if image_pannel_resp.hovered() {
+        if image_pannel_resp.contains_pointer() {
             if self.config.scroll_navigation {
-                if ctx.input(|i| i.scroll_delta.y) > 0.0 {
+                if ctx.input(|i| i.raw_scroll_delta.y) > 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
+                {
                     self.next_image();
                 }
 
-                if ctx.input(|i| i.scroll_delta.y) < 0.0 {
+                if ctx.input(|i| i.raw_scroll_delta.y) < 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
+                {
                     self.previous_image();
                 }
             }
 
-            self.scroll_delta = ctx.input(|i| i.scroll_delta);
+            self.sizing.scroll_delta = ctx.input(|i| i.smooth_scroll_delta);
             if ctx.input(|i| i.pointer.any_down()) {
                 //drag
                 let pointer_delta = ctx.input(|i| i.pointer.delta());
-                self.scroll_delta += pointer_delta * 0.7;
+                self.sizing.scroll_delta += pointer_delta * 0.5;
             }
         } else {
             //lest we lose hover in the frame that there's a scroll
             //delta and we get infinite zoom
-            self.scroll_delta.x = 0.;
-            self.scroll_delta.y = 0.;
+            self.sizing.scroll_delta.x = 0.;
+            self.sizing.scroll_delta.y = 0.;
         }
 
         if let Some(path) = self.get_active_img_path() {
@@ -541,6 +573,12 @@ impl SingleGallery {
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_fit_vertical.kbd_shortcut)) {
             self.fit_vertical();
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_fit_maximize.kbd_shortcut)) {
+            self.fit_maximize();
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_latch_fit_maximize.kbd_shortcut)) {
+            self.latch_fit_maximize();
         }
 
         self.multiply_zoom(ctx.input(|i| i.zoom_delta()));

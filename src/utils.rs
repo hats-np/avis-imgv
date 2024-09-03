@@ -7,7 +7,9 @@ use crate::VALID_EXTENSIONS;
 pub fn textedit_move_cursor_to_end(resp: &Response, ui: &mut egui::Ui, len: usize) {
     if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), resp.id) {
         let ccursor = egui::text::CCursor::new(len);
-        state.set_ccursor_range(Some(egui::text::CCursorRange::one(ccursor)));
+        state
+            .cursor
+            .set_char_range(Some(egui::text::CCursorRange::one(ccursor)));
         state.store(ui.ctx(), resp.id);
         resp.request_focus();
         ui.ctx().memory_mut(|m| m.request_focus(resp.id))
@@ -40,22 +42,28 @@ pub fn is_valid_path(path: &Path) -> bool {
     };
 
     for path in dir_info.flatten() {
-        if VALID_EXTENSIONS.contains(
-            &path
-                .path()
-                .extension()
-                .unwrap_or_default()
-                .to_str()
-                .unwrap_or_default()
-                .to_string()
-                .to_lowercase()
-                .as_str(),
-        ) {
+        if is_valid_file(&path.path()) {
             return true;
         }
     }
 
     false
+}
+
+pub fn is_valid_file(path: &Path) -> bool {
+    VALID_EXTENSIONS.contains(
+        &path
+            .extension()
+            .unwrap_or_default()
+            .to_str()
+            .unwrap_or_default()
+            .to_lowercase()
+            .as_str(),
+    )
+}
+
+pub fn is_invalid_file(path: &Path) -> bool {
+    !is_valid_file(path)
 }
 
 ///Return true if directory starts with '.'
@@ -65,4 +73,12 @@ pub fn is_dir_hidden(path: &Path) -> bool {
         .to_str()
         .unwrap_or_default()
         .starts_with('.')
+}
+
+pub fn capitalize_first_char(str: &str) -> String {
+    let mut chars = str.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(f) => f.to_uppercase().collect::<String>() + chars.as_str(),
+    }
 }

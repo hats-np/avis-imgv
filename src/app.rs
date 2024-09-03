@@ -112,7 +112,7 @@ impl App {
     ///Returns the path to the opened image directory, if it's not unable to do this it then
     ///tries to return the users home, if this fail it just returns a default PathBuf
     fn get_base_path(paths: &[PathBuf]) -> PathBuf {
-        if let Some(first_path) = paths.get(0) {
+        if let Some(first_path) = paths.first() {
             if let Some(parent) = first_path.parent() {
                 return parent.to_path_buf();
             }
@@ -361,19 +361,9 @@ impl App {
 
                 event_paths.reverse();
 
-                let first = event_paths
-                    .first()
-                    .unwrap();
+                let first = event_paths.first().unwrap();
 
-                if !VALID_EXTENSIONS.contains(
-                    &first
-                        .extension()
-                        .unwrap_or_default()
-                        .to_str()
-                        .unwrap_or_default()
-                        .to_lowercase()
-                        .as_str(),
-                ) {
+                if utils::is_invalid_file(first) {
                     continue;
                 }
 

@@ -43,7 +43,7 @@ attempted, although it isn't optimal for maximum performance. For this reason it
 additional profiles.
 
 Output Profile is sRGB by default and only supports built in profiles. If you need extra profiles either open a PR or
-edit `icc.rs` and add whichever ones you need for your local builds. It can be configured in `config.yaml`.
+edit `icc.rs` and add whichever ones you need for your local builds. It can be configured in `config.json`.
 
 sRGB and Adobe RGB(ClayRGB) were taken from [elles_icc_profiles](https://github.com/ellelstone/elles_icc_profiles).
 
@@ -93,7 +93,7 @@ this just add an entry under either a context menu or a user action. An example 
 
 ## Configuration
 
-Configuration file should be: `~/.config/avis-imgv/config.yaml`. An example is provided under examples/config.yaml.
+Configuration file should be: `~/.config/avis-imgv/config.json`. An example is provided under examples/config.json.
 
 ### General
 
@@ -125,7 +125,7 @@ Configuration file should be: `~/.config/avis-imgv/config.yaml`. An example is p
 
 ## Default Shortcuts
 
-Shortcuts can be configured in the settings. Check examples/config.yaml for an example and keys.txt for valid keys and
+Shortcuts can be configured in the settings. Check examples/config.json for an example and keys.txt for valid keys and
 modifiers.
 
 ### General
@@ -133,8 +133,8 @@ modifiers.
 | Key       | Action                                               |
 |-----------|------------------------------------------------------|
 | Backspace | Toggle between Single and Multi Gallery              |
-| Q         | Exit                                                 |
-| F1        | Toggles a menu which allows to open a folder or file |
+| Q   | Exit                                                 |
+| F1        | Toggles the menu                                     |
 | Ctrl + L  | Shows navigation bar                                 |
 | T         | Show Directory Tree                                  |
 | Ctrl + F  | Flatten (read files from all sub dirs)               |
@@ -145,15 +145,17 @@ modifiers.
 | Key         | Action                                |
 |-------------|---------------------------------------|
 | F           | Fit image to screen                   |
-| G           | Toggle a white frame around the image |
-| I           | Display side tab with image metadata  |
-| Space-bar   | Toggle Zoom                           |
+| G           | Toggle: White frame around the image |
+| I           | Toggle: Display side tab with image metadata  |
+| Spacebar    | Zoom                                  |
 | Ctrl+Scroll | Zoom image                            |
 | Scroll      | Next or Previous                      |
 | Arrow Keys  | Next or Previous                      |
 | Alt + 1     | Set Magnification at 100%             |
 | H           | Fit Horizontal                        |
 | V           | Fit Vertical                          |
+| M           | Maximize (Center image)               |
+| Ctrl+M      | Toggle: Maximize automatically when scrolling |
 
 ### Multi Gallery
 

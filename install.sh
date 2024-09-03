@@ -14,10 +14,10 @@ echo "Installation complete"
 config_dir=$HOME/.config/avis-imgv
 applications_dir=$HOME/.local/share/applications
 
-if [ ! -f $config_dir/config.yaml ]; then
+if [ ! -f $config_dir/config.json ]; then
     echo "Configuration doesn't exist yet -> creating base configuration"
     mkdir -p $config_dir  
-    cp ./examples/config.yaml $config_dir/config.yaml
+    cp ./examples/config.json $config_dir/config.json
 fi
 
 mkdir -p $applications_dir

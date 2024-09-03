@@ -4,23 +4,21 @@ description = "Image viewer based on egui. Makes use of modern RAM amounts by lo
 license = "GPL-3.0"
 homepage = "https://github.com/hats-np/avis-imgv"
 repository = "https://github.com/hats-np/avis-imgv"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 readme = "README.md"
 keywords = ["image_viewer", "image"]
 
 [dependencies]
-eframe = { version = "0.25.0" }
-image = { version = "0.24.8", default-features = true }
-serde = { version = "1.0.152" }
-serde_yaml = { version = "0.9.17" }
-serde_json = { version = "1.0.93" }
-directories = { version = "4.0.1" }
+eframe = { version = "0.28.1" }
+image = { version = "0.25.2", default-features = true }
+serde = { version = "1.0.209" }
+serde_json = { version = "1.0.127" }
+directories = { version = "5.0.1" }
 qcms = { version = "0.3.0" }
-sqlite = { version = "0.30.4" }
-regex = { version = "1.7.1" }
-rfd = { version = "0.11.4" }
-fast_image_resize = { version = "2.7.3" }
-zune-jpeg = { version = "0.4.0" }
+sqlite = { version = "0.36.1" }
+regex = { version = "1.10.6" }
+rfd = { version = "0.14.1" }
+fast_image_resize = { version = "4.2.1" }
 rand = { version = "0.8.5" }
 notify = "6.1.1"

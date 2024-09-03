@@ -256,7 +256,7 @@ impl MultiGallery {
         }
 
         if (ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_more_per_row.kbd_shortcut))
-            || ctx.input(|i| i.zoom_delta() < 1.))
+            || (ctx.input(|i| i.raw_scroll_delta.y) < 0. && ctx.input(|i| i.zoom_delta() != 1.)))
             && self.images_per_row <= 15
         {
             self.images_per_row += 1;
@@ -264,7 +264,7 @@ impl MultiGallery {
         }
 
         if (ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_less_per_row.kbd_shortcut))
-            || ctx.input(|i| i.zoom_delta() > 1.))
+            || (ctx.input(|i| i.raw_scroll_delta.y) > 0. && ctx.input(|i| i.zoom_delta() != 1.)))
             && self.images_per_row != 1
         {
             self.images_per_row -= 1;

@@ -1,5 +1,14 @@
 # Change Log
 
+## 2024-09-03
+
+- Configuration file now uses json. This allows us to drop our dependency on yaml serialziation.
+- Upgraded most crates to their recent version.
+- QOL improvements and small bugfixes.
+- Added a "latch maximize" function(ctrl + m) that automatically extends images to their maximum size for the screen.
+- Added a maximize shortcut (m).
+- Improved shortcuts code wise, this will allow easier configurations in the future.
+
 ## 2023-11-25
 
 - Added the ability to watch the opened directory for new files or file changes. Can work together with directory flattening to watch all sub directories recursively. Shortcut is `sc_watch_directory` under general.
