@@ -1,3 +1,11 @@
+
+
+if ! which cmake > /dev/null 2>&1
+then
+    echo "Install cmake please..."
+fi
+
+
 if ! RUSTFLAGS="-C target-cpu=native" cargo build --release ; then
     echo "Build failed -> exiting"
     exit
