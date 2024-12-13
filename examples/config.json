@@ -1,0 +1,252 @@
+{
+  "general": {
+    "limit_cached": 1000000,
+    "output_icc_profile": "srgb",
+    "text_scaling": 1.25,
+    "sc_toggle_gallery": {
+      "key": "Backspace",
+      "modifiers": []
+    },
+    "sc_exit": {
+      "key": "q",
+      "modifiers": [
+        "alt"
+      ]
+    },
+    "sc_menu": {
+      "key": "F1",
+      "modifiers": []
+    },
+    "sc_navigator": {
+      "key": "l",
+      "modifiers": [
+        "ctrl"
+      ]
+    }
+  },
+  "gallery": {
+    "name_format": "$(#File Name#)$( • ƒ#Aperture#)$( • #Shutter Speed#)$( • #ISO# ISO)",
+    "nr_loaded_images": 10,
+    "should_wait": true,
+    "metadata_tags": [
+      "Date/Time Original",
+      "Created Date",
+      "Camera Model Name",
+      "Lens Model",
+      "Focal Length",
+      "Aperture Value",
+      "Exposure Time",
+      "ISO",
+      "Image Size",
+      "Color Space",
+      "Directory",
+      "Software"
+    ],
+    "frame_size_relative_to_image": 0.1,
+    "scroll_navigation": true,
+    "user_actions": [
+      {
+        "exec": "copy.sh {}",
+        "shortcut": {
+          "key": "c",
+          "modifiers": [
+            "ctrl"
+          ]
+        }
+      },
+      {
+        "exec": "rate.sh {.} 1",
+        "shortcut": {
+          "key": "1",
+          "modifiers": [
+            "ctrl"
+          ]
+        }
+      },
+      {
+        "exec": "rate.sh {.} 2",
+        "shortcut": {
+          "key": "2",
+          "modifiers": [
+            "ctrl"
+          ]
+        }
+      },
+      {
+        "exec": "rate.sh {.} 3",
+        "shortcut": {
+          "key": "3",
+          "modifiers": [
+            "ctrl"
+          ]
+        }
+      },
+      {
+        "exec": "rate.sh {.} 4",
+        "shortcut": {
+          "key": "4",
+          "modifiers": [
+            "ctrl"
+          ]
+        }
+      },
+      {
+        "exec": "rate.sh {.} 5",
+        "shortcut": {
+          "key": "5",
+          "modifiers": [
+            "ctrl"
+          ]
+        }
+      },
+      {
+        "exec": "rm {}",
+        "shortcut": {
+          "key": "delete",
+          "modifiers": [
+            "ctrl"
+          ]
+        },
+        "callback": "Pop"
+      },
+      {
+        "exec": "mv {} ~/Trash",
+        "shortcut": {
+          "key": "delete",
+          "modifiers": []
+        },
+        "callback": "Pop"
+      },
+      {
+        "exec": "",
+        "shortcut": {
+          "key": "f5",
+          "modifiers": []
+        },
+        "callback": "Reload"
+      },
+      {
+        "exec": "",
+        "shortcut": {
+          "key": "f4",
+          "modifiers": []
+        },
+        "callback": "ReloadAll"
+      },
+      {
+        "exec": "mkdir -p compressed && convert {} -quality 80 {//}/compressed/",
+        "shortcut": {
+          "key": "c",
+          "modifiers": [
+            "alt"
+          ]
+        }
+      },
+      {
+        "exec": "cp {} {//}/good/",
+        "shortcut": {
+          "key": "a",
+          "modifiers": []
+        }
+      }
+    ],
+    "context_menu": [
+      {
+        "exec": "gimp {}",
+        "description": "Open in GIMP"
+      },
+      {
+        "exec": "dolphin {//}",
+        "description": "Open Folder"
+      },
+      {
+        "exec": "darktable {.}.RAF",
+        "description": "Open RAW in Darktable"
+      },
+      {
+        "exec": "copy.sh {}",
+        "description": "Copy to Clipboard"
+      },
+      {
+        "exec": "",
+        "description": "Reload",
+        "callback": "Reload"
+      },
+      {
+        "exec": "rm {}",
+        "description": "Remove",
+        "callback": "Pop"
+      }
+    ],
+    "sc_fit": {
+      "key": "f",
+      "modifiers": []
+    },
+    "sc_frame": {
+      "key": "g",
+      "modifiers": []
+    },
+    "sc_metadata": {
+      "key": "i",
+      "modifiers": []
+    },
+    "sc_zoom": {
+      "key": "space",
+      "modifiers": []
+    },
+    "sc_next": {
+      "key": "right",
+      "modifiers": []
+    },
+    "sc_prev": {
+      "key": "left",
+      "modifiers": []
+    }
+  },
+  "multi_gallery": {
+    "images_per_row": 3,
+    "preloaded_rows": 1,
+    "simultaneous_load": 16,
+    "margin_size": 5,
+    "sc_scroll": {
+      "key": "space",
+      "modifiers": []
+    },
+    "sc_more_per_row": {
+      "key": "plus",
+      "modifiers": []
+    },
+    "sc_less_per_row": {
+      "key": "minus",
+      "modifiers": []
+    },
+    "context_menu": [
+      {
+        "exec": "gimp {}",
+        "description": "Open in GIMP"
+      },
+      {
+        "exec": "darktable {.}.RAF",
+        "description": "Open RAW in Darktable"
+      },
+      {
+        "exec": "dolphin {//}",
+        "description": "Open Folder"
+      },
+      {
+        "exec": "copy.sh {}",
+        "description": "Copy to Clipboard"
+      },
+      {
+        "exec": "",
+        "description": "Reload",
+        "callback": "Reload"
+      },
+      {
+        "exec": "rm {}",
+        "description": "Remove",
+        "callback": "Pop"
+      }
+    ]
+  }
+}
