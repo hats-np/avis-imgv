@@ -169,12 +169,7 @@ fn get_path_strings_from_input(input: &str) -> Option<Vec<String>> {
 
 fn string_from_path(path: &Path) -> Option<String> {
     let path_str = path.as_os_str().to_str()?;
-
-    if let Ok(path_string) = String::from_str(path_str) {
-        Some(path_string)
-    } else {
-        None
-    }
+    Some(path_str.to_owned())
 }
 
 fn select_path(input: &mut String, suggestion: &str, editor_resp: &Response, ui: &mut Ui) {
@@ -194,4 +189,38 @@ fn get_suggestions(input: &str) -> Vec<String> {
     suggestions.retain(|p| p.contains(input));
 
     suggestions
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
+
+    #[test]
+    fn test_string_from_path_valid_path() {
+        let path = Path::new("/tmp/test.txt");
+        let result = string_from_path(path);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), "/tmp/test.txt");
+    }
+
+    #[test]
+    fn test_string_from_path_empty_path() {
+        let path = Path::new("");
+        let result = string_from_path(path);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), "");
+    }
+
+    #[test]
+    fn test_string_from_path_invalid_utf8_path() {
+        // Create a path, which is valid, but with invalid UTF-8 bytes.
+        let invalid_bytes = &[0x66, 0x6f, 0x6f, 0xFF, 0x62, 0x61, 0x72];  // "foo<invalid>bar"
+        let invalid_os_str = OsStr::from_bytes(invalid_bytes);
+        let invalid_path = Path::new(invalid_os_str);
+
+        let result = string_from_path(invalid_path);
+        assert!(result.is_none());
+    }
 }
