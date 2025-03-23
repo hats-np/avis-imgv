@@ -64,7 +64,14 @@ impl MultiGallery {
             ui.set_min_width(ui.available_width());
 
             let mut loading_imgs = self.imgs.iter().filter(|i| i.is_loading()).count();
-            let img_size = ui.available_width() / self.images_per_row as f32;
+            let mut img_size = ui.available_width() / self.images_per_row as f32;
+            let prev_img_size = img_size;
+
+            if img_size % 6. != 0. {
+                img_size -= img_size % 6.; // Truncate to nearest multiple of 6
+            }
+
+            let remainder = (prev_img_size - img_size) * self.images_per_row as f32;
 
             let mut scroll_area = egui::ScrollArea::vertical().drag_to_scroll(true);
 
@@ -161,9 +168,11 @@ impl MultiGallery {
                     for r in row_range.clone() {
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing = Vec2::new(0., 0.);
+                            ui.add_space(remainder / 2.0);
+
                             for j in r * self.images_per_row..(r + 1) * self.images_per_row {
-                                match &mut self.imgs.get_mut(j) {
-                                    Some(img) => Self::show_image(
+                                if let Some(img) = &mut self.imgs.get_mut(j) {
+                                    Self::show_image(
                                         img,
                                         ui,
                                         ctx,
@@ -171,8 +180,7 @@ impl MultiGallery {
                                         &mut self.selected_image_name,
                                         &self.config,
                                         &mut self.callback,
-                                    ),
-                                    None => {}
+                                    );
                                 }
                             }
                         });
@@ -229,7 +237,7 @@ impl MultiGallery {
         config: &MultiGalleryConfig,
         callback: &mut Option<Callback>,
     ) {
-        if let Some(resp) = image.ui(ui, [max_size, max_size], &config.margin_size) {
+        if let Some(resp) = image.ui(ui, [max_size, max_size]) {
             if resp.clicked() {
                 *select_image_name = Some(image.name.clone());
             }

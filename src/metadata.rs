@@ -1,5 +1,6 @@
 use crate::db;
 use regex::{self, Regex};
+use std::sync::mpsc;
 use std::{
     collections::HashMap,
     path::PathBuf,
@@ -73,22 +74,47 @@ impl Metadata {
             };
 
             let chunks: Vec<&[String]> = image_paths.chunks(*CHUNK_SIZE).collect();
-            for chunk in chunks {
+            for chunk in &chunks {
                 let chunk_timer = Instant::now();
-                let cmd = Command::new("exiftool")
-                    .args(chunk)
-                    .stdout(Stdio::piped())
-                    .spawn();
 
-                match cmd {
-                    Ok(cmd) => match cmd.wait_with_output() {
-                        Ok(output) => {
-                            Self::parse_exiftool_output(&output, single_image_path);
-                        }
-                        Err(e) => println!("Error fetching metadata -> {}", e),
-                    },
-                    Err(e) => println!("Error fetching metadata -> {}", e),
-                };
+                let (tx, rx) = mpsc::channel();
+                let mut handles = vec![];
+                //4 threads, should be enough to max a HDD
+                //Make configurable to take advantage of SSD speeds
+                let chunks: Vec<&[String]> = chunk.chunks(*CHUNK_SIZE / 4).collect();
+                for chunk in chunks {
+                    let tx = tx.clone();
+                    let chunk = chunk.to_vec();
+                    let handle = thread::spawn(move || {
+                        let cmd = Command::new("exiftool")
+                            .args(chunk)
+                            .stdout(Stdio::piped())
+                            .spawn();
+
+                        match cmd {
+                            Ok(cmd) => match cmd.wait_with_output() {
+                                Ok(output) => {
+                                    tx.send(output).unwrap();
+                                }
+                                Err(e) => println!("Error fetching metadata -> {}", e),
+                            },
+                            Err(e) => println!("Error fetching metadata -> {}", e),
+                        };
+                    });
+
+                    handles.push(handle);
+                }
+
+                for handle in handles {
+                    handle.join().unwrap(); // Wait for each thread to complete
+                }
+
+                drop(tx);
+
+                for output in rx {
+                    Self::parse_exiftool_output(&output, single_image_path);
+                }
+
                 println!(
                     "Cached metadata chunk containing {} images in {}ms",
                     chunk.len(),
@@ -189,12 +215,12 @@ impl Metadata {
             Ok(cmd) => match cmd.wait_with_output() {
                 Ok(output) => output,
                 Err(e) => {
-                    println!("Error fetching metadata -> {}", e);
+                    println!("Failure waiting for exiftool process -> {}", e);
                     return None;
                 }
             },
             Err(e) => {
-                println!("Error fetching metadata -> {}", e);
+                println!("Failure spawning exiftool process -> {}", e);
                 return None;
             }
         };

@@ -1,5 +1,5 @@
 use crate::image::Image;
-use eframe::egui::{self, Response};
+use eframe::egui::{self, Color32, Response, UiBuilder, Vec2};
 use eframe::epaint::vec2;
 use std::path::PathBuf;
 use std::thread::JoinHandle;
@@ -32,23 +32,13 @@ impl ThumbnailImage {
             .collect()
     }
 
-    pub fn ui(
-        &mut self,
-        ui: &mut egui::Ui,
-        mut size: [f32; 2],
-        margin_size: &f32,
-    ) -> Option<Response> {
-        let mut outer_margin_size = *margin_size;
-        size[1] -= outer_margin_size;
-        size[0] -= outer_margin_size;
-        outer_margin_size /= 2.;
-
+    pub fn ui(&mut self, ui: &mut egui::Ui, mut size: [f32; 2]) -> Option<Response> {
         self.finish_img_loading();
 
         let image = match &mut self.image {
             Some(image) => image,
             None => {
-                Self::display_empty_image_frame(ui, size[1], outer_margin_size);
+                Self::display_empty_image_frame(ui, size[1]);
                 return None;
             }
         };
@@ -56,82 +46,70 @@ impl ThumbnailImage {
         let texture = match image.get_texture(&self.name, ui) {
             Some(t) => t,
             None => {
-                Self::display_empty_image_frame(ui, size[1], outer_margin_size);
+                Self::display_empty_image_frame(ui, size[1]);
                 return None;
             }
         };
 
-        let outer_margin = egui::Margin {
-            left: outer_margin_size,
-            right: outer_margin_size,
-            top: outer_margin_size,
-            bottom: outer_margin_size,
-        };
-
-        let mut margin = egui::Margin {
-            left: 0.,
-            right: 0.,
-            top: 0.,
-            bottom: 0.,
-        };
-
-        let prev = [size[0], size[1]];
+        let prev_size = [size[0], size[1]];
 
         if texture.aspect_ratio() > 1. {
             size[1] /= texture.aspect_ratio();
-            let half_free_y = (prev[1] - size[1]) / 2.;
-            margin.top = half_free_y;
-            margin.bottom = half_free_y;
         } else {
             size[0] *= texture.aspect_ratio();
-            let half_free_x = (prev[0] - size[0]) / 2.;
-            margin.right = half_free_x;
-            margin.left = half_free_x;
         }
 
         let mut response: Option<Response> = None;
-        egui::Frame::none()
-            .inner_margin(margin)
-            .outer_margin(outer_margin)
-            .fill(egui::Color32::from_rgb(119, 119, 119))
-            .show(ui, |ui| {
+        let rect_size = Vec2::splat(prev_size[1]);
+        let rect = ui.allocate_space(rect_size);
+
+        ui.painter()
+            .rect_filled(rect.1, 0, egui::Color32::from_rgb(119, 119, 119));
+
+        ui.allocate_new_ui(UiBuilder::new().max_rect(rect.1), |ui| {
+            ui.centered_and_justified(|ui| {
                 let img_response = ui
                     .add(
                         egui::Image::new(texture)
                             .fit_to_exact_size(vec2(size[0], size[1]))
-                            .sense(egui::Sense {
-                                click: (true),
-                                drag: (true),
-                                focusable: (true),
-                            }),
+                            .sense(egui::Sense::CLICK),
                     )
                     .on_hover_text_at_pointer(&self.name);
 
                 response = Some(img_response)
             });
+        });
+
+        ui.painter().rect_stroke(
+            rect.1,
+            0., // Corner rounding (must match the one in `rect_filled`)
+            egui::Stroke::new(1.0, Color32::from_rgb(48, 48, 48)),
+            egui::StrokeKind::Outside, // Border thickness and color
+        );
 
         response
     }
 
-    pub fn display_empty_image_frame(ui: &mut egui::Ui, size: f32, outer_margin: f32) {
-        let spinner_size = size / 3.;
-        let inner_margin = (size - spinner_size) / 2.;
+    pub fn display_empty_image_frame(ui: &mut egui::Ui, size: f32) {
+        let rect_size = Vec2::splat(size);
+        let rect = ui.allocate_space(rect_size);
 
-        egui::Frame::none()
-            .inner_margin(egui::Margin {
-                left: inner_margin,
-                right: inner_margin,
-                top: inner_margin,
-                bottom: inner_margin,
-            })
-            .outer_margin(egui::Margin {
-                left: outer_margin,
-                right: outer_margin,
-                top: outer_margin,
-                bottom: outer_margin,
-            })
-            .fill(egui::Color32::from_rgb(119, 119, 119))
-            .show(ui, |ui| ui.add(egui::Spinner::new().size(spinner_size)));
+        ui.painter()
+            .rect_filled(rect.1, 0, egui::Color32::from_rgb(119, 119, 119));
+
+        ui.allocate_new_ui(UiBuilder::new().max_rect(rect.1), |ui| {
+            ui.centered_and_justified(|ui| {
+                let spinner_size = size / 3.;
+                ui.add(egui::Spinner::new().size(spinner_size));
+            });
+        });
+
+        ui.painter().rect_stroke(
+            rect.1,
+            0., // Corner rounding (must match the one in `rect_filled`)
+            egui::Stroke::new(1.0, Color32::from_rgb(48, 48, 48)),
+            egui::StrokeKind::Outside, // Border thickness and color
+        );
     }
 
     pub fn finish_img_loading(&mut self) {
@@ -168,15 +146,12 @@ impl ThumbnailImage {
     ///If image is marked for unloading, unload it
     pub fn unload_delayed(&mut self) {
         if self.should_unload {
-            match &mut self.load_image_handle {
-                Some(ih) => {
-                    if ih.is_finished() {
-                        self.load_image_handle = None;
-                        self.image = None;
-                        self.should_unload = false;
-                    }
+            if let Some(ih) = &mut self.load_image_handle {
+                if ih.is_finished() {
+                    self.load_image_handle = None;
+                    self.image = None;
+                    self.should_unload = false;
                 }
-                None => {}
             }
         }
     }

@@ -1,6 +1,6 @@
 use crate::image::Image;
 use crate::metadata;
-use eframe::egui::{self, vec2, Rect, RichText};
+use eframe::egui::{self, vec2, Rect, RichText, Widget};
 use eframe::epaint::{Pos2, Vec2};
 use std;
 use std::path::PathBuf;
@@ -31,6 +31,7 @@ pub struct GalleryImage {
     pub prev_available_size: Vec2,
     ///prev target size before zoom
     pub prev_target_size: Vec2,
+    pub prev_cursor_pos_normalized: Vec2,
 }
 
 impl GalleryImage {
@@ -57,6 +58,7 @@ impl GalleryImage {
                 prev_percentage_zoom: 0.,
                 prev_available_size: vec2(0., 0.),
                 prev_target_size: vec2(0., 0.),
+                prev_cursor_pos_normalized: vec2(0., 0.),
             })
             .collect()
     }
@@ -118,6 +120,8 @@ impl GalleryImage {
             }
         }
 
+        sizing.scroll_delta *= sizing.zoom_factor;
+
         //Scales image based on zoom
         target_size[0] *= sizing.zoom_factor;
         target_size[1] *= sizing.zoom_factor;
@@ -138,35 +142,45 @@ impl GalleryImage {
         //Visible rect of the image (target_size)
         let mut visible_rect = Rect {
             min: Pos2 { x: 0.0, y: 0.0 },
-            max: Pos2 { x: 1.0, y: 1.0 },
+            max: Pos2 {
+                x: display_size.x,
+                y: display_size.y,
+            },
         };
 
         //Conform visible rect to display_size by cropping the image
         let out_bounds_y = target_size[1] - display_size[1];
-        if out_bounds_y > 0.0 {
-            let rect_offset_y = (1.0 - (display_size[1] / target_size[1])) / 2.0;
-            visible_rect.min.y = rect_offset_y;
-            visible_rect.max.y = 1.0 - rect_offset_y;
-        }
-
         let out_bounds_x = target_size[0] - display_size[0];
-        if out_bounds_x > 0.0 {
-            let rect_offset_x = (1.0 - (display_size[0] / target_size[0])) / 2.0;
-            visible_rect.min.x = rect_offset_x;
-            visible_rect.max.x = 1.0 - rect_offset_x;
+
+        if out_bounds_y > 0.0 {
+            let remain_y = (target_size.y - display_size.y) / 2.0;
+            visible_rect.min.y = remain_y;
+            visible_rect.max.y = target_size.y - remain_y;
         }
 
-        Self::update_scroll_pos(
+        if out_bounds_x > 0.0 {
+            let remain_x = (target_size.x - display_size.x) / 2.0;
+            visible_rect.min.x = remain_x;
+            visible_rect.max.x = target_size.x - remain_x;
+        }
+
+        Self::update_panning_pos(
             &mut self.scroll_pos,
-            &visible_rect,
+            &mut visible_rect,
+            &target_size,
             &mut sizing.scroll_delta,
         );
 
-        //Move the visible rect based on the scroll position
-        visible_rect.min.y += self.scroll_pos.y / 2.0;
-        visible_rect.max.y += self.scroll_pos.y / 2.0;
-        visible_rect.min.x += self.scroll_pos.x / 2.0;
-        visible_rect.max.x += self.scroll_pos.x / 2.0;
+        let visible_rect_normalized = Rect {
+            min: Pos2 {
+                x: visible_rect.min.x / target_size.x,
+                y: visible_rect.min.y / target_size.y,
+            },
+            max: Pos2 {
+                x: visible_rect.max.x / target_size.x,
+                y: visible_rect.max.y / target_size.y,
+            },
+        };
 
         if frame.enabled {
             //we use the shortest side
@@ -186,7 +200,7 @@ impl GalleryImage {
             let image = egui::Image::new(texture)
                 .fit_to_exact_size(vec2(display_size[0], display_size[1]))
                 .maintain_aspect_ratio(false)
-                .uv(visible_rect);
+                .uv(visible_rect_normalized);
 
             let offset_x = (ui.available_width() - (display_size[0] + stroke)) / 2.;
             let offset_y = (ui.available_height() - (display_size[1] + stroke)) / 2.;
@@ -204,20 +218,24 @@ impl GalleryImage {
 
             ui.add(image);
         } else {
-            ui.add(
-                egui::Image::new(texture)
-                    .uv(visible_rect)
-                    .fit_to_exact_size(vec2(display_size[0], display_size[1]))
-                    .maintain_aspect_ratio(false),
-            );
+            egui::Image::new(texture)
+                .uv(visible_rect_normalized)
+                .fit_to_exact_size(vec2(display_size[0], display_size[1]))
+                .maintain_aspect_ratio(false)
+                .ui(ui);
         }
     }
 
     ///If there is free space, the scroll position will be moved
-    fn update_scroll_pos(scroll_pos: &mut Pos2, visible_rect: &Rect, scroll_delta: &mut Vec2) {
+    fn update_panning_pos(
+        scroll_pos: &mut Pos2,
+        visible_rect: &mut Rect,
+        target_size: &Vec2,
+        scroll_delta: &mut Vec2,
+    ) {
         let free_space = Pos2::new(
-            1.0 - (visible_rect.max.x - visible_rect.min.x),
-            1.0 - (visible_rect.max.y - visible_rect.min.y),
+            target_size.x - (visible_rect.max.x - visible_rect.min.x),
+            target_size.y - (visible_rect.max.y - visible_rect.min.y),
         );
 
         //reverse scroll directions
@@ -226,7 +244,7 @@ impl GalleryImage {
 
         if free_space.x != 0.0 {
             //has available space to scroll in the x direction
-            scroll_pos.x += scroll_delta.x * 0.0015;
+            scroll_pos.x += scroll_delta.x;
             if scroll_pos.x > free_space.x {
                 scroll_pos.x = free_space.x;
             } else if scroll_pos.x < free_space.x * -1.0 {
@@ -238,7 +256,7 @@ impl GalleryImage {
 
         if free_space.y != 0.0 {
             //has available space to scroll in the y direction
-            scroll_pos.y += scroll_delta.y * 0.0015;
+            scroll_pos.y += scroll_delta.y;
             if scroll_pos.y > free_space.y {
                 scroll_pos.y = free_space.y;
             } else if scroll_pos.y < free_space.y * -1.0 {
@@ -247,6 +265,11 @@ impl GalleryImage {
         } else {
             scroll_pos.y = 0.0;
         }
+
+        visible_rect.min.y += scroll_pos.y / 2.0;
+        visible_rect.max.y += scroll_pos.y / 2.0;
+        visible_rect.min.x += scroll_pos.x / 2.0;
+        visible_rect.max.x += scroll_pos.x / 2.0;
     }
 
     pub fn finish_img_loading(&mut self) {
@@ -267,30 +290,26 @@ impl GalleryImage {
     }
 
     pub fn metadata_ui(&mut self, ui: &mut egui::Ui, tags_to_display: &Vec<String>) {
-        match &mut self.image {
-            Some(img) => {
-                if self.display_metadata.is_none() {
-                    let mut metadata: Vec<(String, String)> = vec![];
-                    for tag in tags_to_display {
-                        match &img.metadata.get(tag) {
-                            Some(value) => metadata.push((tag.to_string(), value.to_string())),
-                            None => {}
-                        };
-                    }
-                    self.display_metadata = Some(metadata);
+        if let Some(img) = &mut self.image {
+            if self.display_metadata.is_none() {
+                let mut metadata: Vec<(String, String)> = vec![];
+                for tag in tags_to_display {
+                    if let Some(value) = &img.metadata.get(tag) {
+                        metadata.push((tag.to_string(), value.to_string()));
+                    };
                 }
+                self.display_metadata = Some(metadata);
+            }
 
-                if let Some(metadata) = &self.display_metadata {
-                    for md in metadata {
-                        ui.horizontal_wrapped(|ui| {
-                            let text = RichText::new(format!("{}:", md.0)).strong();
-                            ui.label(text);
-                            ui.label(&md.1);
-                        });
-                    }
+            if let Some(metadata) = &self.display_metadata {
+                for md in metadata {
+                    ui.horizontal_wrapped(|ui| {
+                        let text = RichText::new(format!("{}:", md.0)).strong();
+                        ui.label(text);
+                        ui.label(&md.1);
+                    });
                 }
             }
-            None => {}
         }
     }
 
@@ -329,8 +348,8 @@ impl GalleryImage {
         let inner_margin_y = (ui.available_height() - spinner_size) / 2.;
         let inner_margin_x = (ui.available_width() - spinner_size) / 2.;
 
-        egui::Frame::none()
-            .inner_margin(egui::Margin {
+        egui::Frame::NONE
+            .inner_margin(epaint::Marginf {
                 left: inner_margin_x,
                 right: inner_margin_x,
                 top: inner_margin_y,

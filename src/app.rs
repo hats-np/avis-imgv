@@ -12,8 +12,8 @@ use crate::{
 };
 use eframe::egui::{self, KeyboardShortcut};
 use notify::{Event, INotifyWatcher, RecursiveMode, Watcher};
+use rand::rng;
 use rand::seq::SliceRandom;
-use rand::thread_rng;
 use rfd::FileDialog;
 use std::{
     path::{Path, PathBuf},
@@ -44,9 +44,9 @@ pub struct App {
 
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        crate::theme::apply_theme(&cc.egui_ctx);
         let cfg = Config::new();
 
+        crate::theme::apply_theme(&cc.egui_ctx);
         let mut style = (*cc.egui_ctx.style()).clone();
 
         for t_styles in style.text_styles.iter_mut() {
@@ -264,7 +264,7 @@ impl App {
         }
 
         if order == &Order::Random {
-            paths.shuffle(&mut thread_rng());
+            paths.shuffle(&mut rng());
         } else if order == &Order::Asc || order == &Order::Desc {
             paths.sort_by(|a, b| {
                 let first: String;
@@ -450,7 +450,8 @@ impl App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        ctx.request_repaint();
+        //ctx.request_repaint();
+        //ctx.set_debug_on_hover(true);
         let mut order_changed = false;
 
         self.perf_metrics.new_frame();

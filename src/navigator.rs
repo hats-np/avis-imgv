@@ -4,7 +4,7 @@ use std::{
 };
 
 use eframe::{
-    egui::{self, Area, Id, Response, Ui, Vec2},
+    egui::{self, Area, Id, Response, Ui},
     epaint::{Color32, Pos2, Shadow},
 };
 
@@ -26,9 +26,9 @@ pub fn ui(input: &mut String, ctx: &egui::Context) -> bool {
         .show(ctx, |ui| {
             egui::Frame::window(ui.style())
                 .shadow(Shadow {
-                    offset: Vec2::new(0., 0.),
-                    blur: 0.,
-                    spread: 0.,
+                    offset: [0, 0],
+                    blur: 0,
+                    spread: 0,
                     color: (Color32::from_white_alpha(0)),
                 })
                 .show(ui, |ui| {
@@ -191,7 +191,6 @@ fn get_suggestions(input: &str) -> Vec<String> {
     suggestions
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -216,7 +215,7 @@ mod tests {
     #[test]
     fn test_string_from_path_invalid_utf8_path() {
         // Create a path, which is valid, but with invalid UTF-8 bytes.
-        let invalid_bytes = &[0x66, 0x6f, 0x6f, 0xFF, 0x62, 0x61, 0x72];  // "foo<invalid>bar"
+        let invalid_bytes = &[0x66, 0x6f, 0x6f, 0xFF, 0x62, 0x61, 0x72]; // "foo<invalid>bar"
         let invalid_os_str = OsStr::from_bytes(invalid_bytes);
         let invalid_path = Path::new(invalid_os_str);
 

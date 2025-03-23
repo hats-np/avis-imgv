@@ -392,7 +392,7 @@ impl SingleGallery {
                         )),
                     );
 
-                    egui::ComboBox::from_id_source("order_combo_box")
+                    egui::ComboBox::from_id_salt("order_combo_box")
                         .width(110.)
                         .icon(no_icon)
                         .selected_text(order.to_string())
@@ -494,7 +494,7 @@ impl SingleGallery {
             });
 
         let image_pannel_resp = egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(egui::Color32::from_rgb(119, 119, 119)))
+            .frame(egui::Frame::NONE.fill(egui::Color32::from_rgb(119, 119, 119)))
             .show(ctx, |ui| {
                 ui.centered_and_justified(|ui| {
                     if !self.imgs.is_empty() {
@@ -521,10 +521,10 @@ impl SingleGallery {
             }
 
             self.sizing.scroll_delta = ctx.input(|i| i.smooth_scroll_delta);
-            if ctx.input(|i| i.pointer.any_down()) {
+            if ctx.input(|i| i.pointer.is_decidedly_dragging()) {
                 //drag
-                let pointer_delta = ctx.input(|i| i.pointer.delta());
-                self.sizing.scroll_delta += pointer_delta * 0.5;
+                self.sizing.scroll_delta +=
+                    ctx.input(|i| i.pointer.delta()) * ctx.pixels_per_point();
             }
         } else {
             //lest we lose hover in the frame that there's a scroll

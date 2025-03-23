@@ -107,8 +107,8 @@ Configuration file should be: `~/.config/avis-imgv/config.json`. An example is p
 
 | Keys                         | Values                                                                                                                                                                                                                                                     | Default                                                                                                                                               |
 |------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| loaded_images                | Number of loaded images in each direction. Adjust based on how much RAM you want to use. Having more preloaded images increases application speed, to a certain point, when scrolling.                                                                                                                                                                   | 5                                                                                                                                                     |
-| should_wait                  | Should wait for image to finish loading before advancing to it                                                                                                                                                                                  | true                                                                                                                                                  |
+| loaded_images                | Number of loaded images in each direction. Adjust based on how much RAM you want to use. Having more preloaded images increases application speed, to a certain point, when scrolling.                                                                     | 5                                                                                                                                                     |
+| should_wait                  | Should wait for image to finish loading before advancing to it                                                                                                                                                                                             | true                                                                                                                                                  |
 | metadata_tags                | Metadata visible in the Image Information side pannel(when opened)                                                                                                                                                                                         | Date/Time Original, Created Date, Camera Model Name, Lens Model, Focal Length, Aperture Value, Exposure Time, ISO, Image Size, Color Space, Directory |
 | frame_size_relative_to_image | White frame size relative to smallest image side                                                                                                                                                                                                           | 0.2                                                                                                                                                   |
 | scroll_navigation            | Should scroll be used for navigation                                                                                                                                                                                                                       | true                                                                                                                                                  |
@@ -121,7 +121,6 @@ Configuration file should be: `~/.config/avis-imgv/config.json`. An example is p
 | images_per_row    | How many images should be displayed per row                                      | 3                                                                       |
 | preloaded_rows    | How many off-screen rows in each direction should be loaded and remain in memory | 2                                                                       |
 | simultaneous_load | How many images should be allowed to load at the same time                       | 8 (Adjust according to core count or how much you want to work your PC) |
-| margin_size       | Margin size between images                                                       | 10                                                                     |
 
 ## Default Shortcuts
 
@@ -130,31 +129,31 @@ modifiers.
 
 ### General
 
-| Key       | Action                                               |
-|-----------|------------------------------------------------------|
-| Backspace | Toggle between Single and Multi Gallery              |
-| Q   | Exit                                                 |
-| F1        | Toggles the menu                                     |
-| Ctrl + L  | Shows navigation bar                                 |
-| T         | Show Directory Tree                                  |
-| Ctrl + F  | Flatten (read files from all sub dirs)               |
-| Ctrl + W  | Watch a directory for file changes (create, update)  |
+| Key       | Action                                              |
+|-----------|-----------------------------------------------------|
+| Backspace | Toggle between Single and Multi Gallery             |
+| Q         | Exit                                                |
+| F1        | Toggles the menu                                    |
+| Ctrl + L  | Shows navigation bar                                |
+| T         | Show Directory Tree                                 |
+| Ctrl + F  | Flatten (read files from all sub dirs)              |
+| Ctrl + W  | Watch a directory for file changes (create, update) |
 
 ### Single Gallery
 
-| Key         | Action                                |
-|-------------|---------------------------------------|
-| F           | Fit image to screen                   |
-| G           | Toggle: White frame around the image |
+| Key         | Action                                        |
+|-------------|-----------------------------------------------|
+| F           | Fit image to screen                           |
+| G           | Toggle: White frame around the image          |
 | I           | Toggle: Display side tab with image metadata  |
-| Spacebar    | Zoom                                  |
-| Ctrl+Scroll | Zoom image                            |
-| Scroll      | Next or Previous                      |
-| Arrow Keys  | Next or Previous                      |
-| Alt + 1     | Set Magnification at 100%             |
-| H           | Fit Horizontal                        |
-| V           | Fit Vertical                          |
-| M           | Maximize (Center image)               |
+| Spacebar    | Zoom                                          |
+| Ctrl+Scroll | Zoom image                                    |
+| Scroll      | Next or Previous                              |
+| Arrow Keys  | Next or Previous                              |
+| Alt + 1     | Set Magnification at 100%                     |
+| H           | Fit Horizontal                                |
+| V           | Fit Vertical                                  |
+| M           | Maximize (Center image)                       |
 | Ctrl+M      | Toggle: Maximize automatically when scrolling |
 
 ### Multi Gallery

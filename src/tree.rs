@@ -1,5 +1,5 @@
 use eframe::{
-    egui::{self, Area, Id, Vec2},
+    egui::{self, Area, Id},
     emath::Align,
     epaint::{Color32, Pos2, Shadow},
 };
@@ -164,13 +164,12 @@ impl Tree {
 
                     let mut img_count = 0;
                     if let Ok(rd) = path.path().read_dir() {
-                        rd.for_each(|x| match &x {
-                            Ok(p) => {
+                        rd.for_each(|x| {
+                            if let Ok(p) = &x {
                                 if utils::is_valid_file(&p.path()) {
                                     img_count += 1
                                 }
                             }
-                            Err(_) => {}
                         })
                     };
 
@@ -209,9 +208,9 @@ pub fn ui(path: &str, ctx: &egui::Context) -> Option<PathBuf> {
         .show(ctx, |ui| {
             egui::Frame::window(ui.style())
                 .shadow(Shadow {
-                    offset: Vec2::new(0., 0.),
-                    blur: 0.,
-                    spread: 0.,
+                    offset: [0, 0],
+                    blur: 0,
+                    spread: 0,
                     color: (Color32::from_white_alpha(0)),
                 })
                 .show(ui, |ui| {

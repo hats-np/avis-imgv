@@ -93,8 +93,6 @@ pub struct MultiGalleryConfig {
     pub preloaded_rows: usize,
     #[serde(default = "default_simultaneous_load")]
     pub simultaneous_load: usize,
-    #[serde(default = "default_margin_size")]
-    pub margin_size: f32,
     #[serde(default = "default_ctx_menu")]
     pub context_menu: Vec<ContextMenuEntry>,
 
@@ -197,7 +195,6 @@ impl Default for MultiGalleryConfig {
             images_per_row: default_images_per_row(),
             preloaded_rows: default_preloaded_rows(),
             simultaneous_load: default_simultaneous_load(),
-            margin_size: default_margin_size(),
             context_menu: default_ctx_menu(),
 
             sc_scroll: default_sc_scroll(),
@@ -366,9 +363,6 @@ pub fn default_preloaded_rows() -> usize {
 }
 pub fn default_simultaneous_load() -> usize {
     8
-}
-pub fn default_margin_size() -> f32 {
-    10.
 }
 pub fn default_sc_scroll() -> Shortcut {
     Shortcut::from("Space", &[])
