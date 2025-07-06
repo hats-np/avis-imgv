@@ -80,6 +80,7 @@ impl App {
                 &opened_img_path,
                 cfg.image_view,
                 &cfg.general.output_icc_profile,
+                &cc.egui_ctx,
             ),
             gallery_selected_index: None,
             grid_view: GridView::new(&img_paths, cfg.grid_view, &cfg.general.output_icc_profile),
@@ -141,7 +142,7 @@ impl App {
         }
 
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_flatten_dir.kbd_shortcut)) {
-            self.flatten_open_dir();
+            self.flatten_open_dir(ctx);
         }
 
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_watch_directory.kbd_shortcut)) {
@@ -188,15 +189,15 @@ impl App {
         }
     }
 
-    fn folder_picker(&mut self) {
+    fn folder_picker(&mut self, ctx: &egui::Context) {
         let folder = self.get_file_dialog().pick_folder();
 
         if let Some(folder) = folder {
-            self.set_images_from_path(&folder, &None)
+            self.set_images_from_path(&folder, &None, ctx)
         }
     }
 
-    fn files_picker(&mut self) {
+    fn files_picker(&mut self, ctx: &egui::Context) {
         let files = self
             .get_file_dialog()
             .add_filter("image", VALID_EXTENSIONS)
@@ -208,7 +209,7 @@ impl App {
 
         if let Some(files) = files {
             if let Some(parent) = &files[0].parent() {
-                self.set_images_from_path(parent, &Some(files[0].clone()))
+                self.set_images_from_path(parent, &Some(files[0].clone()), ctx)
             }
         }
     }
@@ -226,23 +227,38 @@ impl App {
     }
 
     //Will crawl, assumes new directory
-    fn set_images_from_path(&mut self, path: &Path, selected_img: &Option<PathBuf>) {
+    fn set_images_from_path(
+        &mut self,
+        path: &Path,
+        selected_img: &Option<PathBuf>,
+        ctx: &egui::Context,
+    ) {
         self.paths = crawler::crawl(path, self.dir_flattened);
-        self.set_images(selected_img, true);
+        self.set_images(selected_img, true, ctx);
     }
 
-    fn set_images_from_paths(&mut self, paths: Vec<PathBuf>) {
+    fn set_images_from_paths(&mut self, paths: Vec<PathBuf>, ctx: &egui::Context) {
         self.paths = paths;
-        self.set_images(&None, true);
+        self.set_images(&None, true, ctx);
     }
 
-    fn set_images(&mut self, selected_img: &Option<PathBuf>, new_dir_opened: bool) {
+    fn set_images(
+        &mut self,
+        selected_img: &Option<PathBuf>,
+        new_dir_opened: bool,
+        ctx: &egui::Context,
+    ) {
         Metadata::cache_metadata_for_images_in_background(&self.paths);
-        self.load_images(selected_img, new_dir_opened);
+        self.load_images(selected_img, new_dir_opened, ctx);
     }
 
-    fn load_images(&mut self, selected_img: &Option<PathBuf>, new_dir_opened: bool) {
-        self.gallery.set_images(&self.paths, selected_img);
+    fn load_images(
+        &mut self,
+        selected_img: &Option<PathBuf>,
+        new_dir_opened: bool,
+        ctx: &egui::Context,
+    ) {
+        self.gallery.set_images(&self.paths, selected_img, ctx);
         self.grid_view.set_images(&self.paths);
 
         if new_dir_opened {
@@ -287,7 +303,7 @@ impl App {
         self.watcher = Some(watcher);
     }
 
-    fn process_file_watcher_events(&mut self) {
+    fn process_file_watcher_events(&mut self, ctx: &egui::Context) {
         //Ignore when we can't lock the mutex, it'll try next frame anyway
         if let Ok(mut events) = self.watcher_events.clone().try_lock() {
             if events.is_empty() {
@@ -309,7 +325,7 @@ impl App {
 
                 if event.kind.is_modify() {
                     if self.paths.contains(first) {
-                        self.reload_galleries_image(Some(first.clone()));
+                        self.reload_galleries_image(Some(first.clone()), ctx);
                     } else {
                         self.paths.push(first.clone());
                         selected_img_path = Some(first.clone());
@@ -323,14 +339,14 @@ impl App {
             }
 
             if should_reload {
-                self.set_images(&selected_img_path, false);
+                self.set_images(&selected_img_path, false, ctx);
             }
 
             events.clear();
         }
     }
 
-    fn flatten_open_dir(&mut self) {
+    fn flatten_open_dir(&mut self, ctx: &egui::Context) {
         if self.dir_flattened {
             println!("Returning to original directory");
             self.dir_flattened = false;
@@ -341,7 +357,7 @@ impl App {
                 self.enable_watcher();
             }
 
-            self.set_images_from_path(&self.base_path.clone(), &None);
+            self.set_images_from_path(&self.base_path.clone(), &None, ctx);
         } else {
             println!("Flattening open directory");
             self.dir_flattened = true;
@@ -352,38 +368,46 @@ impl App {
                 self.enable_watcher();
             }
 
-            self.set_images_from_path(&self.base_path.clone(), &self.gallery.get_active_img_path());
+            self.set_images_from_path(
+                &self.base_path.clone(),
+                &self.gallery.get_active_img_path(),
+                ctx,
+            );
         }
     }
 
     //Some callbacks affect both collections so it's important
     //to deal them in the base of the app
-    fn execute_callback(&mut self, callback: Callback) {
+    fn execute_callback(&mut self, callback: Callback, ctx: &egui::Context) {
         println!("Executing callback with {callback:?}");
         match callback {
-            Callback::Pop(path) => self.callback_pop(path),
-            Callback::Reload(path) => self.reload_galleries_image(path),
-            Callback::ReloadAll => self.callback_reload_all(),
+            Callback::Pop(path) => self.callback_pop(path, ctx),
+            Callback::Reload(path) => self.reload_galleries_image(path, ctx),
+            Callback::ReloadAll => self.callback_reload_all(ctx),
             Callback::NoAction => {}
         }
     }
 
-    fn callback_pop(&mut self, path: Option<PathBuf>) {
+    fn callback_pop(&mut self, path: Option<PathBuf>, ctx: &egui::Context) {
         if let Some(path) = path {
-            self.gallery.pop(&path);
+            self.gallery.pop(&path, ctx);
             self.grid_view.pop(&path);
         }
     }
 
-    fn reload_galleries_image(&mut self, path: Option<PathBuf>) {
+    fn reload_galleries_image(&mut self, path: Option<PathBuf>, ctx: &egui::Context) {
         if let Some(path) = path {
-            self.gallery.reload_at(&path);
+            self.gallery.reload_at(&path, ctx);
             self.grid_view.reload_at(&path);
         }
     }
 
-    fn callback_reload_all(&mut self) {
-        self.set_images_from_path(&self.base_path.clone(), &self.gallery.get_active_img_path());
+    fn callback_reload_all(&mut self, ctx: &egui::Context) {
+        self.set_images_from_path(
+            &self.base_path.clone(),
+            &self.gallery.get_active_img_path(),
+            ctx,
+        );
     }
 }
 
@@ -405,12 +429,12 @@ impl eframe::App for App {
             .show_animated(ctx, self.top_menu_visible, |ui| {
                 ui.menu_button("File", |ui| {
                     if ui.button("Open Folder").clicked() {
-                        self.folder_picker();
+                        self.folder_picker(ctx);
                         ui.close_menu();
                     }
 
                     if ui.button("Open Files").clicked() {
-                        self.files_picker();
+                        self.files_picker(ctx);
                         ui.close_menu();
                     }
                 });
@@ -423,7 +447,7 @@ impl eframe::App for App {
             .show_animated(ctx, self.side_panel_visible, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     if let Some(filtered_paths) = self.filters.ui(ui) {
-                        self.set_images_from_paths(filtered_paths);
+                        self.set_images_from_paths(filtered_paths, ctx);
                     }
                     ui.add_space(20.);
                     ui.separator();
@@ -439,7 +463,7 @@ impl eframe::App for App {
         if self.navigator_visible && navigator::ui(&mut self.navigator_search, ctx) {
             self.navigator_visible = false;
             utils::set_mute_state(ctx, false);
-            self.set_images_from_path(&PathBuf::from(self.navigator_search.clone()), &None);
+            self.set_images_from_path(&PathBuf::from(self.navigator_search.clone()), &None, ctx);
         }
 
         if self.dir_tree_visible {
@@ -447,7 +471,7 @@ impl eframe::App for App {
                 if let Some(path) = tree::ui(path.to_str().unwrap_or(""), ctx) {
                     self.dir_tree_visible = false;
                     utils::set_mute_state(ctx, false);
-                    self.set_images_from_path(&path, &None);
+                    self.set_images_from_path(&path, &None, ctx);
                 }
             }
         }
@@ -456,19 +480,19 @@ impl eframe::App for App {
             self.grid_view.ui(ctx, &mut self.gallery_selected_index);
 
             if let Some(img_name) = self.grid_view.selected_image_name() {
-                self.gallery.select_by_name(img_name);
+                self.gallery.select_by_name(img_name, ctx);
                 self.grid_view_visible = false;
             }
 
             if let Some(callback) = self.grid_view.take_callback() {
-                self.execute_callback(callback);
+                self.execute_callback(callback, ctx);
             }
         } else {
             self.gallery
                 .ui(ctx, self.dir_flattened, self.watcher.is_some());
 
             if let Some(callback) = self.gallery.take_callback() {
-                self.execute_callback(callback);
+                self.execute_callback(callback, ctx);
             }
         }
 
@@ -476,7 +500,7 @@ impl eframe::App for App {
             ctx.request_repaint();
         }
 
-        self.process_file_watcher_events();
+        self.process_file_watcher_events(ctx);
 
         self.perf_metrics.end_frame();
     }

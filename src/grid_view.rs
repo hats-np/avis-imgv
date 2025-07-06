@@ -131,6 +131,7 @@ impl GridView {
                                 row_range.end,
                                 &mut loading_imgs,
                                 img_size,
+                                ctx,
                             );
                         }
                     }
@@ -144,6 +145,7 @@ impl GridView {
                                 preload_to,
                                 &mut loading_imgs,
                                 img_size,
+                                ctx,
                             );
                         }
                     }
@@ -157,6 +159,7 @@ impl GridView {
                                 preload_to,
                                 &mut loading_imgs,
                                 img_size,
+                                ctx,
                             );
                         }
                     }
@@ -204,6 +207,7 @@ impl GridView {
         preload_to: usize,
         loading_imgs: &mut usize,
         image_size: f32,
+        ctx: &egui::Context,
     ) {
         let img = &mut match self.imgs.get_mut(i) {
             Some(img) => img,
@@ -214,7 +218,7 @@ impl GridView {
             if loading_imgs != &self.config.simultaneous_load {
                 //Double the square size so we have a little downscale going on
                 //Looks better than without and won't impact speed much. Possibly add as a config
-                if img.load((image_size * 2.) as u32) {
+                if img.load((image_size * 2.) as u32, ctx) {
                     *loading_imgs += 1;
                 }
             }

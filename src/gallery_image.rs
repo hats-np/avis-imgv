@@ -79,13 +79,7 @@ impl GalleryImage {
             }
         };
 
-        let texture = match image.get_texture(&self.name, ui) {
-            Some(t) => t,
-            None => {
-                Self::display_loading_frame(ui);
-                return;
-            }
-        };
+        let texture = &image.texture;
 
         let original_size = texture.size_vec2();
         let mut target_size = texture.size_vec2();
@@ -119,8 +113,6 @@ impl GalleryImage {
                 sizing.zoom_factor = self.prev_available_size.x / self.prev_target_size.x;
             }
         }
-
-        
 
         //Scales image based on zoom
         target_size[0] *= sizing.zoom_factor;
@@ -315,9 +307,7 @@ impl GalleryImage {
 
     pub fn image_size(&self) -> Option<Vec2> {
         if let Some(img) = &self.image {
-            if let Some(texture) = &img.texture {
-                return Some(texture.size_vec2());
-            }
+            return Some(img.texture.size_vec2());
         }
 
         None
@@ -332,13 +322,14 @@ impl GalleryImage {
         self.load_image_handle = None;
     }
 
-    pub fn load(&mut self) {
+    pub fn load(&mut self, ctx: &egui::Context) {
         if self.load_image_handle.is_none() && self.image.is_none() {
             println!("{} -> Loading image", self.name);
             self.load_image_handle = Some(Image::load(
                 self.path.clone(),
                 None,
                 self.output_profile.clone(),
+                ctx,
             ));
         }
     }

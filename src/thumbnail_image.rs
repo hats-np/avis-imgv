@@ -43,13 +43,7 @@ impl ThumbnailImage {
             }
         };
 
-        let texture = match image.get_texture(&self.name, ui) {
-            Some(t) => t,
-            None => {
-                Self::display_empty_image_frame(ui, size[1]);
-                return None;
-            }
-        };
+        let texture = &image.texture;
 
         let prev_size = [size[0], size[1]];
 
@@ -128,7 +122,7 @@ impl ThumbnailImage {
         }
     }
 
-    pub fn load(&mut self, image_size: u32) -> bool {
+    pub fn load(&mut self, image_size: u32, ctx: &egui::Context) -> bool {
         if self.load_image_handle.is_none() && self.image.is_none() {
             println!("Loading image -> {}", self.path.display());
             self.should_unload = false;
@@ -136,6 +130,7 @@ impl ThumbnailImage {
                 self.path.clone(),
                 Some(image_size),
                 self.output_profile.clone(),
+                ctx,
             ));
             true
         } else {

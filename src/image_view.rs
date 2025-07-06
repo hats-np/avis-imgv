@@ -31,6 +31,7 @@ impl ImageView {
         selected_image_path: &Option<PathBuf>,
         config: ImageViewConfig,
         output_profile: &String,
+        ctx: &egui::Context,
     ) -> ImageView {
         let mut sg = ImageView {
             imgs: vec![],
@@ -52,12 +53,17 @@ impl ImageView {
             config,
         };
 
-        sg.set_images(image_paths, selected_image_path);
+        sg.set_images(image_paths, selected_image_path, ctx);
 
         sg
     }
 
-    pub fn set_images(&mut self, image_paths: &[PathBuf], selected_image_path: &Option<PathBuf>) {
+    pub fn set_images(
+        &mut self,
+        image_paths: &[PathBuf],
+        selected_image_path: &Option<PathBuf>,
+        ctx: &egui::Context,
+    ) {
         let imgs = GalleryImage::from_paths(image_paths, &self.output_profile);
 
         self.imgs = imgs;
@@ -74,17 +80,17 @@ impl ImageView {
             self.selected_img_index + 1
         );
 
-        self.load();
+        self.load(ctx);
     }
 
-    pub fn load(&mut self) {
+    pub fn load(&mut self, ctx: &egui::Context) {
         if self.imgs.is_empty() {
             return;
         }
 
         if !self.preload_active {
             for i in 0..self.imgs.len() {
-                self.imgs[i].load();
+                self.imgs[i].load(ctx);
             }
 
             return;
@@ -108,24 +114,24 @@ impl ImageView {
 
         for (i, img) in &mut self.imgs.iter_mut().enumerate() {
             if indexes_to_load.contains(&i) {
-                img.load();
+                img.load(ctx);
             } else {
                 img.unload();
             }
         }
     }
 
-    pub fn select_by_name(&mut self, img_name: String) {
+    pub fn select_by_name(&mut self, img_name: String, ctx: &egui::Context) {
         self.selected_img_index = self
             .imgs
             .iter()
             .position(|x| x.name == img_name)
             .unwrap_or(0);
 
-        self.load();
+        self.load(ctx);
     }
 
-    pub fn next_image(&mut self) {
+    pub fn next_image(&mut self, ctx: &egui::Context) {
         if self.imgs.is_empty() {
             return;
         }
@@ -148,7 +154,7 @@ impl ImageView {
             );
 
             self.imgs[index_to_clear].unload();
-            self.imgs[index_to_preload].load();
+            self.imgs[index_to_preload].load(ctx);
         }
 
         if self.selected_img_index == self.imgs.len() - 1 {
@@ -160,7 +166,7 @@ impl ImageView {
         self.sizing.has_maximized = false;
     }
 
-    pub fn previous_image(&mut self) {
+    pub fn previous_image(&mut self, ctx: &egui::Context) {
         if self.imgs.is_empty() {
             return;
         }
@@ -179,7 +185,7 @@ impl ImageView {
             );
 
             self.imgs[index_to_clear].unload();
-            self.imgs[index_to_preload].load();
+            self.imgs[index_to_preload].load(ctx);
         }
 
         if self.selected_img_index == 0 {
@@ -307,7 +313,7 @@ impl ImageView {
         }
     }
 
-    pub fn jump_to_image(&mut self) {
+    pub fn jump_to_image(&mut self, ctx: &egui::Context) {
         self.selected_img_index = match self.jump_to.parse::<usize>() {
             Ok(i) => {
                 if i > self.imgs.len() || i < 1 {
@@ -319,20 +325,20 @@ impl ImageView {
             Err(_) => self.selected_img_index,
         };
 
-        self.load();
+        self.load(ctx);
         self.jump_to.clear();
     }
 
-    pub fn reload_at(&mut self, path: &Path) {
+    pub fn reload_at(&mut self, path: &Path, ctx: &egui::Context) {
         if let Some(index) = self.imgs.iter().position(|x| x.path == path) {
             let img = &mut self.imgs[index];
             img.unload();
-            img.load();
+            img.load(ctx);
         }
     }
 
     ///Pops image from the collection
-    pub fn pop(&mut self, path: &Path) {
+    pub fn pop(&mut self, path: &Path, ctx: &egui::Context) {
         if let Some(pos) = self.imgs.iter().position(|x| x.path == path) {
             self.imgs.remove(pos);
             self.preload_active =
@@ -343,7 +349,7 @@ impl ImageView {
                 self.selected_img_index = self.imgs.len() - 1;
             }
 
-            self.load();
+            self.load(ctx);
         }
     }
 
@@ -366,7 +372,7 @@ impl ImageView {
                     if response.lost_focus()
                         && response.ctx.input(|i| i.key_pressed(egui::Key::Enter))
                     {
-                        self.jump_to_image();
+                        self.jump_to_image(ctx);
                     }
 
                     ui.add_sized(
@@ -462,12 +468,12 @@ impl ImageView {
             if self.config.scroll_navigation {
                 if ctx.input(|i| i.raw_scroll_delta.y) > 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
                 {
-                    self.next_image();
+                    self.next_image(ctx);
                 }
 
                 if ctx.input(|i| i.raw_scroll_delta.y) < 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
                 {
-                    self.previous_image();
+                    self.previous_image(ctx);
                 }
             }
 
@@ -508,10 +514,10 @@ impl ImageView {
             self.double_zoom();
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_next.kbd_shortcut)) {
-            self.next_image();
+            self.next_image(ctx);
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_prev.kbd_shortcut)) {
-            self.previous_image();
+            self.previous_image(ctx);
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_one_to_one.kbd_shortcut)) {
             self.set_zoom_factor_from_percentage(&100.);

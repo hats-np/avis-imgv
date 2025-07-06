@@ -23,9 +23,8 @@ use fast_image_resize::{PixelType, Resizer};
 pub const LOAD_FAIL_PNG: &[u8; 95764] = include_bytes!("../resources/load_fail.png");
 
 pub struct Image {
-    pub texture: Option<TextureHandle>,
+    pub texture: TextureHandle,
     pub metadata: HashMap<String, String>,
-    color_image: Option<ColorImage>,
 }
 
 impl Image {
@@ -33,7 +32,9 @@ impl Image {
         path: PathBuf,
         image_size: Option<u32>,
         output_icc_profile: String,
+        ctx: &egui::Context,
     ) -> JoinHandle<Option<Image>> {
+        let ctx = ctx.clone();
         thread::spawn(move || {
             let file_name = path
                 .file_name()
@@ -45,7 +46,7 @@ impl Image {
                 Ok(f) => f,
                 Err(e) => {
                     println!("Failure opening image: {e}");
-                    return get_error_image();
+                    return get_error_image(&file_name, &ctx);
                 }
             };
 
@@ -54,7 +55,7 @@ impl Image {
                 Ok(_) => {}
                 Err(e) => {
                     println!("{file_name} -> Error reading image into buffer: {e}");
-                    return get_error_image();
+                    return get_error_image(&file_name, &ctx);
                 }
             }
 
@@ -119,8 +120,11 @@ impl Image {
             );
 
             Some(Image {
-                color_image: Some(ColorImage::from_rgb(size, pixels)),
-                texture: None,
+                texture: ctx.load_texture(
+                    file_name,
+                    ColorImage::from_rgb(size, pixels),
+                    Default::default(),
+                ),
                 metadata,
             })
         })
@@ -292,30 +296,16 @@ impl Image {
 
         transform.transform_in_place(pixels);
     }
-
-    pub fn get_texture(&mut self, name: &str, ui: &mut egui::Ui) -> &Option<TextureHandle> {
-        match &self.texture {
-            Some(_) => &self.texture,
-            None => match self.color_image.take() {
-                Some(img) => {
-                    self.texture = Some(ui.ctx().load_texture(name, img, Default::default()));
-                    &self.texture
-                }
-                None => &None,
-            },
-        }
-    }
 }
 
-pub fn get_error_image() -> Option<Image> {
+pub fn get_error_image(name: &str, ctx: &egui::Context) -> Option<Image> {
     let image = image::load_from_memory(LOAD_FAIL_PNG).unwrap();
     let size = [image.width() as _, image.height() as _];
     let mut flat_samples = image.into_rgb8().into_flat_samples();
     let pixels = flat_samples.as_mut_slice();
 
     Some(Image {
-        color_image: Some(ColorImage::from_rgb(size, pixels)),
-        texture: None,
+        texture: ctx.load_texture(name, ColorImage::from_rgb(size, pixels), Default::default()),
         metadata: HashMap::new(),
     })
 }
