@@ -1,0 +1,1 @@
+load_fail.png -> https://www.svgrepo.com/svg/455858/skull-document

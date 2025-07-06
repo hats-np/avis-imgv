@@ -27,7 +27,7 @@ pub fn are_inputs_muted(ctx: &egui::Context) -> bool {
         mem.data
             .get_temp::<bool>(get_muted_data_id())
             .unwrap_or(false)
-    })
+    }) || ctx.memory(|mem| mem.focused().is_some())
 }
 
 pub fn get_muted_data_id() -> Id {

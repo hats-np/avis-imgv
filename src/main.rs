@@ -12,6 +12,6 @@ fn main() {
         Box::new(|cc| Ok(Box::new(App::new(cc)))),
     ) {
         Ok(_) => {}
-        Err(e) => println!("{}", e),
+        Err(e) => println!("{e}"),
     }
 }

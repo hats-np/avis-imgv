@@ -1,8 +1,7 @@
+use crate::{callback::Callback, utils, APPLICATION, ORGANIZATION, QUALIFIER};
 use eframe::egui::{Key, KeyboardShortcut, Modifiers};
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf, vec};
-
-use crate::{callback::Callback, utils, APPLICATION, ORGANIZATION, QUALIFIER};
 
 const MOD_ALT: &str = "alt";
 const MOD_SHIFT: &str = "shift";
@@ -12,9 +11,10 @@ const MOD_CMD: &str = "cmd";
 
 #[derive(Deserialize, Serialize, Default)]
 pub struct Config {
-    pub gallery: GalleryConfig,
-    pub multi_gallery: MultiGalleryConfig,
+    pub image_view: ImageViewConfig,
+    pub grid_view: GridViewConfig,
     pub general: GeneralConfig,
+    pub filter: FilterConfig,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -25,6 +25,8 @@ pub struct GeneralConfig {
     pub output_icc_profile: String,
     #[serde(default = "default_text_scaling")]
     pub text_scaling: f32,
+    #[serde(default = "default_metadata_tags")]
+    pub metadata_tags: Vec<String>,
 
     #[serde(default = "default_sc_toggle_gallery")]
     pub sc_toggle_gallery: Shortcut,
@@ -40,16 +42,16 @@ pub struct GeneralConfig {
     pub sc_flatten_dir: Shortcut,
     #[serde(default = "default_sc_watch_directory")]
     pub sc_watch_directory: Shortcut,
+    #[serde(default = "default_sc_toggle_side_panel")]
+    pub sc_toggle_side_panel: Shortcut,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
-pub struct GalleryConfig {
+pub struct ImageViewConfig {
     #[serde(default = "default_nr_loaded_images")]
     pub nr_loaded_images: usize,
     #[serde(default = "default_should_wait")]
     pub should_wait: bool,
-    #[serde(default = "default_metadata_tags")]
-    pub metadata_tags: Vec<String>,
     #[serde(default = "default_frame_size_relative_to_image")]
     pub frame_size_relative_to_image: f32,
     #[serde(default = "default_scroll_navigation")]
@@ -65,8 +67,6 @@ pub struct GalleryConfig {
     pub sc_fit: Shortcut,
     #[serde(default = "default_sc_frame")]
     pub sc_frame: Shortcut,
-    #[serde(default = "default_sc_metadata")]
-    pub sc_metadata: Shortcut,
     #[serde(default = "default_sc_zoom")]
     pub sc_zoom: Shortcut,
     #[serde(default = "default_sc_next")]
@@ -86,7 +86,7 @@ pub struct GalleryConfig {
 }
 
 #[derive(Deserialize, Serialize, Clone)]
-pub struct MultiGalleryConfig {
+pub struct GridViewConfig {
     #[serde(default = "default_images_per_row")]
     pub images_per_row: usize,
     #[serde(default = "default_preloaded_rows")]
@@ -102,6 +102,18 @@ pub struct MultiGalleryConfig {
     pub sc_more_per_row: Shortcut,
     #[serde(default = "default_sc_less_per_row")]
     pub sc_less_per_row: Shortcut,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct FilterConfig {
+    #[serde(default = "default_exif_tags")]
+    pub exif_tags: Vec<FilterableExifTag>,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct FilterableExifTag {
+    pub name: String,
+    pub fetch_distinct: bool,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -151,7 +163,9 @@ impl Default for GeneralConfig {
             limit_cached: default_limit_cached(),
             output_icc_profile: default_output_icc_profile(),
             text_scaling: default_text_scaling(),
+            metadata_tags: default_metadata_tags(),
             sc_toggle_gallery: default_sc_toggle_gallery(),
+            sc_toggle_side_panel: default_sc_toggle_side_panel(),
             sc_exit: default_sc_exit(),
             sc_menu: default_sc_menu(),
             sc_navigator: default_sc_navigator(),
@@ -162,12 +176,11 @@ impl Default for GeneralConfig {
     }
 }
 
-impl Default for GalleryConfig {
+impl Default for ImageViewConfig {
     fn default() -> Self {
-        GalleryConfig {
+        ImageViewConfig {
             nr_loaded_images: default_nr_loaded_images(),
             should_wait: default_should_wait(),
-            metadata_tags: default_metadata_tags(),
             frame_size_relative_to_image: default_frame_size_relative_to_image(),
             scroll_navigation: default_scroll_navigation(),
             user_actions: default_user_actions(),
@@ -176,7 +189,6 @@ impl Default for GalleryConfig {
 
             sc_fit: default_sc_fit(),
             sc_frame: default_sc_frame(),
-            sc_metadata: default_sc_metadata(),
             sc_zoom: default_sc_zoom(),
             sc_next: default_sc_next(),
             sc_prev: default_sc_prev(),
@@ -189,9 +201,9 @@ impl Default for GalleryConfig {
     }
 }
 
-impl Default for MultiGalleryConfig {
+impl Default for GridViewConfig {
     fn default() -> Self {
-        MultiGalleryConfig {
+        GridViewConfig {
             images_per_row: default_images_per_row(),
             preloaded_rows: default_preloaded_rows(),
             simultaneous_load: default_simultaneous_load(),
@@ -200,6 +212,14 @@ impl Default for MultiGalleryConfig {
             sc_scroll: default_sc_scroll(),
             sc_more_per_row: default_sc_more_per_row(),
             sc_less_per_row: default_sc_less_per_row(),
+        }
+    }
+}
+
+impl Default for FilterConfig {
+    fn default() -> Self {
+        FilterConfig {
+            exif_tags: default_exif_tags(),
         }
     }
 }
@@ -326,7 +346,7 @@ pub fn default_sc_fit() -> Shortcut {
 pub fn default_sc_frame() -> Shortcut {
     Shortcut::from("g", &[])
 }
-pub fn default_sc_metadata() -> Shortcut {
+pub fn default_sc_toggle_side_panel() -> Shortcut {
     Shortcut::from("i", &[])
 }
 pub fn default_sc_zoom() -> Shortcut {
@@ -372,6 +392,11 @@ pub fn default_sc_more_per_row() -> Shortcut {
 }
 pub fn default_sc_less_per_row() -> Shortcut {
     Shortcut::from("Minus", &[])
+}
+
+//Filter
+pub fn default_exif_tags() -> Vec<FilterableExifTag> {
+    vec![]
 }
 
 //Shortcuts

@@ -1,5 +1,5 @@
 use crate::{
-    callback::Callback, config::MultiGalleryConfig, thumbnail_image::ThumbnailImage,
+    callback::Callback, config::GridViewConfig, thumbnail_image::ThumbnailImage,
     user_action::show_context_menu, utils,
 };
 use eframe::{
@@ -8,9 +8,9 @@ use eframe::{
 };
 use std::path::{Path, PathBuf};
 
-pub struct MultiGallery {
+pub struct GridView {
     imgs: Vec<ThumbnailImage>,
-    config: MultiGalleryConfig,
+    config: GridViewConfig,
     output_profile: String,
     selected_image_name: Option<String>,
     prev_img_size: f32,
@@ -23,14 +23,14 @@ pub struct MultiGallery {
     callback: Option<Callback>,
 }
 
-impl MultiGallery {
+impl GridView {
     pub fn new(
         image_paths: &[PathBuf],
-        config: MultiGalleryConfig,
+        config: GridViewConfig,
         output_profile: &String,
-    ) -> MultiGallery {
+    ) -> GridView {
         let imgs = ThumbnailImage::from_paths(image_paths, output_profile);
-        let mut mg = MultiGallery {
+        let mut mg = GridView {
             total_rows: 0,
             imgs,
             selected_image_name: None,
@@ -234,7 +234,7 @@ impl MultiGallery {
         ctx: &egui::Context,
         max_size: f32,
         select_image_name: &mut Option<String>,
-        config: &MultiGalleryConfig,
+        config: &GridViewConfig,
         callback: &mut Option<Callback>,
     ) {
         if let Some(resp) = image.ui(ui, [max_size, max_size]) {

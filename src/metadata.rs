@@ -13,6 +13,8 @@ use std::{
 pub const CHUNK_SIZE: &usize = &500;
 pub const METADATA_PROFILE_DESCRIPTION: &str = "Profile Description";
 pub const METADATA_ORIENTATION: &str = "Orientation";
+pub const METADATA_DIRECTORY: &str = "Directory";
+pub const METADATA_DATE: &str = "Date/Time Original";
 
 pub enum Orientation {
     Normal,
@@ -74,7 +76,16 @@ impl Metadata {
             };
 
             let chunks: Vec<&[String]> = image_paths.chunks(*CHUNK_SIZE).collect();
-            for chunk in &chunks {
+
+            println!(
+                "Caching a total of {} imgs in {} chunks",
+                image_paths.len(),
+                chunks.len()
+            );
+
+            for (i, chunk) in chunks.iter().enumerate() {
+                println!("Caching chunk {}", i);
+
                 let chunk_timer = Instant::now();
 
                 let (tx, rx) = mpsc::channel();

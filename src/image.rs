@@ -1,8 +1,14 @@
+use crate::{
+    icc::profile_desc_to_icc,
+    metadata::{self, Orientation, METADATA_ORIENTATION, METADATA_PROFILE_DESCRIPTION},
+};
 use eframe::{
     egui,
     epaint::{ColorImage, TextureHandle},
 };
 use image::{DynamicImage, RgbImage};
+use lcms2::*;
+use std::time::Instant;
 use std::{
     collections::HashMap,
     fs::File,
@@ -10,15 +16,11 @@ use std::{
     path::PathBuf,
     thread::{self, JoinHandle},
 };
-use std::time::Instant;
-
-use crate::{
-    icc::profile_desc_to_icc,
-    metadata::{self, Orientation, METADATA_ORIENTATION, METADATA_PROFILE_DESCRIPTION}
-};
 
 use fast_image_resize::{images::Image as FirImage, ResizeOptions};
 use fast_image_resize::{PixelType, Resizer};
+
+pub const LOAD_FAIL_PNG: &[u8; 95764] = include_bytes!("../resources/load_fail.png");
 
 pub struct Image {
     pub texture: Option<TextureHandle>,
@@ -42,8 +44,8 @@ impl Image {
             let mut f = match File::open(&path) {
                 Ok(f) => f,
                 Err(e) => {
-                    println!("{}", e);
-                    return None;
+                    println!("Failure opening image: {}", e);
+                    return get_error_image();
                 }
             };
 
@@ -52,7 +54,7 @@ impl Image {
                 Ok(_) => {}
                 Err(e) => {
                     println!("{} -> Error reading image into buffer: {}", file_name, e);
-                    return None;
+                    return get_error_image();
                 }
             }
 
@@ -175,14 +177,12 @@ impl Image {
                     }
                 };
 
-                let mut dest_image =
-                    FirImage::new(dest_width, dest_height, src_image.pixel_type());
+                let mut dest_image = FirImage::new(dest_width, dest_height, src_image.pixel_type());
 
                 let mut resizer = Resizer::new();
                 // By default, Resizer multiplies and divides by alpha channel
                 // images with U8x2, U8x4, U16x2 and U16x4 pixels.
-                match resizer.resize(&src_image, &mut dest_image, &ResizeOptions::new())
-                {
+                match resizer.resize(&src_image, &mut dest_image, &ResizeOptions::new()) {
                     Ok(_) => {}
                     Err(e) => {
                         println!("Failure resizing image -> {e}");
@@ -190,11 +190,7 @@ impl Image {
                     }
                 }
 
-                match RgbImage::from_raw(
-                    dest_width,
-                    dest_height,
-                    dest_image.buffer().to_vec(),
-                ) {
+                match RgbImage::from_raw(dest_width, dest_height, dest_image.buffer().to_vec()) {
                     Some(rgb_image) => DynamicImage::from(rgb_image),
                     None => {
                         println!("Failure building rgb image from resized image");
@@ -223,7 +219,6 @@ impl Image {
         }
     }
 
-    ///Applies color conversion to the image
     pub fn apply_cc(
         color_profile_desc: &str,
         pixels: &mut [u8],
@@ -245,12 +240,12 @@ impl Image {
             Some(icc_bytes) => icc_bytes.to_vec(),
             None => {
                 println!(
-                    "No built in icc profile matching {} extracting from image",
+                    "No built-in ICC profile matching {} extracting from image",
                     color_profile_desc
                 );
                 match metadata::Metadata::extract_icc_from_image(path) {
                     Some(icc_bytes) => {
-                        println!("Successfully extract icc profile from image");
+                        println!("Successfully extracted ICC profile from image");
                         icc_bytes
                     }
                     None => return,
@@ -261,38 +256,43 @@ impl Image {
         let output_icc_bytes = match profile_desc_to_icc(output_profile) {
             Some(icc_bytes) => icc_bytes.to_vec(),
             None => {
-                println!("Badly configured output icc profile -> {}", output_profile);
+                println!("Badly configured output ICC profile -> {}", output_profile);
                 return;
             }
         };
 
-        let input_profile = match qcms::Profile::new_from_slice(&input_icc_bytes, false) {
-            Some(profile) => profile,
-            None => {
-                println!("Failed constructing input qcms profile from icc data");
+        let input_profile = match Profile::new_icc(&input_icc_bytes) {
+            Ok(profile) => profile,
+            Err(_) => {
+                println!("Failed constructing input lcms2 profile from ICC data");
                 return;
             }
         };
 
-        let mut output_profile = match qcms::Profile::new_from_slice(&output_icc_bytes, false) {
-            Some(profile) => profile,
-            None => {
-                println!("Failed constructing output qcms profile from icc data");
+        let output_profile = match Profile::new_icc(&output_icc_bytes) {
+            Ok(profile) => profile,
+            Err(_) => {
+                println!("Failed constructing output lcms2 profile from ICC data");
                 return;
             }
         };
 
-        output_profile.precache_output_transform();
-
-        match qcms::Transform::new(
+        let transform = match Transform::new(
             &input_profile,
+            PixelFormat::RGB_8,
             &output_profile,
-            qcms::DataType::RGB8,
-            qcms::Intent::default(),
+            PixelFormat::RGB_8,
+            Intent::Perceptual,
+            //TransformFlags::NO_CACHE,
         ) {
-            Some(transform) => transform.apply(pixels),
-            None => println!("Failure applying icc profile to image"),
-        }
+            Ok(transform) => transform,
+            Err(_) => {
+                println!("Failure applying ICC profile to image");
+                return;
+            }
+        };
+
+        transform.transform_in_place(pixels);
     }
 
     pub fn get_texture(&mut self, name: &str, ui: &mut egui::Ui) -> &Option<TextureHandle> {
@@ -307,4 +307,17 @@ impl Image {
             },
         }
     }
+}
+
+pub fn get_error_image() -> Option<Image> {
+    let image = image::load_from_memory(LOAD_FAIL_PNG).unwrap();
+    let size = [image.width() as _, image.height() as _];
+    let mut flat_samples = image.into_rgb8().into_flat_samples();
+    let pixels = flat_samples.as_mut_slice();
+
+    Some(Image {
+        color_image: Some(ColorImage::from_rgb(size, pixels)),
+        texture: None,
+        metadata: HashMap::new(),
+    })
 }

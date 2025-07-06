@@ -1,34 +1,32 @@
+use crate::filters::Filters;
 use crate::{
     callback::Callback,
     config::{Config, GeneralConfig},
     crawler,
     db::Db,
+    grid_view::GridView,
+    image_view::ImageView,
     metadata::Metadata,
-    multi_gallery::MultiGallery,
     navigator,
     perf_metrics::PerfMetrics,
-    single_gallery::SingleGallery,
-    tree, utils, Order, VALID_EXTENSIONS,
+    tree, utils, VALID_EXTENSIONS,
 };
-use eframe::egui::{self, KeyboardShortcut};
+use eframe::egui::{self, KeyboardShortcut, RichText};
 use notify::{Event, INotifyWatcher, RecursiveMode, Watcher};
-use rand::rng;
-use rand::seq::SliceRandom;
 use rfd::FileDialog;
 use std::{
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
-    time::SystemTime,
 };
 
 pub struct App {
     paths: Vec<PathBuf>,
-    gallery: SingleGallery,
-    ///used when switching between galleries
+    gallery: ImageView,
+    ///used when switching between view modes
     gallery_selected_index: Option<usize>,
-    multi_gallery: MultiGallery,
+    grid_view: GridView,
     perf_metrics_visible: bool,
-    multi_gallery_visible: bool,
+    grid_view_visible: bool,
     top_menu_visible: bool,
     dir_tree_visible: bool,
     base_path: PathBuf,
@@ -37,9 +35,10 @@ pub struct App {
     navigator_search: String, //TODO: Investigate why this exists in the app struct
     perf_metrics: PerfMetrics,
     config: GeneralConfig,
-    order: Order,
     watcher: Option<INotifyWatcher>,
     watcher_events: Arc<Mutex<Vec<Event>>>,
+    filters: Filters,
+    side_panel_visible: bool,
 }
 
 impl App {
@@ -57,8 +56,6 @@ impl App {
 
         let (mut img_paths, opened_img_path) = crawler::paths_from_args();
 
-        //TODO: Implement a default ordering
-        Self::sort_images(&mut img_paths, &Order::DateDesc);
         img_paths.sort();
 
         match Db::init_db() {
@@ -76,41 +73,36 @@ impl App {
             }
         };
 
+        let base_path = Self::get_base_path(&img_paths);
         Self {
-            gallery: SingleGallery::new(
+            gallery: ImageView::new(
                 &img_paths,
                 &opened_img_path,
-                cfg.gallery,
+                cfg.image_view,
                 &cfg.general.output_icc_profile,
             ),
             gallery_selected_index: None,
-            multi_gallery: MultiGallery::new(
-                &img_paths,
-                cfg.multi_gallery,
-                &cfg.general.output_icc_profile,
-            ),
+            grid_view: GridView::new(&img_paths, cfg.grid_view, &cfg.general.output_icc_profile),
             perf_metrics_visible: false,
-            multi_gallery_visible: false,
+            grid_view_visible: false,
             top_menu_visible: false,
             dir_tree_visible: false,
+            side_panel_visible: false,
             dir_flattened: false,
-            base_path: Self::get_base_path(&img_paths),
+            base_path: base_path.clone(),
             navigator_visible: false,
-            navigator_search: Self::get_base_path(&img_paths)
-                .to_str()
-                .unwrap_or_default()
-                .to_string(),
+            navigator_search: base_path.to_str().unwrap_or_default().to_string(),
             perf_metrics: PerfMetrics::new(),
             config: cfg.general,
-            order: Order::Asc,
+            filters: Filters::new(cfg.filter, base_path.to_str().unwrap_or("")),
             paths: img_paths,
             watcher: None,
             watcher_events: Arc::new(Mutex::new(vec![])),
         }
     }
 
-    ///Returns the path to the opened image directory, if it's not unable to do this it then
-    ///tries to return the users home, if this fail it just returns a default PathBuf
+    ///Returns the path to the opened image directory if it's not unable to do this, it then
+    ///tries to return the users home, if this fails, it just returns a default PathBuf
     fn get_base_path(paths: &[PathBuf]) -> PathBuf {
         if let Some(first_path) = paths.first() {
             if let Some(parent) = first_path.parent() {
@@ -144,7 +136,7 @@ impl App {
         }
 
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_toggle_gallery.kbd_shortcut)) {
-            self.multi_gallery_visible = !self.multi_gallery_visible;
+            self.grid_view_visible = !self.grid_view_visible;
             self.gallery_selected_index = Some(self.gallery.selected_img_index);
         }
 
@@ -154,6 +146,10 @@ impl App {
 
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_watch_directory.kbd_shortcut)) {
             self.enable_watcher();
+        }
+
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_toggle_side_panel.kbd_shortcut)) {
+            self.side_panel_visible = !self.side_panel_visible;
         }
     }
 
@@ -229,16 +225,15 @@ impl App {
         file_dialog
     }
 
-    fn sort_and_set(&mut self) {
-        Self::sort_images(&mut self.paths, &self.order);
-        self.set_images(&None, false);
-    }
-
     //Will crawl, assumes new directory
     fn set_images_from_path(&mut self, path: &Path, selected_img: &Option<PathBuf>) {
         self.paths = crawler::crawl(path, self.dir_flattened);
-        Self::sort_images(&mut self.paths, &self.order);
         self.set_images(selected_img, true);
+    }
+
+    fn set_images_from_paths(&mut self, paths: Vec<PathBuf>) {
+        self.paths = paths;
+        self.set_images(&None, true);
     }
 
     fn set_images(&mut self, selected_img: &Option<PathBuf>, new_dir_opened: bool) {
@@ -248,66 +243,11 @@ impl App {
 
     fn load_images(&mut self, selected_img: &Option<PathBuf>, new_dir_opened: bool) {
         self.gallery.set_images(&self.paths, selected_img);
-        self.multi_gallery.set_images(&self.paths);
+        self.grid_view.set_images(&self.paths);
 
         if new_dir_opened {
             self.base_path = Self::get_base_path(&self.paths);
             self.navigator_search = self.base_path.to_str().unwrap_or_default().to_string();
-        }
-    }
-
-    //TODO: Fix order by date/etc/validate everything
-    fn sort_images(paths: &mut [PathBuf], order: &Order) {
-        println!("sorting images...");
-        for path in paths.iter() {
-            println!("{}", path.display());
-        }
-
-        if order == &Order::Random {
-            paths.shuffle(&mut rng());
-        } else if order == &Order::Asc || order == &Order::Desc {
-            paths.sort_by(|a, b| {
-                let first: String;
-                let second: String;
-
-                if order == &Order::Asc {
-                    first = a.file_name().unwrap().to_string_lossy().to_string();
-                    second = b.file_name().unwrap().to_string_lossy().to_string();
-                } else {
-                    first = b.file_name().unwrap().to_string_lossy().to_string();
-                    second = a.file_name().unwrap().to_string_lossy().to_string();
-                }
-
-                first.cmp(&second)
-            });
-        } else if order == &Order::DateAsc || order == &Order::DateDesc {
-            paths.sort_by(|a, b| {
-                let first: SystemTime;
-                let second: SystemTime;
-
-                if order == &Order::DateAsc {
-                    first = a.metadata().unwrap().modified().unwrap();
-                    second = b.metadata().unwrap().modified().unwrap();
-                } else {
-                    first = b.metadata().unwrap().modified().unwrap();
-                    second = a.metadata().unwrap().modified().unwrap();
-                }
-
-                first
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs()
-                    .cmp(
-                        &second
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap()
-                            .as_secs(),
-                    )
-            });
-        }
-
-        for path in paths.iter() {
-            println!("{}", path.display());
         }
     }
 
@@ -390,7 +330,6 @@ impl App {
         }
     }
 
-    //TODO: When flattening cancel watcher and vice versa
     fn flatten_open_dir(&mut self) {
         if self.dir_flattened {
             println!("Returning to original directory");
@@ -432,14 +371,14 @@ impl App {
     fn callback_pop(&mut self, path: Option<PathBuf>) {
         if let Some(path) = path {
             self.gallery.pop(&path);
-            self.multi_gallery.pop(&path);
+            self.grid_view.pop(&path);
         }
     }
 
     fn reload_galleries_image(&mut self, path: Option<PathBuf>) {
         if let Some(path) = path {
             self.gallery.reload_at(&path);
-            self.multi_gallery.reload_at(&path);
+            self.grid_view.reload_at(&path);
         }
     }
 
@@ -450,10 +389,6 @@ impl App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        //ctx.request_repaint();
-        //ctx.set_debug_on_hover(true);
-        let mut order_changed = false;
-
         self.perf_metrics.new_frame();
         self.handle_input_muters(ctx);
         self.handle_input(ctx);
@@ -481,6 +416,26 @@ impl eframe::App for App {
                 });
             });
 
+        egui::SidePanel::right("image_metadata")
+            .resizable(true)
+            .show_separator_line(false)
+            .min_width(200.)
+            .show_animated(ctx, self.side_panel_visible, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    if let Some(filtered_paths) = self.filters.ui(ui) {
+                        self.set_images_from_paths(filtered_paths);
+                    }
+                    ui.add_space(20.);
+                    ui.separator();
+                    ui.add_space(10.);
+                    ui.label(RichText::new("Image Metadata").heading());
+                    ui.add_space(10.);
+                    if let Some(selected_img) = self.gallery.get_active_img_mut() {
+                        selected_img.metadata_ui(ui, &self.config.metadata_tags);
+                    }
+                })
+            });
+
         if self.navigator_visible && navigator::ui(&mut self.navigator_search, ctx) {
             self.navigator_visible = false;
             utils::set_mute_state(ctx, false);
@@ -497,33 +452,28 @@ impl eframe::App for App {
             }
         }
 
-        if self.multi_gallery_visible {
-            self.multi_gallery.ui(ctx, &mut self.gallery_selected_index);
+        if self.grid_view_visible {
+            self.grid_view.ui(ctx, &mut self.gallery_selected_index);
 
-            if let Some(img_name) = self.multi_gallery.selected_image_name() {
+            if let Some(img_name) = self.grid_view.selected_image_name() {
                 self.gallery.select_by_name(img_name);
-                self.multi_gallery_visible = false;
+                self.grid_view_visible = false;
             }
 
-            if let Some(callback) = self.multi_gallery.take_callback() {
+            if let Some(callback) = self.grid_view.take_callback() {
                 self.execute_callback(callback);
             }
         } else {
-            self.gallery.ui(
-                ctx,
-                &mut self.order,
-                &mut order_changed,
-                self.dir_flattened,
-                self.watcher.is_some(),
-            );
+            self.gallery
+                .ui(ctx, self.dir_flattened, self.watcher.is_some());
 
             if let Some(callback) = self.gallery.take_callback() {
                 self.execute_callback(callback);
             }
         }
 
-        if order_changed {
-            self.sort_and_set();
+        if self.watcher.is_some() {
+            ctx.request_repaint();
         }
 
         self.process_file_watcher_events();

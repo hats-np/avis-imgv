@@ -64,7 +64,7 @@ pub fn execute(exec: &str, path: &Path) -> bool {
         exec = exec.replace("{/.}", arg);
     }
 
-    println!("exec -> {}", exec);
+    println!("exec -> {exec}");
     let mut exec_split = exec.split(' ');
 
     let cmd = match exec_split.next() {
@@ -84,7 +84,7 @@ pub fn execute(exec: &str, path: &Path) -> bool {
     match cmd.spawn() {
         Ok(_) => true,
         Err(e) => {
-            println!("{}", e);
+            println!("{e}");
             false
         }
     }

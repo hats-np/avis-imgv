@@ -103,7 +103,7 @@ Configuration file should be: `~/.config/avis-imgv/config.json`. An example is p
 | output_icc_profile | Output icc profile                      | srgb    |
 | text_scaling       | Text Scaling                            | 1.25    |
 
-### Gallery
+### Image View
 
 | Keys                         | Values                                                                                                                                                                                                                                                     | Default                                                                                                                                               |
 |------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -114,7 +114,7 @@ Configuration file should be: `~/.config/avis-imgv/config.json`. An example is p
 | scroll_navigation            | Should scroll be used for navigation                                                                                                                                                                                                                       | true                                                                                                                                                  |
 | name_format                  | Format for file name in bottom bar. Uses `$(#exif_tag#)` expressions. If exif tag is not found the entire expression will be ignored. Ex: `$(#File Name#)$( • ƒ#Aperture#)$( • #Shutter Speed#)$( • #ISO# ISO)` -> `DSCF6114.JPG • ƒ5.6 • 1/500 • 200 ISO` |                                                                                                                                                       |
 
-### Multi Gallery
+### Grid View
 
 | Keys              | Values                                                                           | Default                                                                 |
 |-------------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------|
@@ -131,7 +131,7 @@ modifiers.
 
 | Key       | Action                                              |
 |-----------|-----------------------------------------------------|
-| Backspace | Toggle between Single and Multi Gallery             |
+| Backspace | Toggle between Image View and Grid View             |
 | Q         | Exit                                                |
 | F1        | Toggles the menu                                    |
 | Ctrl + L  | Shows navigation bar                                |
@@ -139,7 +139,7 @@ modifiers.
 | Ctrl + F  | Flatten (read files from all sub dirs)              |
 | Ctrl + W  | Watch a directory for file changes (create, update) |
 
-### Single Gallery
+### Image View
 
 | Key         | Action                                        |
 |-------------|-----------------------------------------------|
@@ -156,12 +156,12 @@ modifiers.
 | M           | Maximize (Center image)                       |
 | Ctrl+M      | Toggle: Maximize automatically when scrolling |
 
-### Multi Gallery
+### Grid View
 
 | Key          | Action                                 |
 |--------------|----------------------------------------|
 | Spacebar     | Scroll down                            |
-| Double Click | Open Single gallery on selected image  |
+| Double Click | Open Image View on selected image  |
 | Ctrl+Scroll  | Increase/Decrease nr of images per row |
 | \+           | Increase nr of images per row          |
 | \-           | Decrease nr of images per row          |

@@ -303,7 +303,7 @@ impl GalleryImage {
 
             if let Some(metadata) = &self.display_metadata {
                 for md in metadata {
-                    ui.horizontal_wrapped(|ui| {
+                    ui.horizontal(|ui| {
                         let text = RichText::new(format!("{}:", md.0)).strong();
                         ui.label(text);
                         ui.label(&md.1);

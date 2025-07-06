@@ -5,36 +5,34 @@ use std::path::{Path, PathBuf};
 use crate::gallery_image::{GalleryImageFrame, GalleryImageSizing};
 use crate::{
     callback::Callback,
-    config::GalleryConfig,
+    config::ImageViewConfig,
     gallery_image::GalleryImage,
-    no_icon,
     user_action::{self, show_context_menu},
-    utils, Order,
+    utils,
 };
 
 pub const PERCENTAGES: &[f32] = &[200., 100., 75., 50., 25.];
 
-pub struct SingleGallery {
+pub struct ImageView {
     imgs: Vec<GalleryImage>,
     pub selected_img_index: usize,
-    metadata_pannel_visible: bool,
     preload_active: bool,
     frame: GalleryImageFrame,
     sizing: GalleryImageSizing,
-    config: GalleryConfig,
+    config: ImageViewConfig,
     jump_to: String,
     output_profile: String,
     callback: Option<Callback>,
 }
 
-impl SingleGallery {
+impl ImageView {
     pub fn new(
         image_paths: &[PathBuf],
         selected_image_path: &Option<PathBuf>,
-        config: GalleryConfig,
+        config: ImageViewConfig,
         output_profile: &String,
-    ) -> SingleGallery {
-        let mut sg = SingleGallery {
+    ) -> ImageView {
+        let mut sg = ImageView {
             imgs: vec![],
             selected_img_index: 0,
             preload_active: true,
@@ -48,7 +46,6 @@ impl SingleGallery {
                 should_maximize: false,
                 has_maximized: false,
             },
-            metadata_pannel_visible: false,
             jump_to: String::new(),
             output_profile: output_profile.to_owned(),
             callback: None,
@@ -196,10 +193,6 @@ impl SingleGallery {
 
     pub fn toggle_frame(&mut self) {
         self.frame.enabled = !self.frame.enabled;
-    }
-
-    pub fn toggle_metadata(&mut self) {
-        self.metadata_pannel_visible = !self.metadata_pannel_visible;
     }
 
     pub fn reset_zoom(&mut self) {
@@ -358,14 +351,7 @@ impl SingleGallery {
         preload_nr * 2 <= image_count
     }
 
-    pub fn ui(
-        &mut self,
-        ctx: &egui::Context,
-        order: &mut Order,
-        order_changed: &mut bool,
-        flattened: bool,
-        watcher_enabled: bool,
-    ) {
+    pub fn ui(&mut self, ctx: &egui::Context, flattened: bool, watcher_enabled: bool) {
         self.handle_input(ctx);
 
         egui::TopBottomPanel::bottom("gallery_bottom")
@@ -391,29 +377,6 @@ impl SingleGallery {
                             self.imgs.len()
                         )),
                     );
-
-                    egui::ComboBox::from_id_salt("order_combo_box")
-                        .width(110.)
-                        .icon(no_icon)
-                        .selected_text(order.to_string())
-                        .show_ui(ui, |ui| {
-                            let orders = [
-                                Order::Asc,
-                                Order::Desc,
-                                Order::DateAsc,
-                                Order::DateDesc,
-                                Order::Random,
-                            ];
-
-                            for o in orders {
-                                if ui
-                                    .selectable_value(order, o.clone(), o.to_string())
-                                    .clicked()
-                                {
-                                    *order_changed = true;
-                                }
-                            }
-                        });
 
                     if flattened {
                         ui.label("Flattened");
@@ -481,18 +444,6 @@ impl SingleGallery {
                 });
             });
 
-        egui::SidePanel::left("image_metadata")
-            .resizable(true)
-            .default_width(500.)
-            .show_separator_line(false)
-            .show_animated(ctx, self.metadata_pannel_visible, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.heading("Image Metadata");
-                    ui.add(egui::Separator::default());
-                    self.imgs[self.selected_img_index].metadata_ui(ui, &self.config.metadata_tags);
-                })
-            });
-
         let image_pannel_resp = egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(egui::Color32::from_rgb(119, 119, 119)))
             .show(ctx, |ui| {
@@ -555,9 +506,6 @@ impl SingleGallery {
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_zoom.kbd_shortcut)) {
             self.double_zoom();
-        }
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_metadata.kbd_shortcut)) {
-            self.toggle_metadata();
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_next.kbd_shortcut)) {
             self.next_image();
