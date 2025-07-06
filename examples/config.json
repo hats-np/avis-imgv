@@ -7,6 +7,10 @@
       "key": "Backspace",
       "modifiers": []
     },
+    "sc_toggle_side_panel": {
+      "key": "i",
+      "modifiers": []
+    },
     "sc_exit": {
       "key": "q",
       "modifiers": [
@@ -22,12 +26,7 @@
       "modifiers": [
         "ctrl"
       ]
-    }
-  },
-  "gallery": {
-    "name_format": "$(#File Name#)$( • ƒ#Aperture#)$( • #Shutter Speed#)$( • #ISO# ISO)",
-    "nr_loaded_images": 10,
-    "should_wait": true,
+    },
     "metadata_tags": [
       "Date/Time Original",
       "Created Date",
@@ -41,7 +40,12 @@
       "Color Space",
       "Directory",
       "Software"
-    ],
+    ]
+  },
+  "gallery": {
+    "name_format": "$(#File Name#)$( • ƒ#Aperture#)$( • #Shutter Speed#)$( • #ISO# ISO)",
+    "nr_loaded_images": 10,
+    "should_wait": true,
     "frame_size_relative_to_image": 0.1,
     "scroll_navigation": true,
     "user_actions": [
@@ -184,10 +188,6 @@
     },
     "sc_frame": {
       "key": "g",
-      "modifiers": []
-    },
-    "sc_metadata": {
-      "key": "i",
       "modifiers": []
     },
     "sc_zoom": {
