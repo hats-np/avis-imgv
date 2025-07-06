@@ -31,6 +31,9 @@ With rust [installed](https://rustup.rs/) simply run:
 Take a look at the `install.sh` script. Works in most systems but might need to be adapted. It's still in a rudimentary
 state and untested in most systems. Linux only for now.
 
+You can also install with cargo: `cargo install avis-imgv`. This will not create .desktop files and run the other
+necessary procedures to integrate the application into your DE. You will need to always start it in the shell.
+
 ## Import Library
 
 You can recursively import your image library with `avis-imgv --import <path>`. Images are also imported every time you
