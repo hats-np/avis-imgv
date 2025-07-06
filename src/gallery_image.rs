@@ -120,7 +120,7 @@ impl GalleryImage {
             }
         }
 
-        sizing.scroll_delta *= sizing.zoom_factor;
+        
 
         //Scales image based on zoom
         target_size[0] *= sizing.zoom_factor;
@@ -245,10 +245,10 @@ impl GalleryImage {
         if free_space.x != 0.0 {
             //has available space to scroll in the x direction
             scroll_pos.x += scroll_delta.x;
-            if scroll_pos.x > free_space.x {
-                scroll_pos.x = free_space.x;
-            } else if scroll_pos.x < -free_space.x {
-                scroll_pos.x = -free_space.x;
+            if scroll_pos.x > free_space.x / 2.0 {
+                scroll_pos.x = free_space.x / 2.0;
+            } else if scroll_pos.x < -free_space.x / 2.0 {
+                scroll_pos.x = -free_space.x / 2.0;
             }
         } else {
             scroll_pos.x = 0.0;
@@ -257,19 +257,19 @@ impl GalleryImage {
         if free_space.y != 0.0 {
             //has available space to scroll in the y direction
             scroll_pos.y += scroll_delta.y;
-            if scroll_pos.y > free_space.y {
-                scroll_pos.y = free_space.y;
-            } else if scroll_pos.y < -free_space.y {
-                scroll_pos.y = -free_space.y;
+            if scroll_pos.y > free_space.y / 2.0 {
+                scroll_pos.y = free_space.y / 2.0;
+            } else if scroll_pos.y < -free_space.y / 2.0 {
+                scroll_pos.y = -free_space.y / 2.0;
             }
         } else {
             scroll_pos.y = 0.0;
         }
 
-        visible_rect.min.y += scroll_pos.y / 2.0;
-        visible_rect.max.y += scroll_pos.y / 2.0;
-        visible_rect.min.x += scroll_pos.x / 2.0;
-        visible_rect.max.x += scroll_pos.x / 2.0;
+        visible_rect.min.y += scroll_pos.y;
+        visible_rect.max.y += scroll_pos.y;
+        visible_rect.min.x += scroll_pos.x;
+        visible_rect.max.x += scroll_pos.x;
     }
 
     pub fn finish_img_loading(&mut self) {
