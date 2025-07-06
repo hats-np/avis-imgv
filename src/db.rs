@@ -25,14 +25,18 @@ impl Db {
         q.push_str(
             &data
                 .iter()
-                .map(|(path, data)| format!("('{}', '{}')", path, data.replace('\'', "")))
+                .map(|(path, data)| format!("('{}', jsonb('{}'))", path, data.replace('\'', "")))
                 .collect::<Vec<String>>()
                 .join(","),
         );
 
         conn.execute(&q, ())?;
         conn.execute("commit transaction;", ())?;
-        println!("Spent {}ms inserting into db", now.elapsed().as_millis());
+        println!(
+            "Spent {}ms inserting {} metadata records into db",
+            now.elapsed().as_millis(),
+            data.len()
+        );
 
         Ok(())
     }
@@ -76,9 +80,9 @@ impl Db {
         let stms = vec![
             "create table if not exists file (
                 path text not null primary key,
-                metadata text not null,
+                metadata jsonb not null,
                 ts TIMESTAMP not null DEFAULT CURRENT_TIMESTAMP);",
-            "create index if not exists file_ts_IDX  on file (ts DESC)",
+            "create index if not exists file_ts_IDX on file (ts DESC)",
         ];
 
         for stm in stms {

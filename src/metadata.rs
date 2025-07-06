@@ -46,97 +46,121 @@ impl Orientation {
 pub struct Metadata {}
 
 impl Metadata {
+    pub fn cache_metadata_for_images_in_background(image_paths: &[PathBuf]) {
+        let image_paths = image_paths.to_vec();
+        thread::spawn(move || {
+            Self::cache_metadata_for_images(&image_paths);
+        });
+    }
+
     pub fn cache_metadata_for_images(image_paths: &[PathBuf]) {
+        let timer = Instant::now();
+
         let mut image_paths = image_paths
             .iter()
             .map(|p| p.to_string_lossy().to_string())
             .collect::<Vec<String>>();
 
-        thread::spawn(move || {
-            let timer = Instant::now();
+        let cached_paths = match db::Db::get_cached_images_by_paths(&image_paths) {
+            Ok(cached_paths) => cached_paths,
+            Err(e) => {
+                println!("Failure fetching cached metadata paths, aborting caching process {e}");
+                return;
+            }
+        };
 
-            let cached_paths = match db::Db::get_cached_images_by_paths(&image_paths) {
-                Ok(cached_paths) => cached_paths,
-                Err(e) => {
-                    println!(
-                        "Failure fetching cached metadata paths, aborting caching process {e}"
-                    );
-                    return;
-                }
-            };
+        image_paths.retain(|x| !cached_paths.contains(x));
 
-            image_paths.retain(|x| !cached_paths.contains(x));
+        //A bit of a hack but simpler than diverging code paths
+        let single_image_path = if image_paths.len() == 1 {
+            Some(&image_paths[0])
+        } else {
+            None
+        };
 
-            //A bit of a hack but simpler than diverging code paths
-            let single_image_path = if image_paths.len() == 1 {
-                Some(&image_paths[0])
-            } else {
-                None
-            };
+        let chunks: Vec<&[String]> = image_paths.chunks(*CHUNK_SIZE).collect();
+        let total_chunks = chunks.len();
+        let mut total_elapsed_time_ms = 0u128;
 
-            let chunks: Vec<&[String]> = image_paths.chunks(*CHUNK_SIZE).collect();
+        println!(
+            "Caching a total of {} imgs in {} chunks",
+            image_paths.len(),
+            total_chunks
+        );
 
-            println!(
-                "Caching a total of {} imgs in {} chunks",
-                image_paths.len(),
-                chunks.len()
-            );
+        for (i, chunk) in chunks.iter().enumerate() {
+            println!("Caching chunk {i} of {}", chunks.len());
 
-            for (i, chunk) in chunks.iter().enumerate() {
-                println!("Caching chunk {i}");
+            let chunk_timer = Instant::now();
 
-                let chunk_timer = Instant::now();
+            let (tx, rx) = mpsc::channel();
+            let mut handles = vec![];
+            //4 threads, should be enough to max a HDD
+            //Make configurable to take advantage of SSD speeds
+            let chunks: Vec<&[String]> = chunk.chunks(*CHUNK_SIZE / 4).collect();
+            for chunk in chunks {
+                let tx = tx.clone();
+                let chunk = chunk.to_vec();
+                let handle = thread::spawn(move || {
+                    let cmd = Command::new("exiftool")
+                        .args(chunk)
+                        .stdout(Stdio::piped())
+                        .spawn();
 
-                let (tx, rx) = mpsc::channel();
-                let mut handles = vec![];
-                //4 threads, should be enough to max a HDD
-                //Make configurable to take advantage of SSD speeds
-                let chunks: Vec<&[String]> = chunk.chunks(*CHUNK_SIZE / 4).collect();
-                for chunk in chunks {
-                    let tx = tx.clone();
-                    let chunk = chunk.to_vec();
-                    let handle = thread::spawn(move || {
-                        let cmd = Command::new("exiftool")
-                            .args(chunk)
-                            .stdout(Stdio::piped())
-                            .spawn();
-
-                        match cmd {
-                            Ok(cmd) => match cmd.wait_with_output() {
-                                Ok(output) => {
-                                    tx.send(output).unwrap();
-                                }
-                                Err(e) => println!("Error fetching metadata -> {e}"),
-                            },
+                    match cmd {
+                        Ok(cmd) => match cmd.wait_with_output() {
+                            Ok(output) => {
+                                tx.send(output).unwrap();
+                            }
                             Err(e) => println!("Error fetching metadata -> {e}"),
-                        };
-                    });
+                        },
+                        Err(e) => println!("Error fetching metadata -> {e}"),
+                    };
+                });
 
-                    handles.push(handle);
-                }
-
-                for handle in handles {
-                    handle.join().unwrap(); // Wait for each thread to complete
-                }
-
-                drop(tx);
-
-                for output in rx {
-                    Self::parse_exiftool_output(&output, single_image_path);
-                }
-
-                println!(
-                    "Cached metadata chunk containing {} images in {}ms",
-                    chunk.len(),
-                    chunk_timer.elapsed().as_millis()
-                );
+                handles.push(handle);
             }
 
+            for handle in handles {
+                handle.join().unwrap(); // Wait for each thread to complete
+            }
+
+            drop(tx);
+
+            for output in rx {
+                Self::parse_exiftool_output(&output, single_image_path);
+            }
+
+            let chunk_elapsed_ms = chunk_timer.elapsed().as_millis();
+            total_elapsed_time_ms += chunk_elapsed_ms;
+            let processed_chunks_count = (i + 1) as u128;
+
             println!(
-                "Finished caching metadata for all images in {}ms",
-                timer.elapsed().as_millis()
+                "Cached metadata chunk containing {} images in {}ms",
+                chunk.len(),
+                chunk_elapsed_ms
             );
-        });
+
+            if processed_chunks_count < total_chunks as u128 {
+                let avg_time_per_chunk_ms = total_elapsed_time_ms / processed_chunks_count;
+                let remaining_chunks = (total_chunks as u128) - processed_chunks_count;
+                let estimated_remaining_ms = avg_time_per_chunk_ms * remaining_chunks;
+
+                let estimated_remaining_seconds = estimated_remaining_ms / 1000;
+                let estimated_remaining_minutes = estimated_remaining_seconds / 60;
+                let estimated_remaining_seconds_remainder = estimated_remaining_seconds % 60;
+
+                println!(
+                    "Estimated time remaining: {}m {}s",
+                    estimated_remaining_minutes, estimated_remaining_seconds_remainder
+                );
+            }
+        }
+
+        println!(
+            "Finished caching metadata for all images in {}ms",
+            timer.elapsed().as_millis()
+        );
     }
 
     pub fn parse_exiftool_output(output: &Output, path: Option<&String>) {

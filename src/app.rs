@@ -62,7 +62,7 @@ impl App {
             Ok(_) => {
                 println!("Database initiated successfully");
                 match Db::trim_db(&cfg.general.limit_cached) {
-                    Ok(_) => Metadata::cache_metadata_for_images(&img_paths),
+                    Ok(_) => Metadata::cache_metadata_for_images_in_background(&img_paths),
                     Err(e) => {
                         println!("Failure trimming db {e}");
                     }
@@ -237,7 +237,7 @@ impl App {
     }
 
     fn set_images(&mut self, selected_img: &Option<PathBuf>, new_dir_opened: bool) {
-        Metadata::cache_metadata_for_images(&self.paths);
+        Metadata::cache_metadata_for_images_in_background(&self.paths);
         self.load_images(selected_img, new_dir_opened);
     }
 

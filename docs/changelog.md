@@ -1,5 +1,15 @@
 # Change Log
 
+## 2025-07-06
+
+- BREAKING: Improved database operations and storage footprint by using JSONB column type
+    - You will need to delete your old database. A new cli argument has been added to recursively scan a directory
+      `avis-imgv --import <path>`
+- Added a new panel to replace the old metadata one. This new panel allows you to filter and sort by exif tags and also
+  displays the image metadata.
+- BREAKING: the configuration has breaking changes, best to let the application re-create it and then move over your
+  settings.
+
 ## 2024-09-03
 
 - Configuration file now uses json. This allows us to drop our dependency on yaml serialziation.
@@ -11,14 +21,16 @@
 
 ## 2023-11-25
 
-- Added the ability to watch the opened directory for new files or file changes. Can work together with directory flattening to watch all sub directories recursively. Shortcut is `sc_watch_directory` under general.
+- Added the ability to watch the opened directory for new files or file changes. Can work together with directory
+  flattening to watch all sub directories recursively. Shortcut is `sc_watch_directory` under general.
 - Added sort by file modification date.
 - Upgraded egui to latest version.
 - Upgraded zune jpeg to latest version.
 
 ## 2023-09-32
 
-- Added the ability to flatten the open directory, reading all files from subdirectories. Shortcut `sc_flatten_dir` under general.
+- Added the ability to flatten the open directory, reading all files from subdirectories. Shortcut `sc_flatten_dir`
+  under general.
 - Allow to sort by random.
 
 ## 2023-04-26

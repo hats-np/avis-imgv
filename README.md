@@ -16,7 +16,7 @@ directories are obtained through the `directories` crate which is platform-agnos
 ## Dependencies
 
 - coreutils (for installation)
-- sqlite
+- sqlite version >= 3.45
 - exiftool
 - libwebp for WebP
 - libdav1d for AVIF if you enable it in cargo.toml
@@ -31,6 +31,11 @@ With rust [installed](https://rustup.rs/) simply run:
 
 Take a look at the `install.sh` script. Works in most systems but might need to be adapted. It's still in a rudimentary
 state and untested in most systems. Linux only for now.
+
+## Import Library
+
+You can import your image library with `avis-imgv --import <path>`. Images are also imported every time you open a new
+directory. This will allow you to search your images using their exif data.
 
 ## Color Management
 
@@ -56,7 +61,6 @@ Default feature flag for the `image` crate is used by default.
 
 ## Planned Features
 
-- Allow to sort by name or date
 - Theme Configuration
 
 ## User Actions and Context Menu
@@ -97,22 +101,22 @@ Configuration file should be: `~/.config/avis-imgv/config.json`. An example is p
 
 ### General
 
-| Keys               | Values                                  | Default |
-|--------------------|-----------------------------------------|---------|
-| limit_cached       | Maximum number of cached files metadata | 100000  |
-| output_icc_profile | Output icc profile                      | srgb    |
-| text_scaling       | Text Scaling                            | 1.25    |
+| Keys               | Values                                                             | Default                                                                                                                                               |
+|--------------------|--------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| limit_cached       | Maximum number of cached files metadata                            | 100000                                                                                                                                                |
+| output_icc_profile | Output icc profile                                                 | srgb                                                                                                                                                  |
+| text_scaling       | Text Scaling                                                       | 1.25                                                                                                                                                  |
+| metadata_tags      | Metadata visible in the Image Information side pannel(when opened) | Date/Time Original, Created Date, Camera Model Name, Lens Model, Focal Length, Aperture Value, Exposure Time, ISO, Image Size, Color Space, Directory |
 
 ### Image View
 
-| Keys                         | Values                                                                                                                                                                                                                                                     | Default                                                                                                                                               |
-|------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| loaded_images                | Number of loaded images in each direction. Adjust based on how much RAM you want to use. Having more preloaded images increases application speed, to a certain point, when scrolling.                                                                     | 5                                                                                                                                                     |
-| should_wait                  | Should wait for image to finish loading before advancing to it                                                                                                                                                                                             | true                                                                                                                                                  |
-| metadata_tags                | Metadata visible in the Image Information side pannel(when opened)                                                                                                                                                                                         | Date/Time Original, Created Date, Camera Model Name, Lens Model, Focal Length, Aperture Value, Exposure Time, ISO, Image Size, Color Space, Directory |
-| frame_size_relative_to_image | White frame size relative to smallest image side                                                                                                                                                                                                           | 0.2                                                                                                                                                   |
-| scroll_navigation            | Should scroll be used for navigation                                                                                                                                                                                                                       | true                                                                                                                                                  |
-| name_format                  | Format for file name in bottom bar. Uses `$(#exif_tag#)` expressions. If exif tag is not found the entire expression will be ignored. Ex: `$(#File Name#)$( • ƒ#Aperture#)$( • #Shutter Speed#)$( • #ISO# ISO)` -> `DSCF6114.JPG • ƒ5.6 • 1/500 • 200 ISO` |                                                                                                                                                       |
+| Keys                         | Values                                                                                                                                                                                                                                                     | Default |
+|------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| loaded_images                | Number of loaded images in each direction. Adjust based on how much RAM you want to use. Having more preloaded images increases application speed, to a certain point, when scrolling.                                                                     | 5       |
+| should_wait                  | Should wait for image to finish loading before advancing to it                                                                                                                                                                                             | true    |
+| frame_size_relative_to_image | White frame size relative to smallest image side                                                                                                                                                                                                           | 0.2     |
+| scroll_navigation            | Should scroll be used for navigation                                                                                                                                                                                                                       | true    |
+| name_format                  | Format for file name in bottom bar. Uses `$(#exif_tag#)` expressions. If exif tag is not found the entire expression will be ignored. Ex: `$(#File Name#)$( • ƒ#Aperture#)$( • #Shutter Speed#)$( • #ISO# ISO)` -> `DSCF6114.JPG • ƒ5.6 • 1/500 • 200 ISO` |         |
 
 ### Grid View
 
@@ -138,6 +142,7 @@ modifiers.
 | T         | Show Directory Tree                                 |
 | Ctrl + F  | Flatten (read files from all sub dirs)              |
 | Ctrl + W  | Watch a directory for file changes (create, update) |
+| I         | Toggle: Display side tab with image metadata        |
 
 ### Image View
 
@@ -145,7 +150,6 @@ modifiers.
 |-------------|-----------------------------------------------|
 | F           | Fit image to screen                           |
 | G           | Toggle: White frame around the image          |
-| I           | Toggle: Display side tab with image metadata  |
 | Spacebar    | Zoom                                          |
 | Ctrl+Scroll | Zoom image                                    |
 | Scroll      | Next or Previous                              |
@@ -161,7 +165,7 @@ modifiers.
 | Key          | Action                                 |
 |--------------|----------------------------------------|
 | Spacebar     | Scroll down                            |
-| Double Click | Open Image View on selected image  |
+| Double Click | Open Image View on selected image      |
 | Ctrl+Scroll  | Increase/Decrease nr of images per row |
 | \+           | Increase nr of images per row          |
 | \-           | Decrease nr of images per row          |

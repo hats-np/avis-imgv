@@ -264,7 +264,7 @@ impl Config {
 }
 
 pub fn default_limit_cached() -> u32 {
-    100000
+    1000000
 }
 
 pub fn default_output_icc_profile() -> String {
