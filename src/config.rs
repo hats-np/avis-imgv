@@ -242,7 +242,7 @@ impl Config {
         let config_json = match fs::read_to_string(cfg_path) {
             Ok(json) => json,
             Err(e) => {
-                println!("Failure reading config file -> {}", e);
+                println!("Failure reading config file -> {e}");
                 return Config::default();
             }
         };
@@ -250,7 +250,7 @@ impl Config {
         let cfg = match serde_json::from_str(&config_json) {
             Ok(cfg) => cfg,
             Err(e) => {
-                println!("{}", e);
+                println!("{e}");
                 println!("Failure parsing config json, using defaults");
                 Config::default()
             }
@@ -446,7 +446,7 @@ pub fn build_keyboard_shortcut(mods: &[String], key: &str) -> KeyboardShortcut {
             modifiers,
         },
         None => {
-            println!("Invalid shortcut key: {}", key);
+            println!("Invalid shortcut key: {key}");
             default_shortcut()
         } //uses default unreachable shortcut
     }

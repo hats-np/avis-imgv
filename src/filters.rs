@@ -81,7 +81,7 @@ impl Filters {
                 order: SqlOrder::Desc,
             },
             imgs_in_db: Db::get_img_count().unwrap_or(0), //TODO: Might be slow, put in a thread
-            unique_exif_tags: Db::get_unique_exif_tags().unwrap_or(vec![]), //TODO: Might be slow, put in a thread
+            unique_exif_tags: Db::get_unique_exif_tags().unwrap_or_default(), //TODO: Might be slow, put in a thread
             last_query_count: None,
             query_handle: None,
         }
@@ -112,18 +112,16 @@ impl Filters {
                             .select_on_focus(true),
                         )
                         .changed()
-                    {
-                        if self.unique_exif_tags.contains(&field.name) {
+                        && self.unique_exif_tags.contains(&field.name) {
                             let name = field.name.clone();
                             field.default_values_job = Some(thread::spawn(move || {
                                 Db::get_distinct_values_for_exif_tag(&name).ok()
                             }));
                         }
-                    }
 
                     egui::ComboBox::from_id_salt(format!("{}_operator", &field.id.value()))
                         .width(15.)
-                        .selected_text(&field.operator.to_string())
+                        .selected_text(field.operator.to_string())
                         .show_ui(ui, |ui| {
                             for op in SqlOperator::list() {
                                 ui.selectable_value(
@@ -182,7 +180,7 @@ impl Filters {
 
                 egui::ComboBox::from_id_salt("{}_order_direction")
                     .width(40.)
-                    .selected_text(&self.order_field.order.to_string())
+                    .selected_text(self.order_field.order.to_string())
                     .show_ui(ui, |ui| {
                         for op in SqlOrder::list() {
                             ui.selectable_value(
@@ -204,7 +202,7 @@ impl Filters {
                             .filter(|x| !x.value.is_empty() && !x.name.is_empty())
                             .map(|x| (x.name.clone(), x.value.clone(), x.operator.clone()))
                             .collect();
-                        if fields.len() > 0 {
+                        if !fields.is_empty() {
                             let order_tag = self.order_field.tag.clone();
                             let order_direction = self.order_field.order.clone();
                             self.query_handle = Some(thread::spawn(move || {

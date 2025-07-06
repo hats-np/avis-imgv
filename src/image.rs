@@ -44,7 +44,7 @@ impl Image {
             let mut f = match File::open(&path) {
                 Ok(f) => f,
                 Err(e) => {
-                    println!("Failure opening image: {}", e);
+                    println!("Failure opening image: {e}");
                     return get_error_image();
                 }
             };
@@ -53,7 +53,7 @@ impl Image {
             match f.read_to_end(&mut buffer) {
                 Ok(_) => {}
                 Err(e) => {
-                    println!("{} -> Error reading image into buffer: {}", file_name, e);
+                    println!("{file_name} -> Error reading image into buffer: {e}");
                     return get_error_image();
                 }
             }
@@ -130,7 +130,7 @@ impl Image {
         match image::load_from_memory(buffer) {
             Ok(img) => Some(img),
             Err(e) => {
-                println!("{} -> Failure decoding image: {}", file_name, e);
+                println!("{file_name} -> Failure decoding image: {e}");
                 None
             }
         }
@@ -230,8 +230,7 @@ impl Image {
             .contains(&output_profile.to_lowercase())
         {
             println!(
-                "Input {} and output {} profiles are the same -> skipping",
-                color_profile_desc, output_profile
+                "Input {color_profile_desc} and output {output_profile} profiles are the same -> skipping"
             );
             return;
         }
@@ -240,8 +239,7 @@ impl Image {
             Some(icc_bytes) => icc_bytes.to_vec(),
             None => {
                 println!(
-                    "No built-in ICC profile matching {} extracting from image",
-                    color_profile_desc
+                    "No built-in ICC profile matching {color_profile_desc} extracting from image"
                 );
                 match metadata::Metadata::extract_icc_from_image(path) {
                     Some(icc_bytes) => {
@@ -256,7 +254,7 @@ impl Image {
         let output_icc_bytes = match profile_desc_to_icc(output_profile) {
             Some(icc_bytes) => icc_bytes.to_vec(),
             None => {
-                println!("Badly configured output ICC profile -> {}", output_profile);
+                println!("Badly configured output ICC profile -> {output_profile}");
                 return;
             }
         };

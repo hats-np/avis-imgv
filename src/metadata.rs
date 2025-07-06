@@ -59,8 +59,7 @@ impl Metadata {
                 Ok(cached_paths) => cached_paths,
                 Err(e) => {
                     println!(
-                        "Failure fetching cached metadata paths, aborting caching process {}",
-                        e
+                        "Failure fetching cached metadata paths, aborting caching process {e}"
                     );
                     return;
                 }
@@ -84,7 +83,7 @@ impl Metadata {
             );
 
             for (i, chunk) in chunks.iter().enumerate() {
-                println!("Caching chunk {}", i);
+                println!("Caching chunk {i}");
 
                 let chunk_timer = Instant::now();
 
@@ -107,9 +106,9 @@ impl Metadata {
                                 Ok(output) => {
                                     tx.send(output).unwrap();
                                 }
-                                Err(e) => println!("Error fetching metadata -> {}", e),
+                                Err(e) => println!("Error fetching metadata -> {e}"),
                             },
-                            Err(e) => println!("Error fetching metadata -> {}", e),
+                            Err(e) => println!("Error fetching metadata -> {e}"),
                         };
                     });
 
@@ -152,7 +151,7 @@ impl Metadata {
                 let metadata_json = match serde_json::to_string(&tags) {
                     Ok(json) => json,
                     Err(e) => {
-                        println!("Failure serializing metadata into json -> {}", e);
+                        println!("Failure serializing metadata into json -> {e}");
                         continue;
                     }
                 };
@@ -169,7 +168,7 @@ impl Metadata {
         match db::Db::insert_files_metadata(metadata_to_insert) {
             Ok(_) => {}
             Err(e) => {
-                println!("Failure inserting metadata into db -> {}", e);
+                println!("Failure inserting metadata into db -> {e}");
             }
         }
     }
@@ -209,10 +208,10 @@ impl Metadata {
                     return Some(serde_json::from_str(&data).unwrap_or_default());
                 }
             }
-            Err(e) => println!("Error fetching image metadata from db -> {}", e),
+            Err(e) => println!("Error fetching image metadata from db -> {e}"),
         };
 
-        println!("Metadata not yet in database, fetching for {}", path);
+        println!("Metadata not yet in database, fetching for {path}");
 
         //This path is useful for the first files that are opened
         //as the first batch(depending on chunk) still takes a bit of time.
@@ -226,12 +225,12 @@ impl Metadata {
             Ok(cmd) => match cmd.wait_with_output() {
                 Ok(output) => output,
                 Err(e) => {
-                    println!("Failure waiting for exiftool process -> {}", e);
+                    println!("Failure waiting for exiftool process -> {e}");
                     return None;
                 }
             },
             Err(e) => {
-                println!("Failure spawning exiftool process -> {}", e);
+                println!("Failure spawning exiftool process -> {e}");
                 return None;
             }
         };
@@ -258,12 +257,12 @@ impl Metadata {
                     }
                 }
                 Err(e) => {
-                    println!("Error fetching image icc -> {}", e);
+                    println!("Error fetching image icc -> {e}");
                     None
                 }
             },
             Err(e) => {
-                println!("Error fetching image icc -> {}", e);
+                println!("Error fetching image icc -> {e}");
                 None
             }
         }
@@ -294,7 +293,7 @@ impl Metadata {
             };
 
             let to_replace = if let Some(metadata_value) = metadata.get(metadata_tag) {
-                string_to_format.replace(&format!("#{}#", metadata_tag), metadata_value)
+                string_to_format.replace(&format!("#{metadata_tag}#"), metadata_value)
             } else {
                 "".to_string()
             };

@@ -247,8 +247,8 @@ impl GalleryImage {
             scroll_pos.x += scroll_delta.x;
             if scroll_pos.x > free_space.x {
                 scroll_pos.x = free_space.x;
-            } else if scroll_pos.x < free_space.x * -1.0 {
-                scroll_pos.x = free_space.x * -1.0;
+            } else if scroll_pos.x < -free_space.x {
+                scroll_pos.x = -free_space.x;
             }
         } else {
             scroll_pos.x = 0.0;
@@ -259,8 +259,8 @@ impl GalleryImage {
             scroll_pos.y += scroll_delta.y;
             if scroll_pos.y > free_space.y {
                 scroll_pos.y = free_space.y;
-            } else if scroll_pos.y < free_space.y * -1.0 {
-                scroll_pos.y = free_space.y * -1.0;
+            } else if scroll_pos.y < -free_space.y {
+                scroll_pos.y = -free_space.y;
             }
         } else {
             scroll_pos.y = 0.0;

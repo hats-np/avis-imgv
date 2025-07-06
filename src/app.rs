@@ -64,12 +64,12 @@ impl App {
                 match Db::trim_db(&cfg.general.limit_cached) {
                     Ok(_) => Metadata::cache_metadata_for_images(&img_paths),
                     Err(e) => {
-                        println!("Failure trimming db {}", e);
+                        println!("Failure trimming db {e}");
                     }
                 };
             }
             Err(e) => {
-                println!("Failure initiating db -> {}", e);
+                println!("Failure initiating db -> {e}");
             }
         };
 
@@ -270,7 +270,7 @@ impl App {
                         println!("Failure locking file watcher events queue");
                     }
                 }
-                Err(e) => println!("Error watching directory: {:?}", e),
+                Err(e) => println!("Error watching directory: {e:?}"),
             },
         )
         .unwrap();
@@ -290,7 +290,7 @@ impl App {
     fn process_file_watcher_events(&mut self) {
         //Ignore when we can't lock the mutex, it'll try next frame anyway
         if let Ok(mut events) = self.watcher_events.clone().try_lock() {
-            if events.len() == 0 {
+            if events.is_empty() {
                 return;
             }
 
@@ -359,7 +359,7 @@ impl App {
     //Some callbacks affect both collections so it's important
     //to deal them in the base of the app
     fn execute_callback(&mut self, callback: Callback) {
-        println!("Executing callback with {:?}", callback);
+        println!("Executing callback with {callback:?}");
         match callback {
             Callback::Pop(path) => self.callback_pop(path),
             Callback::Reload(path) => self.reload_galleries_image(path),

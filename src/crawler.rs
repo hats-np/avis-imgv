@@ -77,7 +77,7 @@ pub fn crawl(path: &Path, flatten: bool) -> Vec<PathBuf> {
         let dir_info = match fs::read_dir(current_path) {
             Ok(dir_info) => dir_info,
             Err(e) => {
-                println!("Failure reading directory -> {}", e);
+                println!("Failure reading directory -> {e}");
                 return files;
             }
         };
@@ -104,7 +104,7 @@ pub fn crawl(path: &Path, flatten: bool) -> Vec<PathBuf> {
                     }
                 }
                 Err(e) => {
-                    println!("Failure reading file info -> {}", e);
+                    println!("Failure reading file info -> {e}");
                     continue;
                 }
             };

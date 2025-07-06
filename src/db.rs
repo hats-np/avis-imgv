@@ -89,12 +89,11 @@ impl Db {
     }
 
     pub fn trim_db(limit: &u32) -> Result<(), Box<dyn Error>> {
-        println!("Trimming database, leaving {} records", limit);
+        println!("Trimming database, leaving {limit} records");
         let conn = Self::get_sqlite_conn()?;
 
         let q = format!(
-            "delete from file where path not in (select path from file order by ts desc limit {})",
-            limit
+            "delete from file where path not in (select path from file order by ts desc limit {limit})"
         );
 
         conn.execute(&q, ())?;
@@ -126,7 +125,7 @@ impl Db {
     }
 
     pub fn get_paths_filtered_by_metadata(
-        exif_tags: &Vec<(String, String, SqlOperator)>,
+        exif_tags: &[(String, String, SqlOperator)],
         order_tag: &str,
         order_direction: &SqlOrder,
     ) -> Result<Vec<PathBuf>, Box<dyn Error>> {
@@ -153,14 +152,14 @@ impl Db {
             );
         }
 
-        println!("Query: {}", query);
+        println!("Query: {query}");
 
         let conn = Self::get_sqlite_conn()?;
         let mut q = conn.prepare(&query)?;
         let paths = q
             .query_map([], |row| row.get::<_, String>(0))?
             .filter_map(|x| x.ok())
-            .map(|x| PathBuf::from(x))
+            .map(PathBuf::from)
             .collect();
 
         Ok(paths)
@@ -168,8 +167,7 @@ impl Db {
 
     pub fn get_distinct_values_for_exif_tag(exif_tag: &str) -> Result<Vec<String>, Box<dyn Error>> {
         let query = format!(
-            "select distinct(json_extract(metadata,'$.{}')) as dist from file where dist is not null",
-            exif_tag
+            "select distinct(json_extract(metadata,'$.{exif_tag}')) as dist from file where dist is not null"
         );
 
         let conn = Self::get_sqlite_conn()?;
@@ -227,45 +225,45 @@ impl DbUtilities {
         match operator {
             SqlOperator::Eq => {
                 if is_numeric {
-                    format!("+0 = {}", val)
+                    format!("+0 = {val}")
                 } else {
-                    format!("= '{}'", val)
+                    format!("= '{val}'")
                 }
             }
-            SqlOperator::Like => format!("like '%{}%'", val),
+            SqlOperator::Like => format!("like '%{val}%'"),
             SqlOperator::SmallerThan => {
                 if is_numeric {
-                    format!("+0 < {}", val)
+                    format!("+0 < {val}")
                 } else {
-                    format!("< '{}'", val)
+                    format!("< '{val}'")
                 }
             }
             SqlOperator::BiggerThan => {
                 if is_numeric {
-                    format!("+0 > {}", val)
+                    format!("+0 > {val}")
                 } else {
-                    format!("> '{}'", val)
+                    format!("> '{val}'")
                 }
             }
             SqlOperator::EqSmallerThan => {
                 if is_numeric {
-                    format!("+0 <= {}", val)
+                    format!("+0 <= {val}")
                 } else {
-                    format!("<= '{}'", val)
+                    format!("<= '{val}'")
                 }
             }
             SqlOperator::EqBiggerThan => {
                 if is_numeric {
-                    format!("+0 >= {}", val)
+                    format!("+0 >= {val}")
                 } else {
-                    format!(">= '{}'", val)
+                    format!(">= '{val}'")
                 }
             }
             SqlOperator::Different => {
                 if is_numeric {
-                    format!("+0 <> {}", val)
+                    format!("+0 <> {val}")
                 } else {
-                    format!("<> '{}'", val)
+                    format!("<> '{val}'")
                 }
             }
         }

@@ -432,7 +432,7 @@ impl ImageView {
                                     ui.separator();
 
                                     for percentage in PERCENTAGES {
-                                        if ui.button(format!("{:.0}%", percentage)).clicked() {
+                                        if ui.button(format!("{percentage:.0}%")).clicked() {
                                             self.set_zoom_factor_from_percentage(percentage);
                                             ui.close_menu();
                                         }

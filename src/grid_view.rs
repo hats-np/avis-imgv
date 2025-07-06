@@ -113,11 +113,7 @@ impl GridView {
                 scroll_area.show_rows(ui, img_size, self.total_rows, |ui, row_range| {
                     ui.spacing_mut().item_spacing = Vec2::new(0., 0.);
 
-                    let preload_from = if row_range.start <= self.config.preloaded_rows {
-                        0
-                    } else {
-                        row_range.start - self.config.preloaded_rows
-                    };
+                    let preload_from = row_range.start.saturating_sub(self.config.preloaded_rows);
 
                     let preload_to = if row_range.end + self.config.preloaded_rows > self.total_rows
                     {
@@ -189,7 +185,7 @@ impl GridView {
                     if !utils::are_inputs_muted(ctx)
                         && ui.input_mut(|i| i.consume_shortcut(&self.config.sc_scroll.kbd_shortcut))
                     {
-                        ui.scroll_with_delta(Vec2::new(0., (img_size * 0.5) * -1.));
+                        ui.scroll_with_delta(Vec2::new(0., -(img_size * 0.5)));
                     }
 
                     self.prev_row_range_start = row_range.start;
@@ -253,7 +249,7 @@ impl GridView {
                     Some(image.path.clone()),
                 ));
 
-                println!("{:?}", callback);
+                println!("{callback:?}");
             }
         }
     }
