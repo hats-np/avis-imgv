@@ -12,9 +12,11 @@ pub struct Filters {
     filter_fields: Vec<FilterField>,
     order_field: OrderField,
     imgs_in_db: u32,
+    imgs_in_db_job: Option<JoinHandle<Option<u32>>>,
     last_query_count: Option<u32>,
     query_handle: Option<JoinHandle<Option<Vec<PathBuf>>>>,
-    pub unique_exif_tags: Vec<String>,
+    unique_exif_tags: Vec<String>,
+    unique_exif_tags_job: Option<JoinHandle<Option<Vec<String>>>>,
 }
 
 pub struct FilterField {
@@ -80,8 +82,10 @@ impl Filters {
                 tag: String::from(METADATA_DATE),
                 order: SqlOrder::Desc,
             },
-            imgs_in_db: Db::get_img_count().unwrap_or(0), //TODO: Might be slow, put in a thread
-            unique_exif_tags: Db::get_unique_exif_tags().unwrap_or_default(), //TODO: Might be slow, put in a thread
+            imgs_in_db: 0,
+            imgs_in_db_job: Some(thread::spawn(move || Db::get_img_count().ok())),
+            unique_exif_tags_job: Some(thread::spawn(move || Db::get_unique_exif_tags().ok())),
+            unique_exif_tags: vec![],
             last_query_count: None,
             query_handle: None,
         }
@@ -90,12 +94,16 @@ impl Filters {
     pub fn ui(&mut self, ui: &mut egui::Ui) -> Option<Vec<PathBuf>> {
         let mut return_paths: Option<Vec<PathBuf>> = None;
 
+        self.finish_imgs_in_db_job();
+        self.finish_unique_filter_tags_job();
+
         ui.vertical(|ui| {
             ui.add_space(5.);
             ui.heading("Filter & Order");
             ui.add_space(10.);
 
             ui.strong("Filter");
+
             for field in &mut self.filter_fields {
                 ui.horizontal(|ui| {
                     let default_values = field.get_default_values();
@@ -112,12 +120,13 @@ impl Filters {
                             .select_on_focus(true),
                         )
                         .changed()
-                        && self.unique_exif_tags.contains(&field.name) {
-                            let name = field.name.clone();
-                            field.default_values_job = Some(thread::spawn(move || {
-                                Db::get_distinct_values_for_exif_tag(&name).ok()
-                            }));
-                        }
+                        && self.unique_exif_tags.contains(&field.name)
+                    {
+                        let name = field.name.clone();
+                        field.default_values_job = Some(thread::spawn(move || {
+                            Db::get_distinct_values_for_exif_tag(&name).ok()
+                        }));
+                    }
 
                     egui::ComboBox::from_id_salt(format!("{}_operator", &field.id.value()))
                         .width(15.)
@@ -241,5 +250,31 @@ impl Filters {
         });
 
         return_paths
+    }
+
+    pub fn finish_imgs_in_db_job(&mut self) {
+        if self.imgs_in_db_job.is_some() {
+            let qh = self.imgs_in_db_job.take().unwrap();
+            if qh.is_finished() {
+                if let Ok(Some(values)) = qh.join() {
+                    self.imgs_in_db = values;
+                }
+            } else {
+                self.imgs_in_db_job = Some(qh);
+            }
+        }
+    }
+
+    pub fn finish_unique_filter_tags_job(&mut self) {
+        if self.unique_exif_tags_job.is_some() {
+            let qh = self.unique_exif_tags_job.take().unwrap();
+            if qh.is_finished() {
+                if let Ok(Some(values)) = qh.join() {
+                    self.unique_exif_tags = values;
+                }
+            } else {
+                self.unique_exif_tags_job = Some(qh);
+            }
+        }
     }
 }
