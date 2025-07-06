@@ -16,7 +16,6 @@ directories are obtained through the `directories` crate which is platform-agnos
 ## Dependencies
 
 - coreutils (for installation)
-- sqlite version >= 3.45
 - exiftool
 - libwebp for WebP
 - libdav1d for AVIF if you enable it in cargo.toml
@@ -34,7 +33,8 @@ state and untested in most systems. Linux only for now.
 
 ## Import Library
 
-You can import your image library with `avis-imgv --import <path>`. Images are also imported every time you open a new
+You can recursively import your image library with `avis-imgv --import <path>`. Images are also imported every time you
+open a new
 directory. This will allow you to search your images using their exif data.
 
 ## Color Management
