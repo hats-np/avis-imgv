@@ -65,7 +65,8 @@ pub fn execute(exec: &str, path: &Path) -> bool {
     }
 
     println!("exec -> {exec}");
-    let mut exec_split = exec.split(' ');
+    let exec_split = get_command_args(&exec);
+    let mut exec_split = exec_split.iter();
 
     let cmd = match exec_split.next() {
         Some(cmd) => cmd,
@@ -88,6 +89,40 @@ pub fn execute(exec: &str, path: &Path) -> bool {
             false
         }
     }
+}
+
+pub fn get_command_args(cmd: &str) -> Vec<String> {
+    let mut args: Vec<String> = vec![];
+    let mut it = cmd.chars();
+    let mut current = String::new();
+    let mut in_string = false;
+    loop {
+        let next = it.next();
+
+        if next.is_none() {
+            if !current.is_empty() {
+                args.push(current.to_string());
+            }
+            break;
+        }
+
+        let next = next.unwrap();
+
+        if next == ' ' && !in_string {
+            args.push(current.to_string());
+            current = String::new();
+            in_string = false;
+            continue;
+        }
+
+        if next == '\'' {
+            in_string = !in_string;
+        }
+
+        current += &next.to_string();
+    }
+
+    args
 }
 
 pub fn show_context_menu(
@@ -115,4 +150,30 @@ pub fn show_context_menu(
     });
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_command_args_returns_correct_args() {
+        let cmd = "mkdir /this/is/a/path";
+        let args = get_command_args(cmd);
+        assert_eq!(args, vec!["mkdir", "/this/is/a/path"])
+    }
+
+    #[test]
+    fn get_command_args_with_string_returns_correct_args() {
+        let cmd = "bash -c 'mkdir /this/is/a/path && cp file /this/is/a/path'";
+        let args = get_command_args(cmd);
+        assert_eq!(
+            args,
+            vec![
+                "bash",
+                "-c",
+                "'mkdir /this/is/a/path && cp file /this/is/a/path'"
+            ]
+        )
+    }
 }
