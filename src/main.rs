@@ -16,11 +16,11 @@ fn main() {
         let path = PathBuf::from(path_str);
 
         if !path.exists() {
-            eprintln!("Error: Path does not exist: {}", path_str);
+            eprintln!("Error: Path does not exist: {path_str}");
             return;
         }
 
-        println!("Starting recursive crawl from: {:?}", path);
+        println!("Starting recursive crawl from: {path:?}");
         let image_paths = avis_imgv::crawler::crawl(&path, true);
         println!("Found {} images. Caching metadata...", image_paths.len());
         match Db::init_db() {
@@ -44,6 +44,6 @@ fn main() {
         Box::new(|cc| Ok(Box::new(App::new(cc)))),
     ) {
         Ok(_) => {}
-        Err(e) => eprintln!("{}", e),
+        Err(e) => eprintln!("{e}"),
     }
 }

@@ -151,8 +151,7 @@ impl Metadata {
                 let estimated_remaining_seconds_remainder = estimated_remaining_seconds % 60;
 
                 println!(
-                    "Estimated time remaining: {}m {}s",
-                    estimated_remaining_minutes, estimated_remaining_seconds_remainder
+                    "Estimated time remaining: {estimated_remaining_minutes}m {estimated_remaining_seconds_remainder}s"
                 );
             }
         }
