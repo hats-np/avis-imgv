@@ -29,8 +29,13 @@ fn main() {
                 panic!("{}", e);
             }
         }
+
         avis_imgv::metadata::Metadata::cache_metadata_for_images(&image_paths);
+        avis_imgv::metadata::Metadata::clean_moved_files();
         println!("Metadata caching finished. Exiting.");
+        return;
+    } else if args.len() > 1 && args[1] == "--clean" {
+        avis_imgv::metadata::Metadata::clean_moved_files();
         return;
     }
 

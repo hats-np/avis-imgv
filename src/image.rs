@@ -1,4 +1,5 @@
 use crate::{
+    db::Db,
     icc::profile_desc_to_icc,
     metadata::{self, Orientation, METADATA_ORIENTATION, METADATA_PROFILE_DESCRIPTION},
 };
@@ -46,6 +47,12 @@ impl Image {
                 Ok(f) => f,
                 Err(e) => {
                     println!("Failure opening image: {e}");
+
+                    let delete_result = Db::delete_file_by_path(&path);
+                    if delete_result.is_err() {
+                        println!("Failure deleting file record from the database {e}");
+                    }
+
                     return get_error_image(&file_name, &ctx);
                 }
             };

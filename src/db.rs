@@ -209,10 +209,37 @@ impl Db {
         })?)
     }
 
-    pub fn deleted_file_by_path(path: &Path) -> Result<(), Box<dyn Error>> {
+    pub fn delete_file_by_path(path: &Path) -> Result<(), Box<dyn Error>> {
         let conn = Self::get_sqlite_conn()?;
         conn.execute("delete from file where path = ?1", [path.to_str()])?;
         Ok(())
+    }
+
+    pub fn delete_files_by_paths(paths: &[String]) -> Result<(), Box<dyn Error>> {
+        let conn = Self::get_sqlite_conn()?;
+
+        conn.execute(
+            &format!(
+                "delete from file where path in ({})",
+                DbUtilities::arr_param_from(paths)
+            ),
+            (),
+        )?;
+        Ok(())
+    }
+
+    pub fn get_all_file_paths() -> Result<Vec<String>, Box<dyn Error>> {
+        let query = "SELECT path FROM file";
+
+        let conn = Self::get_sqlite_conn()?;
+        let mut q = conn.prepare(query)?;
+
+        let paths = q
+            .query_map([], |row| row.get::<_, String>(0))?
+            .filter_map(|x| x.ok())
+            .collect();
+
+        Ok(paths)
     }
 }
 

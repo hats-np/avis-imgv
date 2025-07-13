@@ -326,6 +326,36 @@ impl Metadata {
 
         output
     }
+
+    pub fn clean_moved_files() {
+        //This can be a bit heavy if the user has lots of files. We are talking in the millions
+        //though... Highly unlikely. Even with 250k images it will use less than 100MB of ram
+        //Either way, not a bad idea to do this in chunks eventually
+        let paths = match db::Db::get_all_file_paths() {
+            Ok(paths) => paths,
+            Err(e) => {
+                println!("Failure fetching file paths from the database: {e}");
+                return;
+            }
+        };
+
+        let mut to_delete = vec![];
+        for path in paths {
+            if !PathBuf::from(&path).exists() {
+                println!("{path} no longer exists in the filesystem, marking for deletion");
+                to_delete.push(path);
+            }
+        }
+
+        println!("Found {} files to clean from the database", to_delete.len());
+
+        match db::Db::delete_files_by_paths(&to_delete) {
+            Ok(()) => println!("Successfully cleaned moved/removed files from the database."),
+            Err(e) => {
+                println!("Failure deleting moved files from the database: {e}");
+            }
+        }
+    }
 }
 
 #[cfg(test)]

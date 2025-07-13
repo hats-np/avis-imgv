@@ -73,9 +73,11 @@ pub fn execute(exec: &str, path: &Path) -> bool {
         None => return false,
     };
 
+    println!("CMD: {cmd}");
     let mut cmd = Command::new(cmd);
 
     for arg in exec_split {
+        println!("ARG: {arg}");
         cmd.arg(arg);
     }
 
@@ -117,6 +119,7 @@ pub fn get_command_args(cmd: &str) -> Vec<String> {
 
         if next == '\'' {
             in_string = !in_string;
+            continue;
         }
 
         current += &next.to_string();
@@ -172,7 +175,7 @@ mod tests {
             vec![
                 "bash",
                 "-c",
-                "'mkdir /this/is/a/path && cp file /this/is/a/path'"
+                "mkdir /this/is/a/path && cp file /this/is/a/path"
             ]
         )
     }
