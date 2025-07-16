@@ -69,7 +69,14 @@ impl Metadata {
             }
         };
 
+        println!(
+            "Fetched a total of {} paths which are already cached",
+            cached_paths.len()
+        );
+
         image_paths.retain(|x| !cached_paths.contains(x));
+
+        println!("Retained a total of {} images to cache", image_paths.len());
 
         //A bit of a hack but simpler than diverging code paths
         let single_image_path = if image_paths.len() == 1 {

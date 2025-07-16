@@ -66,12 +66,15 @@ impl Db {
 
     pub fn get_image_metadata(path: &str) -> Result<Option<String>, Box<dyn Error>> {
         let conn = Self::get_sqlite_conn()?;
-        let mut q = conn.prepare("select metadata from file where path = ?1")?;
-
-        Ok(
-            q.query_one([path.to_string()], |row| row.get::<_, String>(0))
-                .ok(),
-        )
+        let mut q = conn.prepare("select json(metadata) from file where path = ?1")?;
+        match q.query_row([path], |row| {
+            let value: String = row.get(0)?;
+            Ok(value)
+        }) {
+            Ok(metadata) => Ok(Some(metadata)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
     }
 
     pub fn init_db() -> Result<(), Box<dyn Error>> {
