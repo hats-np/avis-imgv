@@ -1,10 +1,10 @@
 use crate::config::FilterConfig;
 use crate::db::{Db, SqlOperator, SqlOrder};
 use crate::dropdown::DropDownBox;
-use crate::metadata::{METADATA_DATE, METADATA_DIRECTORY};
+use crate::metadata::{Metadata, METADATA_DATE, METADATA_DIRECTORY};
 use eframe::egui;
 use eframe::egui::{Align, Id, Layout};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::thread::{self, JoinHandle};
 use uuid::Uuid;
 
@@ -88,6 +88,16 @@ impl Filters {
             unique_exif_tags: vec![],
             last_query_count: None,
             query_handle: None,
+        }
+    }
+
+    pub fn set_metadata_directory_value(&mut self, path: &Path) {
+        if let Some(f) = self
+            .filter_fields
+            .iter_mut()
+            .find(|x| x.name == METADATA_DIRECTORY)
+        {
+            f.value = path.to_string_lossy().to_string();
         }
     }
 
@@ -215,12 +225,20 @@ impl Filters {
                             let order_tag = self.order_field.tag.clone();
                             let order_direction = self.order_field.order.clone();
                             self.query_handle = Some(thread::spawn(move || {
-                                Db::get_paths_filtered_by_metadata(
+                                let mut paths = Db::get_paths_filtered_by_metadata(
                                     &fields,
                                     &order_tag,
                                     &order_direction,
                                 )
-                                .ok()
+                                .ok();
+
+                                //Implement a sort of fire and forget task queue to handle these
+                                //lengthy tasks
+                                //if let Some(paths) = &mut paths {
+                                //    Metadata::remove_nonexistant_paths(paths);
+                                //}
+
+                                paths
                             }));
                         }
                     }

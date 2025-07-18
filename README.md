@@ -77,7 +77,8 @@ As of now three parameters are supported:
 - {.} Path without extension
 - {/} File name only
 - {/.} File stem only
-- {//} Parent path (without last slash)
+- {//} Path (without file name and slash)
+- {.//} Parent Path (without file name and slash)
 
 It is recommended to use simple commands. If you need more complex behaviour, you can use a script and pass the path as
 a param.

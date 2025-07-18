@@ -4,6 +4,36 @@ use eframe::egui::Response;
 
 use crate::{callback::Callback, config::ContextMenuEntry};
 
+fn format_exec_string(exec: &str, path: &Path) -> Option<String> {
+    let mut exec = exec.to_string();
+
+    if exec.contains("{}") {
+        exec = exec.replace("{}", path.to_str()?);
+    }
+    if exec.contains("{.}") {
+        let parent = path.parent()?;
+        let file_stem = path.file_stem()?;
+        let file_path = parent.join(file_stem);
+        exec = exec.replace("{.}", file_path.to_str()?);
+    }
+    if exec.contains("{//}") {
+        let parent = path.parent()?;
+        exec = exec.replace("{//}", parent.to_str()?);
+    }
+    if exec.contains("{/}") {
+        exec = exec.replace("{/}", path.file_name()?.to_str()?);
+    }
+    if exec.contains("{/.}") {
+        exec = exec.replace("{/.}", path.file_stem()?.to_str()?);
+    }
+    if exec.contains("{.//}") {
+        let arg = path.ancestors().nth(2)?.to_str()?;
+        exec = exec.replace("{.//}", arg);
+    }
+
+    Some(exec)
+}
+
 /// Executes command, returns false if command wasn't executed
 /// or errored out
 pub fn execute(exec: &str, path: &Path) -> bool {
@@ -11,58 +41,10 @@ pub fn execute(exec: &str, path: &Path) -> bool {
         return true;
     }
 
-    let mut exec = exec.to_string();
-
-    let parent = match path.parent() {
-        Some(parent) => parent,
+    let exec = match format_exec_string(exec, path) {
+        Some(exec) => exec,
         None => return false,
     };
-    if exec.contains("{}") {
-        let arg = match path.to_str() {
-            Some(arg) => arg,
-            None => return false,
-        };
-        exec = exec.replace("{}", arg);
-    }
-    if exec.contains("{.}") {
-        let file_stem = match path.file_stem() {
-            Some(stem) => stem,
-            None => return false,
-        };
-        let file_path = parent.join(file_stem);
-        let arg = match file_path.to_str() {
-            Some(arg) => arg,
-            None => return false,
-        };
-        exec = exec.replace("{.}", arg);
-    }
-    if exec.contains("{//}") {
-        let arg = match parent.to_str() {
-            Some(arg) => arg,
-            None => return false,
-        };
-        exec = exec.replace("{//}", arg);
-    }
-    if exec.contains("{/}") {
-        let arg = match path.file_name() {
-            Some(arg) => match arg.to_str() {
-                Some(arg) => arg,
-                None => return false,
-            },
-            None => return false,
-        };
-        exec = exec.replace("{/}", arg);
-    }
-    if exec.contains("{/.}") {
-        let arg = match path.file_stem() {
-            Some(arg) => match arg.to_str() {
-                Some(arg) => arg,
-                None => return false,
-            },
-            None => return false,
-        };
-        exec = exec.replace("{/.}", arg);
-    }
 
     println!("exec -> {exec}");
     let exec_split = get_command_args(&exec);
@@ -158,6 +140,7 @@ pub fn show_context_menu(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
 
     #[test]
     fn get_command_args_returns_correct_args() {
@@ -178,5 +161,52 @@ mod tests {
                 "mkdir /this/is/a/path && cp file /this/is/a/path"
             ]
         )
+    }
+
+    #[test]
+    fn format_exec_string_placeholders() {
+        let path = Path::new("/tmp/foo/bar.txt");
+
+        // Test {} -> full path
+        let formatted = format_exec_string("cmd {}", path).unwrap();
+        assert_eq!(
+            formatted, "cmd /tmp/foo/bar.txt",
+            "Should replace {{}} with full path"
+        );
+
+        // Test {.} -> path without extension
+        let formatted = format_exec_string("cmd {.} hardship", path).unwrap();
+        assert_eq!(
+            formatted, "cmd /tmp/foo/bar hardship",
+            "Should replace {{.}} with path without extension"
+        );
+
+        // Test {//} -> parent dir
+        let formatted = format_exec_string("cmd {//}", path).unwrap();
+        assert_eq!(
+            formatted, "cmd /tmp/foo",
+            "Should replace {{//}} with parent dir"
+        );
+
+        // Test {/} -> filename
+        let formatted = format_exec_string("cmd {/}", path).unwrap();
+        assert_eq!(
+            formatted, "cmd bar.txt",
+            "Should replace {{/}} with filename"
+        );
+
+        // Test {/.} -> filename without extension
+        let formatted = format_exec_string("cmd {/.}", path).unwrap();
+        assert_eq!(
+            formatted, "cmd bar",
+            "Should replace {{/.}} with filename without extension"
+        );
+
+        // Test {.//} -> grandparent directory
+        let formatted = format_exec_string("cmd {.//}", path).unwrap();
+        assert_eq!(
+            formatted, "cmd /tmp",
+            "Should replace {{.//}} with grandparent directory"
+        );
     }
 }

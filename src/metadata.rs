@@ -1,4 +1,4 @@
-use crate::db;
+use crate::db::{self, Db};
 use regex::{self, Regex};
 use std::sync::mpsc;
 use std::{
@@ -362,6 +362,22 @@ impl Metadata {
                 println!("Failure deleting moved files from the database: {e}");
             }
         }
+    }
+
+    pub fn remove_nonexistant_paths(paths: &mut Vec<PathBuf>) {
+        let mut paths_to_remove: Vec<PathBuf> = vec![];
+
+        for path in paths.iter() {
+            if !path.exists() {
+                paths_to_remove.push(path.clone());
+            }
+        }
+
+        if let Err(e) = Db::delete_files_by_paths(&paths_to_remove) {
+            println!("Failure deleting nonexistant files from the database -> {e}");
+        }
+
+        paths.retain(|x| !paths_to_remove.contains(x));
     }
 }
 

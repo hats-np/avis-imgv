@@ -218,13 +218,19 @@ impl Db {
         Ok(())
     }
 
-    pub fn delete_files_by_paths(paths: &[String]) -> Result<(), Box<dyn Error>> {
+    pub fn delete_files_by_paths<T: AsRef<Path>>(paths: &[T]) -> Result<(), Box<dyn Error>> {
         let conn = Self::get_sqlite_conn()?;
+
+        let string_vec: Vec<String> = paths
+            .iter()
+            .filter_map(|p| p.as_ref().to_str())
+            .map(String::from)
+            .collect();
 
         conn.execute(
             &format!(
                 "delete from file where path in ({})",
-                DbUtilities::arr_param_from(paths)
+                DbUtilities::arr_param_from(&string_vec)
             ),
             (),
         )?;

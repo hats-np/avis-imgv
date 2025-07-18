@@ -263,6 +263,7 @@ impl App {
 
         if new_dir_opened {
             self.base_path = Self::get_base_path(&self.paths);
+            self.filters.set_metadata_directory_value(&self.base_path);
             self.navigator_search = self.base_path.to_str().unwrap_or_default().to_string();
         }
     }
