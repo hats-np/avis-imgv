@@ -92,6 +92,8 @@ impl Db {
             conn.execute(stm, ())?;
         }
 
+        conn.pragma_update(None, "journal_mode", "WAL")?;
+
         Ok(())
     }
 

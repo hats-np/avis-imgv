@@ -46,13 +46,6 @@ impl Orientation {
 pub struct Metadata {}
 
 impl Metadata {
-    pub fn cache_metadata_for_images_in_background(image_paths: &[PathBuf]) {
-        let image_paths = image_paths.to_vec();
-        thread::spawn(move || {
-            Self::cache_metadata_for_images(&image_paths);
-        });
-    }
-
     pub fn cache_metadata_for_images(image_paths: &[PathBuf]) {
         let timer = Instant::now();
 
@@ -364,7 +357,7 @@ impl Metadata {
         }
     }
 
-    pub fn remove_nonexistant_paths(paths: &mut Vec<PathBuf>) {
+    pub fn clear_moved_files(paths: &[PathBuf]) -> usize {
         let mut paths_to_remove: Vec<PathBuf> = vec![];
 
         for path in paths.iter() {
@@ -377,7 +370,7 @@ impl Metadata {
             println!("Failure deleting nonexistant files from the database -> {e}");
         }
 
-        paths.retain(|x| !paths_to_remove.contains(x));
+        paths_to_remove.len()
     }
 }
 

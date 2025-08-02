@@ -1,8 +1,15 @@
 use eframe::egui;
 
 use egui::{style, Color32};
+use epaint::{
+    text::{FontData, FontDefinitions},
+    FontFamily,
+};
 
 pub fn apply_theme(ctx: &egui::Context) {
+    #[cfg(feature = "custom_font")]
+    apply_fonts(ctx);
+
     let previous_theme = ctx.style().visuals.clone();
 
     let accent = Color32::from_rgb(220, 220, 220);
@@ -46,4 +53,32 @@ fn create_widget_visuals(
         },
         ..previous
     }
+}
+
+#[cfg(feature = "custom_font")]
+pub fn apply_fonts(ctx: &egui::Context) {
+    println!("Applying custom fonts");
+
+    let mut fonts = FontDefinitions::default();
+
+    fonts.font_data.insert(
+        "custom_font".to_owned(),
+        std::sync::Arc::new(FontData::from_static(include_bytes!(
+            "../resources/Atkinson_Hyperlegible_Next/AtkinsonHyperlegibleNext-Regular.ttf"
+        ))),
+    );
+
+    fonts.font_data.insert(
+        "custom_font_italic".to_owned(),
+        std::sync::Arc::new(FontData::from_static(include_bytes!(
+            "../resources/Atkinson_Hyperlegible_Next/AtkinsonHyperlegibleNext-Italic.ttf"
+        ))),
+    );
+
+    let mut_fonts = fonts.families.get_mut(&FontFamily::Proportional).unwrap();
+
+    mut_fonts.insert(0, "custom_font".to_owned());
+    mut_fonts.insert(1, "custom_font_italic".to_owned());
+
+    ctx.set_fonts(fonts);
 }

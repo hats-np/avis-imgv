@@ -1,10 +1,12 @@
 use crate::config::FilterConfig;
 use crate::db::{Db, SqlOperator, SqlOrder};
 use crate::dropdown::DropDownBox;
-use crate::metadata::{Metadata, METADATA_DATE, METADATA_DIRECTORY};
+use crate::metadata::{METADATA_DATE, METADATA_DIRECTORY};
+use crate::worker::Worker;
 use eframe::egui;
 use eframe::egui::{Align, Id, Layout};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use uuid::Uuid;
 
@@ -17,6 +19,7 @@ pub struct Filters {
     query_handle: Option<JoinHandle<Option<Vec<PathBuf>>>>,
     unique_exif_tags: Vec<String>,
     unique_exif_tags_job: Option<JoinHandle<Option<Vec<String>>>>,
+    worker: Arc<Worker>,
 }
 
 pub struct FilterField {
@@ -69,7 +72,7 @@ pub struct OrderField {
 }
 
 impl Filters {
-    pub fn new(filter_config: FilterConfig, opened_path: &str) -> Filters {
+    pub fn new(filter_config: FilterConfig, opened_path: &str, worker: Arc<Worker>) -> Filters {
         let mut ffs: Vec<FilterField> = filter_config
             .exif_tags
             .iter()
@@ -88,6 +91,7 @@ impl Filters {
             unique_exif_tags: vec![],
             last_query_count: None,
             query_handle: None,
+            worker,
         }
     }
 
@@ -224,19 +228,20 @@ impl Filters {
                         if !fields.is_empty() {
                             let order_tag = self.order_field.tag.clone();
                             let order_direction = self.order_field.order.clone();
+                            let worker = self.worker.clone();
                             self.query_handle = Some(thread::spawn(move || {
-                                let mut paths = Db::get_paths_filtered_by_metadata(
+                                let paths = Db::get_paths_filtered_by_metadata(
                                     &fields,
                                     &order_tag,
                                     &order_direction,
                                 )
                                 .ok();
 
-                                //Implement a sort of fire and forget task queue to handle these
-                                //lengthy tasks
-                                //if let Some(paths) = &mut paths {
-                                //    Metadata::remove_nonexistant_paths(paths);
-                                //}
+                                if let Some(paths) = paths.clone() {
+                                    worker.send_job(crate::worker::Job::ClearMovedFiles(
+                                        paths.clone(),
+                                    ));
+                                }
 
                                 paths
                             }));

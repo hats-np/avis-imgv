@@ -22,6 +22,7 @@ pub mod thumbnail_image;
 pub mod tree;
 pub mod user_action;
 pub mod utils;
+pub mod worker;
 
 pub const QUALIFIER: &str = "com";
 pub const ORGANIZATION: &str = "avis-imgv";
@@ -29,6 +30,8 @@ pub const APPLICATION: &str = "avis-imgv";
 
 pub const VALID_EXTENSIONS: &[&str] = &["jpg", "png", "jpeg", "webp", "gif", "bmp", "tiff"];
 pub const ZUNE_JPEG_TYPES: &[&str] = &["jpg", "jpeg"];
+
+pub const WORKER_MESSAGE_MEMORY_KEY: &str = "worker-message";
 
 pub fn no_icon(
     _ui: &egui::Ui,

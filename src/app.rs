@@ -1,4 +1,6 @@
 use crate::filters::Filters;
+use crate::worker::Worker;
+use crate::WORKER_MESSAGE_MEMORY_KEY;
 use crate::{
     callback::Callback,
     config::{Config, GeneralConfig},
@@ -6,12 +8,11 @@ use crate::{
     db::Db,
     grid_view::GridView,
     image_view::ImageView,
-    metadata::Metadata,
     navigator,
     perf_metrics::PerfMetrics,
     tree, utils, VALID_EXTENSIONS,
 };
-use eframe::egui::{self, KeyboardShortcut, RichText};
+use eframe::egui::{self, Id, KeyboardShortcut, RichText};
 use notify::{Event, INotifyWatcher, RecursiveMode, Watcher};
 use rfd::FileDialog;
 use std::{
@@ -39,6 +40,7 @@ pub struct App {
     watcher_events: Arc<Mutex<Vec<Event>>>,
     filters: Filters,
     side_panel_visible: bool,
+    worker: Arc<Worker>,
 }
 
 impl App {
@@ -58,11 +60,15 @@ impl App {
 
         img_paths.sort();
 
+        let worker = Worker::new(cc.egui_ctx.clone());
+
         match Db::init_db() {
             Ok(_) => {
                 println!("Database initiated successfully");
                 match Db::trim_db(&cfg.general.limit_cached) {
-                    Ok(_) => Metadata::cache_metadata_for_images_in_background(&img_paths),
+                    Ok(_) => worker.send_job(crate::worker::Job::CacheMetadataForImages(
+                        img_paths.clone(),
+                    )),
                     Err(e) => {
                         println!("Failure trimming db {e}");
                     }
@@ -74,6 +80,7 @@ impl App {
         };
 
         let base_path = Self::get_base_path(&img_paths);
+        let worker = Arc::new(worker);
         Self {
             gallery: ImageView::new(
                 &img_paths,
@@ -95,10 +102,11 @@ impl App {
             navigator_search: base_path.to_str().unwrap_or_default().to_string(),
             perf_metrics: PerfMetrics::new(),
             config: cfg.general,
-            filters: Filters::new(cfg.filter, base_path.to_str().unwrap_or("")),
+            filters: Filters::new(cfg.filter, base_path.to_str().unwrap_or(""), worker.clone()),
             paths: img_paths,
             watcher: None,
             watcher_events: Arc::new(Mutex::new(vec![])),
+            worker,
         }
     }
 
@@ -248,7 +256,10 @@ impl App {
         new_dir_opened: bool,
         ctx: &egui::Context,
     ) {
-        Metadata::cache_metadata_for_images_in_background(&self.paths);
+        self.worker
+            .send_job(crate::worker::Job::CacheMetadataForImages(
+                self.paths.clone(),
+            ));
         self.load_images(selected_img, new_dir_opened, ctx);
     }
 
@@ -458,7 +469,27 @@ impl eframe::App for App {
                     if let Some(selected_img) = self.gallery.get_active_img_mut() {
                         selected_img.metadata_ui(ui, &self.config.metadata_tags);
                     }
-                })
+                });
+
+                ui.add_space(20.);
+                ui.separator();
+                ui.add_space(20.);
+
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+                    ui.add_space(20.);
+
+                    let msgs = ctx.memory_mut(|r| {
+                        r.data
+                            .get_temp::<Vec<Arc<String>>>(Id::new(WORKER_MESSAGE_MEMORY_KEY))
+                            .unwrap_or_default()
+                    });
+
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        for msg in msgs {
+                            ui.label(msg.as_str());
+                        }
+                    })
+                });
             });
 
         if self.navigator_visible && navigator::ui(&mut self.navigator_search, ctx) {

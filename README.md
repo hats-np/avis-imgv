@@ -174,3 +174,7 @@ modifiers.
 | \+           | Increase nr of images per row          |
 | \-           | Decrease nr of images per row          |
 
+
+## Font
+
+The software is shipped with a custom font: `Atkinson Hyperlegible Next`. If you wish to disable it, remove it from the default features in `Cargo.toml`. If you wish to use another font, edit `theme.rs` and replace the path with the font path to your desired font. Currently we don't support loading custom fonts on runtime but that may change in the future as more theming options are added.

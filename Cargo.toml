@@ -29,3 +29,7 @@ opt-level = 3
 
 [profile.dev.package.fast_image_resize]
 opt-level = 3
+
+[features]
+default = ["custom_font"]
+custom_font = []
