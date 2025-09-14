@@ -62,6 +62,10 @@ and [here](https://docs.rs/crate/image/latest/features).
 
 Default feature flag for the `image` crate is used by default.
 
+### Raw File Support
+
+There is some RAW file support. Preview images are extracted using exiftool. As long as your images contain an embedded preview image and exiftool can extract it, it should work.
+
 ## Planned Features
 
 - Theme Configuration
