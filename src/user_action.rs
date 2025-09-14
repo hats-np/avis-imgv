@@ -129,7 +129,7 @@ pub fn show_context_menu(
                 if execute(&entry.exec, path) {
                     result = entry.callback.clone();
                 }
-                ui.close_menu();
+                ui.close();
             }
         }
     });

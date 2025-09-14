@@ -422,17 +422,17 @@ impl ImageView {
                                 resp.context_menu(|ui| {
                                     if ui.button("Fit to screen").clicked() {
                                         self.reset_zoom();
-                                        ui.close_menu();
+                                        ui.close();
                                     }
 
                                     if ui.button("Fit horizontal").clicked() {
                                         self.fit_horizontal();
-                                        ui.close_menu();
+                                        ui.close();
                                     }
 
                                     if ui.button("Fit vertical").clicked() {
                                         self.fit_vertical();
-                                        ui.close_menu();
+                                        ui.close();
                                     }
 
                                     ui.separator();
@@ -440,7 +440,7 @@ impl ImageView {
                                     for percentage in PERCENTAGES {
                                         if ui.button(format!("{percentage:.0}%")).clicked() {
                                             self.set_zoom_factor_from_percentage(percentage);
-                                            ui.close_menu();
+                                            ui.close();
                                         }
                                     }
                                 });

@@ -340,7 +340,7 @@ impl GalleryImage {
         let inner_margin_x = (ui.available_width() - spinner_size) / 2.;
 
         egui::Frame::NONE
-            .inner_margin(epaint::Marginf {
+            .inner_margin(epaint::MarginF32 {
                 left: inner_margin_x,
                 right: inner_margin_x,
                 top: inner_margin_y,

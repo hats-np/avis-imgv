@@ -24,7 +24,7 @@
 
 #![warn(missing_docs)]
 
-use eframe::egui;
+use eframe::egui::{self, Popup};
 use egui::{
     text::{CCursor, CCursorRange},
     Id, Response, ScrollArea, TextEdit, Ui, Widget, WidgetText,
@@ -136,42 +136,43 @@ impl<F: FnMut(&mut Ui, &str) -> Response, V: AsRef<str>, I: Iterator<Item = V>> 
                     )));
                 edit_output.state.store(ui.ctx(), r.id);
             }
-            ui.memory_mut(|m| m.open_popup(popup_id));
+            Popup::close_id(ui.ctx(), popup_id);
         }
 
         let mut changed = false;
-        egui::popup_below_widget(
-            ui,
-            popup_id,
-            &r,
-            egui::PopupCloseBehavior::CloseOnClick,
-            |ui| {
-                if let Some(max) = max_height {
-                    ui.set_max_height(max);
+
+        Popup::from_toggle_button_response(&r).show(|ui| {
+            if let Some(max) = max_height {
+                ui.set_max_height(max);
+            }
+
+            if let Some(dw) = desired_width {
+                if dw != f32::INFINITY {
+                    ui.set_min_width(dw);
                 }
+            }
 
-                ScrollArea::vertical()
-                    .max_height(f32::INFINITY)
-                    .show(ui, |ui| {
-                        for var in it {
-                            let text = var.as_ref();
-                            if filter_by_input
-                                && !buf.is_empty()
-                                && !text.to_lowercase().contains(&buf.to_lowercase())
-                            {
-                                continue;
-                            }
-
-                            if display(ui, text).clicked() {
-                                *buf = text.to_owned();
-                                changed = true;
-
-                                ui.memory_mut(|m| m.close_popup());
-                            }
+            ScrollArea::vertical()
+                .max_height(f32::INFINITY)
+                .show(ui, |ui| {
+                    for var in it {
+                        let text = var.as_ref();
+                        if filter_by_input
+                            && !buf.is_empty()
+                            && !text.to_lowercase().contains(&buf.to_lowercase())
+                        {
+                            continue;
                         }
-                    });
-            },
-        );
+
+                        if display(ui, text).clicked() {
+                            *buf = text.to_owned();
+                            changed = true;
+
+                            Popup::close_id(ui.ctx(), popup_id);
+                        }
+                    }
+                });
+        });
 
         if changed {
             r.mark_changed();

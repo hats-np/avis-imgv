@@ -447,12 +447,12 @@ impl eframe::App for App {
                 ui.menu_button("File", |ui| {
                     if ui.button("Open Folder").clicked() {
                         self.folder_picker(ctx);
-                        ui.close_menu();
+                        ui.close();
                     }
 
                     if ui.button("Open Files").clicked() {
                         self.files_picker(ctx);
-                        ui.close_menu();
+                        ui.close();
                     }
                 });
             });

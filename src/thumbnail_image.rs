@@ -60,7 +60,7 @@ impl ThumbnailImage {
         ui.painter()
             .rect_filled(rect.1, 0, egui::Color32::from_rgb(119, 119, 119));
 
-        ui.allocate_new_ui(UiBuilder::new().max_rect(rect.1), |ui| {
+        ui.scope_builder(UiBuilder::new().max_rect(rect.1), |ui| {
             ui.centered_and_justified(|ui| {
                 let img_response = ui
                     .add(
@@ -91,7 +91,7 @@ impl ThumbnailImage {
         ui.painter()
             .rect_filled(rect.1, 0, egui::Color32::from_rgb(119, 119, 119));
 
-        ui.allocate_new_ui(UiBuilder::new().max_rect(rect.1), |ui| {
+        ui.scope_builder(UiBuilder::new().max_rect(rect.1), |ui| {
             ui.centered_and_justified(|ui| {
                 let spinner_size = size / 3.;
                 ui.add(egui::Spinner::new().size(spinner_size));

@@ -121,6 +121,7 @@ impl Filters {
             for field in &mut self.filter_fields {
                 ui.horizontal(|ui| {
                     let default_values = field.get_default_values();
+                    let desired_first_dd_width = ui.available_width() / 2. - 15.;
                     if ui
                         .add(
                             DropDownBox::from_iter(
@@ -130,6 +131,7 @@ impl Filters {
                                 |ui, text| ui.selectable_label(false, text),
                             )
                             .max_height(600.)
+                            .desired_width(desired_first_dd_width)
                             .filter_by_input(true)
                             .select_on_focus(true),
                         )

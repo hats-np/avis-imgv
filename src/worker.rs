@@ -59,7 +59,7 @@ fn worker_loop(ctx: Context, job_rx: Receiver<Job>) {
                 let cleared_files = Metadata::clear_moved_files(&paths);
                 worker_set_msg(
                     &ctx,
-                    &format!("Cleared {} moved files from the database", cleared_files),
+                    &format!("Cleared {cleared_files} moved files from the database"),
                 );
             }
         }

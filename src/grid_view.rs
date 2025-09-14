@@ -3,7 +3,7 @@ use crate::{
     user_action::show_context_menu, utils,
 };
 use eframe::{
-    egui::{self, Ui},
+    egui::{self, scroll_area::ScrollSource, Ui},
     epaint::Vec2,
 };
 use std::path::{Path, PathBuf};
@@ -73,7 +73,7 @@ impl GridView {
 
             let remainder = (prev_img_size - img_size) * self.images_per_row as f32;
 
-            let mut scroll_area = egui::ScrollArea::vertical().drag_to_scroll(true);
+            let mut scroll_area = egui::ScrollArea::vertical().scroll_source(ScrollSource::ALL);
 
             //Since image size changes when we resize the window, we need to compensate the scroll
             //offset as show_rows assumes fixed widget sizes
