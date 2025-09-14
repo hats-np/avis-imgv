@@ -2,14 +2,15 @@ use crate::{
     db::Db,
     icc::profile_desc_to_icc,
     metadata::{self, Orientation, METADATA_ORIENTATION, METADATA_PROFILE_DESCRIPTION},
+    JXL_EXTENSION, SKIP_ORIENT_EXTENSIONS,
 };
 use eframe::{
     egui,
     epaint::{ColorImage, TextureHandle},
 };
 use image::{DynamicImage, RgbImage};
+use jpegxl_rs::decoder_builder;
 use lcms2::*;
-use std::time::Instant;
 use std::{
     collections::HashMap,
     fs::File,
@@ -17,6 +18,7 @@ use std::{
     path::PathBuf,
     thread::{self, JoinHandle},
 };
+use std::{path::Path, time::Instant};
 
 use fast_image_resize::{images::Image as FirImage, ResizeOptions};
 use fast_image_resize::{PixelType, Resizer};
@@ -73,7 +75,7 @@ impl Image {
             );
             now = Instant::now();
 
-            let mut image = Self::decode(&buffer, &file_name)?;
+            let mut image = Self::decode(&buffer, &file_name, &path)?;
 
             println!(
                 "{} -> Spent {}ms decoding",
@@ -103,7 +105,15 @@ impl Image {
             );
             now = Instant::now();
 
-            image = Self::orient(image, &metadata);
+            if !SKIP_ORIENT_EXTENSIONS.contains(
+                &path
+                    .extension()
+                    .unwrap_or_default()
+                    .to_str()
+                    .unwrap_or_default(),
+            ) {
+                image = Self::orient(image, &metadata);
+            }
 
             println!(
                 "{} -> Spent {}ms orienting",
@@ -137,7 +147,44 @@ impl Image {
         })
     }
 
-    pub fn decode(buffer: &[u8], file_name: &str) -> Option<DynamicImage> {
+    pub fn decode(buffer: &[u8], file_name: &str, path: &Path) -> Option<DynamicImage> {
+        if path.extension().unwrap_or_default() == JXL_EXTENSION {
+            Self::decode_jxl(buffer, file_name)
+        } else {
+            Self::decode_generic(buffer, file_name)
+        }
+    }
+
+    pub fn decode_jxl(buffer: &[u8], file_name: &str) -> Option<DynamicImage> {
+        //JPEG XL has the option to execute with a parallel runner, but since we already manage
+        //multithreading decoding by decoding one image per thread, it's better to decode each
+        //individual image single threadedly.
+        let decoder = match decoder_builder().build() {
+            Ok(decoder) => decoder,
+            Err(e) => {
+                println!("Failure initiating JXL decoder for {file_name} -> {e}");
+                return None;
+            }
+        };
+
+        let r = decoder.decode_with::<u8>(buffer);
+
+        match r {
+            Ok((metadata, buf)) => match RgbImage::from_raw(metadata.width, metadata.height, buf) {
+                Some(rgb_image) => Some(DynamicImage::from(rgb_image)),
+                None => {
+                    println!("Failure building rgb image from JXL decoded buffer for {file_name}");
+                    None
+                }
+            },
+            Err(e) => {
+                println!("Failure creating rbimage from raw JXL buffer for {file_name} -> {e}");
+                None
+            }
+        }
+    }
+
+    pub fn decode_generic(buffer: &[u8], file_name: &str) -> Option<DynamicImage> {
         match image::load_from_memory(buffer) {
             Ok(img) => Some(img),
             Err(e) => {

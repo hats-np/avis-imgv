@@ -23,6 +23,7 @@ fast_image_resize = { version = "5.1.4" }
 notify = "8.0.0"
 rusqlite = { version = "0.36.0", features = ["bundled"] }
 uuid = { version = "1.0", features = ["v4"] }
+jpegxl-rs = "0.11.2"
 
 [profile.dev.package.image]
 opt-level = 3

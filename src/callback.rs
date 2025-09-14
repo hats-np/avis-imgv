@@ -13,6 +13,7 @@ pub enum Callback {
     ReloadAll,
     Reload(Option<PathBuf>),
     Pop(Option<PathBuf>),
+    Advance,
     NoAction,
 }
 
@@ -22,6 +23,7 @@ impl Callback {
             Callback::ReloadAll => Self::ReloadAll,
             Callback::Reload(_) => Self::Reload(path),
             Callback::Pop(_) => Self::Pop(path),
+            Callback::Advance => Self::Advance,
             Callback::NoAction => Self::NoAction,
         }
     }
@@ -38,6 +40,7 @@ impl<'de> Deserialize<'de> for Callback {
             "ReloadAll" => Callback::ReloadAll,
             "Reload" => Callback::Reload(None),
             "Pop" => Callback::Pop(None),
+            "Advance" => Callback::Advance,
             "" => Callback::NoAction,
             &_ => Callback::NoAction,
         })
@@ -54,6 +57,7 @@ impl Serialize for Callback {
             Callback::ReloadAll => "ReloadAll",
             Callback::Pop(_) => "Pop",
             Callback::Reload(_) => "Reload",
+            Callback::Advance => "Advance",
         })
     }
 }

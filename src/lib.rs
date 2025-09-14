@@ -27,9 +27,18 @@ pub mod worker;
 pub const QUALIFIER: &str = "com";
 pub const ORGANIZATION: &str = "avis-imgv";
 pub const APPLICATION: &str = "avis-imgv";
-
-pub const VALID_EXTENSIONS: &[&str] = &["jpg", "png", "jpeg", "webp", "gif", "bmp", "tiff"];
-pub const ZUNE_JPEG_TYPES: &[&str] = &["jpg", "jpeg"];
+pub const JXL_EXTENSION: &str = "jxl";
+pub const VALID_EXTENSIONS: &[&str] = &[
+    "jpg",
+    "png",
+    "jpeg",
+    "webp",
+    "gif",
+    "bmp",
+    "tiff",
+    JXL_EXTENSION,
+];
+pub const SKIP_ORIENT_EXTENSIONS: &[&str] = &[JXL_EXTENSION];
 
 pub const WORKER_MESSAGE_MEMORY_KEY: &str = "worker-message";
 

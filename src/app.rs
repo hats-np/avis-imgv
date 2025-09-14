@@ -396,6 +396,7 @@ impl App {
             Callback::Pop(path) => self.callback_pop(path, ctx),
             Callback::Reload(path) => self.reload_galleries_image(path, ctx),
             Callback::ReloadAll => self.callback_reload_all(ctx),
+            Callback::Advance => self.callback_advance(ctx),
             Callback::NoAction => {}
         }
     }
@@ -405,6 +406,10 @@ impl App {
             self.gallery.pop(&path, ctx);
             self.grid_view.pop(&path);
         }
+    }
+
+    fn callback_advance(&mut self, ctx: &egui::Context) {
+        self.gallery.next_image(ctx);
     }
 
     fn reload_galleries_image(&mut self, path: Option<PathBuf>, ctx: &egui::Context) {

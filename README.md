@@ -98,6 +98,7 @@ this just add an entry under either a context menu or a user action. An example 
 - Pop - Removes the selected image from the collection
 - Reload - Reloads the selected image
 - ReloadAll - Reloads the entire collection
+- Advance - Advances to the next image in the collection
 
 ## Configuration
 
