@@ -371,7 +371,7 @@ impl App {
 
             self.set_images_from_path(&self.base_path.clone(), &None, ctx);
         } else {
-            println!("Flattening open directory");
+            println!("Flattening open directory: {:?}", &self.base_path);
             self.dir_flattened = true;
 
             //restart watcher in recursive mode

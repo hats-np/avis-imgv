@@ -2,7 +2,7 @@ use crate::{
     db::Db,
     icc::profile_desc_to_icc,
     metadata::{self, Orientation, METADATA_ORIENTATION, METADATA_PROFILE_DESCRIPTION},
-    JXL_EXTENSION, SKIP_ORIENT_EXTENSIONS,
+    JXL_EXTENSION, RAW_EXTENSIONS, SKIP_ORIENT_EXTENSIONS,
 };
 use eframe::{
     egui,
@@ -16,6 +16,7 @@ use std::{
     fs::File,
     io::Read,
     path::PathBuf,
+    process::Command,
     thread::{self, JoinHandle},
 };
 use std::{path::Path, time::Instant};
@@ -45,26 +46,42 @@ impl Image {
                 .to_string_lossy();
 
             let mut now = Instant::now();
-            let mut f = match File::open(&path) {
-                Ok(f) => f,
-                Err(e) => {
-                    println!("Failure opening image: {e}");
-
-                    let delete_result = Db::delete_file_by_path(&path);
-                    if delete_result.is_err() {
-                        println!("Failure deleting file record from the database {e}");
-                    }
-
-                    return get_error_image(&file_name, &ctx);
-                }
-            };
 
             let mut buffer = Vec::new();
-            match f.read_to_end(&mut buffer) {
-                Ok(_) => {}
-                Err(e) => {
-                    println!("{file_name} -> Error reading image into buffer: {e}");
-                    return get_error_image(&file_name, &ctx);
+            if RAW_EXTENSIONS.contains(
+                &path
+                    .extension()
+                    .unwrap_or_default()
+                    .to_str()
+                    .unwrap_or_default()
+                    .to_lowercase()
+                    .as_str(),
+            ) {
+                match extract_preview_from_raw_file(&path) {
+                    Some(buf) => buffer = buf,
+                    None => return get_error_image(&file_name, &ctx),
+                };
+            } else {
+                let mut f = match File::open(&path) {
+                    Ok(f) => f,
+                    Err(e) => {
+                        println!("Failure opening image: {e}");
+
+                        let delete_result = Db::delete_file_by_path(&path);
+                        if delete_result.is_err() {
+                            println!("Failure deleting file record from the database {e}");
+                        }
+
+                        return get_error_image(&file_name, &ctx);
+                    }
+                };
+
+                match f.read_to_end(&mut buffer) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        println!("{file_name} -> Error reading image into buffer: {e}");
+                        return get_error_image(&file_name, &ctx);
+                    }
                 }
             }
 
@@ -75,7 +92,12 @@ impl Image {
             );
             now = Instant::now();
 
-            let mut image = Self::decode(&buffer, &file_name, &path)?;
+            let mut image = match Self::decode(&buffer, &file_name, &path) {
+                Some(img) => img,
+                None => {
+                    return get_error_image(&file_name, &ctx);
+                }
+            };
 
             println!(
                 "{} -> Spent {}ms decoding",
@@ -362,4 +384,32 @@ pub fn get_error_image(name: &str, ctx: &egui::Context) -> Option<Image> {
         texture: ctx.load_texture(name, ColorImage::from_rgb(size, pixels), Default::default()),
         metadata: HashMap::new(),
     })
+}
+
+pub fn extract_preview_from_raw_file(path: &Path) -> Option<Vec<u8>> {
+    let mut command = Command::new("exiftool");
+    command.arg("-b").arg("-PreviewImage").arg(path);
+
+    let output = match command.output() {
+        Ok(output) => output,
+        Err(e) => {
+            eprintln!("Failure fetching raw image preview with exiftool: {e}");
+            return None;
+        }
+    };
+
+    if output.status.success() {
+        let std_out = output.stdout;
+
+        if std_out.is_empty() {
+            eprintln!("Extracted an empty image, raw likely does not have embeded preview jpg");
+            return None;
+        }
+
+        Some(std_out)
+    } else {
+        let error_message = String::from_utf8_lossy(&output.stderr);
+        eprintln!("Failure fetching raw image preview with exiftool: {error_message}");
+        None
+    }
 }

@@ -24,6 +24,7 @@ notify = "8.0.0"
 rusqlite = { version = "0.37.0", features = ["bundled"] }
 uuid = { version = "1.0", features = ["v4"] }
 jpegxl-rs = "0.11.2"
+tempfile = "3.22.0"
 
 [profile.dev.package.image]
 opt-level = 3

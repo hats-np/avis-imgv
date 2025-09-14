@@ -34,6 +34,12 @@ fn main() {
         avis_imgv::metadata::Metadata::clean_moved_files();
         println!("Metadata caching finished. Exiting.");
         return;
+    } else if args.len() > 1 && args[1] == "--help" {
+        println!("Usage:");
+        println!("\t --help");
+        println!("\t --import <path> \n \t\t Imports all images in the directory and sub directories into the database");
+        println!("\t --clean <path> \n \t\t Removes moved/deleted files from the database");
+        return;
     } else if args.len() > 1 && args[1] == "--clean" {
         avis_imgv::metadata::Metadata::clean_moved_files();
         return;
