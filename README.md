@@ -19,6 +19,7 @@ directories are obtained through the `directories` crate which is platform-agnos
 - exiftool
 - libwebp for WebP
 - libdav1d for AVIF if you enable it in cargo.toml
+- libjpegxl for JPEG-XL
 
 ## Build
 
@@ -61,6 +62,8 @@ Supported image formats can be found [here](https://github.com/image-rs/image/bl
 and [here](https://docs.rs/crate/image/latest/features).
 
 Default feature flag for the `image` crate is used by default.
+
+JPEG-XL is also supported through `libjpegxl`.
 
 ### Raw File Support
 
