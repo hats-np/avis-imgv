@@ -65,11 +65,11 @@ impl Image {
                 let mut f = match File::open(&path) {
                     Ok(f) => f,
                     Err(e) => {
-                        println!("Failure opening image: {e}");
+                        tracing::error!("Failure opening image: {e}");
 
                         let delete_result = Db::delete_file_by_path(&path);
                         if delete_result.is_err() {
-                            println!("Failure deleting file record from the database {e}");
+                            tracing::error!("Failure deleting file record from the database {e}");
                         }
 
                         return get_error_image(&file_name, &ctx);
@@ -79,13 +79,13 @@ impl Image {
                 match f.read_to_end(&mut buffer) {
                     Ok(_) => {}
                     Err(e) => {
-                        println!("{file_name} -> Error reading image into buffer: {e}");
+                        tracing::error!("{file_name} -> Error reading image into buffer: {e}");
                         return get_error_image(&file_name, &ctx);
                     }
                 }
             }
 
-            println!(
+            tracing::info!(
                 "{} -> Spent {}ms reading into buffer",
                 file_name,
                 now.elapsed().as_millis()
@@ -99,7 +99,7 @@ impl Image {
                 }
             };
 
-            println!(
+            tracing::info!(
                 "{} -> Spent {}ms decoding",
                 file_name,
                 now.elapsed().as_millis()
@@ -110,7 +110,7 @@ impl Image {
                 image = Self::resize(image, image_size);
             }
 
-            println!(
+            tracing::info!(
                 "{} -> Spent {}ms resizing",
                 file_name,
                 now.elapsed().as_millis()
@@ -120,7 +120,7 @@ impl Image {
             let metadata =
                 metadata::Metadata::get_image_metadata(&path.to_string_lossy()).unwrap_or_default();
 
-            println!(
+            tracing::info!(
                 "{} -> Spent {}ms reading metadata",
                 file_name,
                 now.elapsed().as_millis()
@@ -137,7 +137,7 @@ impl Image {
                 image = Self::orient(image, &metadata);
             }
 
-            println!(
+            tracing::info!(
                 "{} -> Spent {}ms orienting",
                 file_name,
                 now.elapsed().as_millis()
@@ -152,7 +152,7 @@ impl Image {
                 Self::apply_cc(cpd, pixels, &path, &output_icc_profile);
             };
 
-            println!(
+            tracing::info!(
                 "{} -> Spent {}ms applying CC",
                 file_name,
                 now.elapsed().as_millis()
@@ -184,7 +184,7 @@ impl Image {
         let decoder = match decoder_builder().build() {
             Ok(decoder) => decoder,
             Err(e) => {
-                println!("Failure initiating JXL decoder for {file_name} -> {e}");
+                tracing::error!("Failure initiating JXL decoder for {file_name} -> {e}");
                 return None;
             }
         };
@@ -195,12 +195,16 @@ impl Image {
             Ok((metadata, buf)) => match RgbImage::from_raw(metadata.width, metadata.height, buf) {
                 Some(rgb_image) => Some(DynamicImage::from(rgb_image)),
                 None => {
-                    println!("Failure building rgb image from JXL decoded buffer for {file_name}");
+                    tracing::error!(
+                        "Failure building rgb image from JXL decoded buffer for {file_name}"
+                    );
                     None
                 }
             },
             Err(e) => {
-                println!("Failure creating rbimage from raw JXL buffer for {file_name} -> {e}");
+                tracing::error!(
+                    "Failure creating rbimage from raw JXL buffer for {file_name} -> {e}"
+                );
                 None
             }
         }
@@ -210,7 +214,7 @@ impl Image {
         match image::load_from_memory(buffer) {
             Ok(img) => Some(img),
             Err(e) => {
-                println!("{file_name} -> Failure decoding image: {e}");
+                tracing::info!("{file_name} -> Failure decoding image: {e}");
                 None
             }
         }
@@ -250,7 +254,7 @@ impl Image {
                 ) {
                     Ok(img) => img,
                     Err(e) => {
-                        println!(
+                        tracing::error!(
                             "Failure building fast_image_resize image from dynamic image -> {e}",
                         );
                         return img;
@@ -265,7 +269,7 @@ impl Image {
                 match resizer.resize(&src_image, &mut dest_image, &ResizeOptions::new()) {
                     Ok(_) => {}
                     Err(e) => {
-                        println!("Failure resizing image -> {e}");
+                        tracing::error!("Failure resizing image -> {e}");
                         return img;
                     }
                 }
@@ -273,7 +277,7 @@ impl Image {
                 match RgbImage::from_raw(dest_width, dest_height, dest_image.buffer().to_vec()) {
                     Some(rgb_image) => DynamicImage::from(rgb_image),
                     None => {
-                        println!("Failure building rgb image from resized image");
+                        tracing::error!("Failure building rgb image from resized image");
                         img
                     }
                 }
@@ -309,7 +313,7 @@ impl Image {
             .to_lowercase()
             .contains(&output_profile.to_lowercase())
         {
-            println!(
+            tracing::info!(
                 "Input {color_profile_desc} and output {output_profile} profiles are the same -> skipping"
             );
             return;
@@ -318,12 +322,12 @@ impl Image {
         let input_icc_bytes = match profile_desc_to_icc(color_profile_desc) {
             Some(icc_bytes) => icc_bytes.to_vec(),
             None => {
-                println!(
+                tracing::info!(
                     "No built-in ICC profile matching {color_profile_desc} extracting from image"
                 );
                 match metadata::Metadata::extract_icc_from_image(path) {
                     Some(icc_bytes) => {
-                        println!("Successfully extracted ICC profile from image");
+                        tracing::info!("Successfully extracted ICC profile from image");
                         icc_bytes
                     }
                     None => return,
@@ -334,7 +338,7 @@ impl Image {
         let output_icc_bytes = match profile_desc_to_icc(output_profile) {
             Some(icc_bytes) => icc_bytes.to_vec(),
             None => {
-                println!("Badly configured output ICC profile -> {output_profile}");
+                tracing::error!("Badly configured output ICC profile -> {output_profile}");
                 return;
             }
         };
@@ -342,7 +346,7 @@ impl Image {
         let input_profile = match Profile::new_icc(&input_icc_bytes) {
             Ok(profile) => profile,
             Err(_) => {
-                println!("Failed constructing input lcms2 profile from ICC data");
+                tracing::error!("Failed constructing input lcms2 profile from ICC data");
                 return;
             }
         };
@@ -350,7 +354,7 @@ impl Image {
         let output_profile = match Profile::new_icc(&output_icc_bytes) {
             Ok(profile) => profile,
             Err(_) => {
-                println!("Failed constructing output lcms2 profile from ICC data");
+                tracing::error!("Failed constructing output lcms2 profile from ICC data");
                 return;
             }
         };
@@ -365,7 +369,7 @@ impl Image {
         ) {
             Ok(transform) => transform,
             Err(_) => {
-                println!("Failure applying ICC profile to image");
+                tracing::error!("Failure applying ICC profile to image");
                 return;
             }
         };
@@ -393,7 +397,7 @@ pub fn extract_preview_from_raw_file(path: &Path) -> Option<Vec<u8>> {
     let output = match command.output() {
         Ok(output) => output,
         Err(e) => {
-            eprintln!("Failure fetching raw image preview with exiftool: {e}");
+            tracing::error!("Failure fetching raw image preview with exiftool: {e}");
             return None;
         }
     };
@@ -402,14 +406,16 @@ pub fn extract_preview_from_raw_file(path: &Path) -> Option<Vec<u8>> {
         let std_out = output.stdout;
 
         if std_out.is_empty() {
-            eprintln!("Extracted an empty image, raw likely does not have embeded preview jpg");
+            tracing::error!(
+                "Extracted an empty image, raw likely does not have embeded preview jpg"
+            );
             return None;
         }
 
         Some(std_out)
     } else {
         let error_message = String::from_utf8_lossy(&output.stderr);
-        eprintln!("Failure fetching raw image preview with exiftool: {error_message}");
+        tracing::error!("Failure fetching raw image preview with exiftool: {error_message}");
         None
     }
 }

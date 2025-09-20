@@ -274,7 +274,7 @@ impl GalleryImage {
         if lih.is_finished() {
             match lih.join() {
                 Ok(image) => self.image = image,
-                Err(_) => println!("Failure joining load image thread"),
+                Err(_) => tracing::info!("Failure joining load image thread"),
             }
         } else {
             self.load_image_handle = Some(lih);
@@ -315,7 +315,7 @@ impl GalleryImage {
 
     pub fn unload(&mut self) {
         if self.image.is_some() || self.load_image_handle.is_some() {
-            println!("{} -> Unloading image", self.name);
+            tracing::info!("{} -> Unloading image", self.name);
         }
 
         self.image = None;
@@ -324,7 +324,7 @@ impl GalleryImage {
 
     pub fn load(&mut self, ctx: &egui::Context) {
         if self.load_image_handle.is_none() && self.image.is_none() {
-            println!("{} -> Loading image", self.name);
+            tracing::info!("{} -> Loading image", self.name);
             self.load_image_handle = Some(Image::load(
                 self.path.clone(),
                 None,

@@ -74,7 +74,7 @@ impl ImageView {
         self.preload_active =
             Self::is_valid_for_preload(self.config.nr_loaded_images, self.imgs.len());
 
-        println!(
+        tracing::info!(
             "Starting gallery with {} images on image {}",
             self.imgs.len(),
             self.selected_img_index + 1
@@ -550,7 +550,7 @@ impl ImageView {
                     }
                 }
             } else {
-                println!("Unable to get active image path for user action");
+                tracing::error!("Unable to get active image path for user action");
             }
         }
     }

@@ -64,18 +64,18 @@ impl App {
 
         match Db::init_db() {
             Ok(_) => {
-                println!("Database initiated successfully");
+                tracing::info!("Database initiated successfully");
                 match Db::trim_db(&cfg.general.limit_cached) {
                     Ok(_) => worker.send_job(crate::worker::Job::CacheMetadataForImages(
                         img_paths.clone(),
                     )),
                     Err(e) => {
-                        println!("Failure trimming db {e}");
+                        tracing::info!("Failure trimming db {e}");
                     }
                 };
             }
             Err(e) => {
-                println!("Failure initiating db -> {e}");
+                tracing::info!("Failure initiating db -> {e}");
             }
         };
 
@@ -281,12 +281,12 @@ impl App {
 
     fn enable_watcher(&mut self) {
         if self.watcher.is_some() {
-            println!("Disabling watcher");
+            tracing::info!("Disabling watcher");
             self.watcher = None;
             return;
         }
 
-        println!("Enabling watcher at {:?}", self.base_path);
+        tracing::info!("Enabling watcher at {:?}", self.base_path);
 
         let watcher_events = self.watcher_events.clone();
         let mut watcher = notify::recommended_watcher(
@@ -295,10 +295,10 @@ impl App {
                     if let Ok(mut lock) = watcher_events.try_lock() {
                         lock.push(event.clone());
                     } else {
-                        println!("Failure locking file watcher events queue");
+                        tracing::info!("Failure locking file watcher events queue");
                     }
                 }
-                Err(e) => println!("Error watching directory: {e:?}"),
+                Err(e) => tracing::info!("Error watching directory: {e:?}"),
             },
         )
         .unwrap();
@@ -360,7 +360,7 @@ impl App {
 
     fn flatten_open_dir(&mut self, ctx: &egui::Context) {
         if self.dir_flattened {
-            println!("Returning to original directory");
+            tracing::info!("Returning to original directory");
             self.dir_flattened = false;
 
             //restart watcher in non-recursive mode
@@ -371,7 +371,7 @@ impl App {
 
             self.set_images_from_path(&self.base_path.clone(), &None, ctx);
         } else {
-            println!("Flattening open directory: {:?}", &self.base_path);
+            tracing::info!("Flattening open directory: {:?}", &self.base_path);
             self.dir_flattened = true;
 
             //restart watcher in recursive mode
@@ -391,7 +391,7 @@ impl App {
     //Some callbacks affect both collections so it's important
     //to deal them in the base of the app
     fn execute_callback(&mut self, callback: Callback, ctx: &egui::Context) {
-        println!("Executing callback with {callback:?}");
+        tracing::info!("Executing callback with {callback:?}");
         match callback {
             Callback::Pop(path) => self.callback_pop(path, ctx),
             Callback::Reload(path) => self.reload_galleries_image(path, ctx),

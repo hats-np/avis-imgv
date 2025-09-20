@@ -32,8 +32,16 @@ impl ThumbnailImage {
             .collect()
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui, mut size: [f32; 2]) -> Option<Response> {
-        self.finish_img_loading();
+    pub fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        mut size: [f32; 2],
+        skip_loading: &mut bool,
+    ) -> Option<Response> {
+        if !*skip_loading && self.image.is_none() {
+            self.finish_img_loading();
+            *skip_loading = true;
+        }
 
         let image = match &mut self.image {
             Some(image) => image,
@@ -115,7 +123,7 @@ impl ThumbnailImage {
         if lih.is_finished() {
             match lih.join() {
                 Ok(image) => self.image = image,
-                Err(_) => println!("Failure joining load image thread"),
+                Err(_) => tracing::error!("Failure joining load image thread"),
             }
         } else {
             self.load_image_handle = Some(lih);
@@ -124,7 +132,7 @@ impl ThumbnailImage {
 
     pub fn load(&mut self, image_size: u32, ctx: &egui::Context) -> bool {
         if self.load_image_handle.is_none() && self.image.is_none() {
-            println!("Loading image -> {}", self.path.display());
+            tracing::info!("Loading image -> {}", self.path.display());
             self.should_unload = false;
             self.load_image_handle = Some(Image::load(
                 self.path.clone(),
@@ -156,9 +164,10 @@ impl ThumbnailImage {
     pub fn unload(&mut self, image_nr: usize) {
         if self.load_image_handle.is_some() {
             self.should_unload = true;
-            println!(
+            tracing::info!(
                 "Marking Image Handle for delayed unload {} - {}",
-                image_nr, self.name
+                image_nr,
+                self.name
             );
         } else {
             self.image = None;

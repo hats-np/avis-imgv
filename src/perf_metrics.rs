@@ -52,6 +52,6 @@ impl PerfMetrics {
             self.longest_frametime
         ));
 
-        println!("{}", self.current_frametime);
+        tracing::info!("{}", self.current_frametime);
     }
 }

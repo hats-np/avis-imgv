@@ -46,7 +46,7 @@ pub fn execute(exec: &str, path: &Path) -> bool {
         None => return false,
     };
 
-    println!("exec -> {exec}");
+    tracing::info!("exec -> {exec}");
     let exec_split = get_command_args(&exec);
     let mut exec_split = exec_split.iter();
 
@@ -55,11 +55,11 @@ pub fn execute(exec: &str, path: &Path) -> bool {
         None => return false,
     };
 
-    println!("CMD: {cmd}");
+    tracing::info!("cmd: {cmd}");
     let mut cmd = Command::new(cmd);
 
     for arg in exec_split {
-        println!("ARG: {arg}");
+        tracing::info!("arg: {arg}");
         cmd.arg(arg);
     }
 
@@ -69,7 +69,7 @@ pub fn execute(exec: &str, path: &Path) -> bool {
     match cmd.spawn() {
         Ok(_) => true,
         Err(e) => {
-            println!("{e}");
+            tracing::error!("{e}");
             false
         }
     }

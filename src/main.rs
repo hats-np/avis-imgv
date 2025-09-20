@@ -3,42 +3,50 @@ use avis_imgv::db::Db;
 use eframe::NativeOptions;
 use std::env;
 use std::path::PathBuf;
+use tracing::Level;
+use tracing_subscriber::FmtSubscriber;
 
 fn main() {
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(Level::DEBUG)
+        .finish();
+
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+
     let args: Vec<String> = env::args().collect();
 
     if args.len() > 1 && args[1] == "--import" {
         if args.len() < 3 {
-            eprintln!("Usage: avis-imgv --import <path>");
+            tracing::error!("Usage: avis-imgv --import <path>");
             return;
         }
         let path_str = &args[2];
         let path = PathBuf::from(path_str);
 
         if !path.exists() {
-            eprintln!("Error: Path does not exist: {path_str}");
+            tracing::error!("Error: Path does not exist: {path_str}");
             return;
         }
 
-        println!("Starting recursive crawl from: {path:?}");
+        tracing::info!("Starting recursive crawl from: {path:?}");
         let image_paths = avis_imgv::crawler::crawl(&path, true);
-        println!("Found {} images. Caching metadata...", image_paths.len());
+        tracing::info!("Found {} images. Caching metadata...", image_paths.len());
         match Db::init_db() {
             Ok(_) => {}
             Err(e) => {
-                panic!("{}", e);
+                panic!("Failure initializing database {e}");
             }
         }
 
         avis_imgv::metadata::Metadata::cache_metadata_for_images(&image_paths);
         avis_imgv::metadata::Metadata::clean_moved_files();
-        println!("Metadata caching finished. Exiting.");
+        tracing::info!("Metadata caching finished. Exiting.");
         return;
     } else if args.len() > 1 && args[1] == "--help" {
-        println!("Usage:");
-        println!("\t --help");
-        println!("\t --import <path> \n \t\t Imports all images in the directory and sub directories into the database");
-        println!("\t --clean <path> \n \t\t Removes moved/deleted files from the database");
+        tracing::info!("Usage:");
+        tracing::info!("\t --help");
+        tracing::info!("\t --import <path> \n \t\t Imports all images in the directory and sub directories into the database");
+        tracing::info!("\t --clean <path> \n \t\t Removes moved/deleted files from the database");
         return;
     } else if args.len() > 1 && args[1] == "--clean" {
         avis_imgv::metadata::Metadata::clean_moved_files();
@@ -55,6 +63,6 @@ fn main() {
         Box::new(|cc| Ok(Box::new(App::new(cc)))),
     ) {
         Ok(_) => {}
-        Err(e) => eprintln!("{e}"),
+        Err(e) => tracing::error!("{e}"),
     }
 }

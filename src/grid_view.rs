@@ -57,6 +57,7 @@ impl GridView {
     }
 
     pub fn ui(&mut self, ctx: &egui::Context, jump_to_index: &mut Option<usize>) {
+        let mut loaded_img_this_frame = false;
         self.handle_input(ctx);
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -170,17 +171,13 @@ impl GridView {
                             ui.add_space(remainder / 2.0);
 
                             for j in r * self.images_per_row..(r + 1) * self.images_per_row {
-                                if let Some(img) = &mut self.imgs.get_mut(j) {
-                                    Self::show_image(
-                                        img,
-                                        ui,
-                                        ctx,
-                                        img_size,
-                                        &mut self.selected_image_name,
-                                        &self.config,
-                                        &mut self.callback,
-                                    );
-                                }
+                                self.show_image_at(
+                                    ui,
+                                    ctx,
+                                    j,
+                                    img_size,
+                                    &mut loaded_img_this_frame,
+                                );
                             }
                         });
                     }
@@ -228,32 +225,36 @@ impl GridView {
         }
     }
 
-    fn show_image(
-        image: &mut ThumbnailImage,
+    fn show_image_at(
+        &mut self,
         ui: &mut Ui,
         ctx: &egui::Context,
+        index: usize,
         max_size: f32,
-        select_image_name: &mut Option<String>,
-        config: &GridViewConfig,
-        callback: &mut Option<Callback>,
+        loaded_img_this_frame: &mut bool,
     ) {
-        if let Some(resp) = image.ui(ui, [max_size, max_size]) {
+        let image = match self.imgs.get_mut(index) {
+            Some(img) => img,
+            None => return,
+        };
+
+        if let Some(resp) = image.ui(ui, [max_size, max_size], loaded_img_this_frame) {
             if resp.clicked() {
-                *select_image_name = Some(image.name.clone());
+                self.selected_image_name = Some(image.name.clone());
             }
             if resp.hovered() {
                 ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
             }
 
-            let return_callback = show_context_menu(&config.context_menu, resp, &image.path);
+            let return_callback = show_context_menu(&self.config.context_menu, resp, &image.path);
 
             if let Some(return_callback) = return_callback {
-                *callback = Some(Callback::from_callback(
+                self.callback = Some(Callback::from_callback(
                     return_callback,
                     Some(image.path.clone()),
                 ));
 
-                println!("{callback:?}");
+                tracing::info!("{:?}", self.callback);
             }
         }
     }

@@ -32,7 +32,7 @@ impl Db {
 
         conn.execute(&q, ())?;
         conn.execute("commit transaction;", ())?;
-        println!(
+        tracing::info!(
             "Spent {}ms inserting {} metadata records into db",
             now.elapsed().as_millis(),
             data.len()
@@ -98,7 +98,7 @@ impl Db {
     }
 
     pub fn trim_db(limit: &u32) -> Result<(), Box<dyn Error>> {
-        println!("Trimming database, leaving {limit} records");
+        tracing::info!("Trimming database, leaving {limit} records");
         let conn = Self::get_sqlite_conn()?;
 
         let q = format!(
@@ -106,7 +106,7 @@ impl Db {
         );
 
         conn.execute(&q, ())?;
-        println!("Finished trimming database");
+        tracing::info!("Finished trimming database");
         Ok(())
     }
 
@@ -160,8 +160,6 @@ impl Db {
                 order_direction.get_sql()
             );
         }
-
-        println!("Query: {query}");
 
         let conn = Self::get_sqlite_conn()?;
         let mut q = conn.prepare(&query)?;

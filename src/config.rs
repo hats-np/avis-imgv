@@ -237,12 +237,12 @@ impl Config {
         };
 
         let cfg_path = config_dir.join(PathBuf::from("config.json"));
-        println!("Reading config -> {}", cfg_path.display());
+        tracing::info!("Reading config -> {}", cfg_path.display());
 
         let config_json = match fs::read_to_string(cfg_path) {
             Ok(json) => json,
             Err(e) => {
-                println!("Failure reading config file -> {e}");
+                tracing::error!("Failure reading config file -> {e}");
                 return Config::default();
             }
         };
@@ -250,14 +250,14 @@ impl Config {
         let cfg = match serde_json::from_str(&config_json) {
             Ok(cfg) => cfg,
             Err(e) => {
-                println!("{e}");
-                println!("Failure parsing config json, using defaults");
+                tracing::error!("{e}");
+                tracing::error!("Failure parsing config json, using defaults");
                 Config::default()
             }
         };
 
-        println!("Using config:");
-        println!("{}", serde_json::to_string(&cfg).unwrap());
+        tracing::info!("Using config:");
+        tracing::info!("{}", serde_json::to_string(&cfg).unwrap());
 
         cfg
     }
@@ -435,7 +435,7 @@ pub fn build_keyboard_shortcut(mods: &[String], key: &str) -> KeyboardShortcut {
             MOD_CMD => modifiers.command = true,
             MOD_MAC_CMD => modifiers.mac_cmd = true,
             _ => {
-                println!("Invalid modifier({}) in configuration", modi.as_str())
+                tracing::error!("Invalid modifier({}) in configuration", modi.as_str())
             }
         }
     }
@@ -446,7 +446,7 @@ pub fn build_keyboard_shortcut(mods: &[String], key: &str) -> KeyboardShortcut {
             modifiers,
         },
         None => {
-            println!("Invalid shortcut key: {key}");
+            tracing::error!("Invalid shortcut key: {key}");
             default_shortcut()
         } //uses default unreachable shortcut
     }

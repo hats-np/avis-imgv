@@ -57,7 +57,7 @@ fn create_widget_visuals(
 
 #[cfg(feature = "custom_font")]
 pub fn apply_fonts(ctx: &egui::Context) {
-    println!("Applying custom fonts");
+    tracing::info!("Applying custom fonts");
 
     let mut fonts = FontDefinitions::default();
 

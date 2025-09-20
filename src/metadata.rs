@@ -57,19 +57,21 @@ impl Metadata {
         let cached_paths = match db::Db::get_cached_images_by_paths(&image_paths) {
             Ok(cached_paths) => cached_paths,
             Err(e) => {
-                println!("Failure fetching cached metadata paths, aborting caching process {e}");
+                tracing::error!(
+                    "Failure fetching cached metadata paths, aborting caching process {e}"
+                );
                 return;
             }
         };
 
-        println!(
+        tracing::info!(
             "Fetched a total of {} paths which are already cached",
             cached_paths.len()
         );
 
         image_paths.retain(|x| !cached_paths.contains(x));
 
-        println!("Retained a total of {} images to cache", image_paths.len());
+        tracing::info!("Retained a total of {} images to cache", image_paths.len());
 
         //A bit of a hack but simpler than diverging code paths
         let single_image_path = if image_paths.len() == 1 {
@@ -82,14 +84,14 @@ impl Metadata {
         let total_chunks = chunks.len();
         let mut total_elapsed_time_ms = 0u128;
 
-        println!(
+        tracing::info!(
             "Caching a total of {} imgs in {} chunks",
             image_paths.len(),
             total_chunks
         );
 
         for (i, chunk) in chunks.iter().enumerate() {
-            println!("Caching chunk {i} of {}", chunks.len());
+            tracing::info!("Caching chunk {i} of {}", chunks.len());
 
             let chunk_timer = Instant::now();
 
@@ -112,9 +114,9 @@ impl Metadata {
                             Ok(output) => {
                                 tx.send(output).unwrap();
                             }
-                            Err(e) => println!("Error fetching metadata -> {e}"),
+                            Err(e) => tracing::error!("Error fetching metadata -> {e}"),
                         },
-                        Err(e) => println!("Error fetching metadata -> {e}"),
+                        Err(e) => tracing::error!("Error fetching metadata -> {e}"),
                     };
                 });
 
@@ -135,7 +137,7 @@ impl Metadata {
             total_elapsed_time_ms += chunk_elapsed_ms;
             let processed_chunks_count = (i + 1) as u128;
 
-            println!(
+            tracing::info!(
                 "Cached metadata chunk containing {} images in {}ms",
                 chunk.len(),
                 chunk_elapsed_ms
@@ -150,13 +152,13 @@ impl Metadata {
                 let estimated_remaining_minutes = estimated_remaining_seconds / 60;
                 let estimated_remaining_seconds_remainder = estimated_remaining_seconds % 60;
 
-                println!(
+                tracing::info!(
                     "Estimated time remaining: {estimated_remaining_minutes}m {estimated_remaining_seconds_remainder}s"
                 );
             }
         }
 
-        println!(
+        tracing::info!(
             "Finished caching metadata for all images in {}ms",
             timer.elapsed().as_millis()
         );
@@ -174,7 +176,7 @@ impl Metadata {
                 let metadata_json = match serde_json::to_string(&tags) {
                     Ok(json) => json,
                     Err(e) => {
-                        println!("Failure serializing metadata into json -> {e}");
+                        tracing::error!("Failure serializing metadata into json -> {e}");
                         continue;
                     }
                 };
@@ -191,7 +193,7 @@ impl Metadata {
         match db::Db::insert_files_metadata(metadata_to_insert) {
             Ok(_) => {}
             Err(e) => {
-                println!("Failure inserting metadata into db -> {e}");
+                tracing::error!("Failure inserting metadata into db -> {e}");
             }
         }
     }
@@ -231,10 +233,10 @@ impl Metadata {
                     return Some(serde_json::from_str(&data).unwrap_or_default());
                 }
             }
-            Err(e) => println!("Error fetching image metadata from db -> {e}"),
+            Err(e) => tracing::error!("Error fetching image metadata from db -> {e}"),
         };
 
-        println!("Metadata not yet in database, fetching for {path}");
+        tracing::info!("Metadata not yet in database, fetching for {path}");
 
         //This path is useful for the first files that are opened
         //as the first batch(depending on chunk) still takes a bit of time.
@@ -248,12 +250,12 @@ impl Metadata {
             Ok(cmd) => match cmd.wait_with_output() {
                 Ok(output) => output,
                 Err(e) => {
-                    println!("Failure waiting for exiftool process -> {e}");
+                    tracing::error!("Failure waiting for exiftool process -> {e}");
                     return None;
                 }
             },
             Err(e) => {
-                println!("Failure spawning exiftool process -> {e}");
+                tracing::error!("Failure spawning exiftool process -> {e}");
                 return None;
             }
         };
@@ -280,12 +282,12 @@ impl Metadata {
                     }
                 }
                 Err(e) => {
-                    println!("Error fetching image icc -> {e}");
+                    tracing::error!("Error fetching image icc -> {e}");
                     None
                 }
             },
             Err(e) => {
-                println!("Error fetching image icc -> {e}");
+                tracing::error!("Error fetching image icc -> {e}");
                 None
             }
         }
@@ -334,7 +336,7 @@ impl Metadata {
         let paths = match db::Db::get_all_file_paths() {
             Ok(paths) => paths,
             Err(e) => {
-                println!("Failure fetching file paths from the database: {e}");
+                tracing::error!("Failure fetching file paths from the database: {e}");
                 return;
             }
         };
@@ -342,17 +344,17 @@ impl Metadata {
         let mut to_delete = vec![];
         for path in paths {
             if !PathBuf::from(&path).exists() {
-                println!("{path} no longer exists in the filesystem, marking for deletion");
+                tracing::error!("{path} no longer exists in the filesystem, marking for deletion");
                 to_delete.push(path);
             }
         }
 
-        println!("Found {} files to clean from the database", to_delete.len());
+        tracing::info!("Found {} files to clean from the database", to_delete.len());
 
         match db::Db::delete_files_by_paths(&to_delete) {
-            Ok(()) => println!("Successfully cleaned moved/removed files from the database."),
+            Ok(()) => tracing::info!("Successfully cleaned moved/removed files from the database."),
             Err(e) => {
-                println!("Failure deleting moved files from the database: {e}");
+                tracing::error!("Failure deleting moved files from the database: {e}");
             }
         }
     }
@@ -367,7 +369,7 @@ impl Metadata {
         }
 
         if let Err(e) = Db::delete_files_by_paths(&paths_to_remove) {
-            println!("Failure deleting nonexistant files from the database -> {e}");
+            tracing::error!("Failure deleting nonexistant files from the database -> {e}");
         }
 
         paths_to_remove.len()
