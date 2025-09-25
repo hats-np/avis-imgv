@@ -13,7 +13,11 @@ use crate::{
     tree, utils, VALID_EXTENSIONS,
 };
 use eframe::egui::{self, Id, KeyboardShortcut, RichText};
-use notify::{Event, INotifyWatcher, RecursiveMode, Watcher};
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
+use notify::FsEventWatcher;
+#[cfg(any(target_os = "linux", target_os = "android"))]
+use notify::INotifyWatcher;
+use notify::{Event, RecursiveMode, Watcher};
 use rfd::FileDialog;
 use std::{
     path::{Path, PathBuf},
@@ -36,7 +40,10 @@ pub struct App {
     navigator_search: String, //TODO: Investigate why this exists in the app struct
     perf_metrics: PerfMetrics,
     config: GeneralConfig,
+    #[cfg(any(target_os = "linux", target_os = "android"))]
     watcher: Option<INotifyWatcher>,
+    #[cfg(not(any(target_os = "linux", target_os = "android")))]
+    watcher: Option<FsEventWatcher>,
     watcher_events: Arc<Mutex<Vec<Event>>>,
     filters: Filters,
     side_panel_visible: bool,
