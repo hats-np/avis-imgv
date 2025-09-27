@@ -1,5 +1,4 @@
 use crate::{callback::Callback, utils, APPLICATION, ORGANIZATION, QUALIFIER};
-use core::error;
 use eframe::egui::{Key, KeyboardShortcut, Modifiers};
 use serde::{Deserialize, Serialize};
 use std::{fs, io::ErrorKind, path::PathBuf, vec};
