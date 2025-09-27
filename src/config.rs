@@ -1,7 +1,8 @@
 use crate::{callback::Callback, utils, APPLICATION, ORGANIZATION, QUALIFIER};
+use core::error;
 use eframe::egui::{Key, KeyboardShortcut, Modifiers};
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf, vec};
+use std::{fs, io::ErrorKind, path::PathBuf, vec};
 
 const MOD_ALT: &str = "alt";
 const MOD_SHIFT: &str = "shift";
@@ -239,11 +240,28 @@ impl Config {
         let cfg_path = config_dir.join(PathBuf::from("config.json"));
         tracing::info!("Reading config -> {}", cfg_path.display());
 
-        let config_json = match fs::read_to_string(cfg_path) {
+        let config_json = match fs::read_to_string(&cfg_path) {
             Ok(json) => json,
             Err(e) => {
                 tracing::error!("Failure reading config file -> {e}");
-                return Config::default();
+                let default_cfg = Config::default();
+
+                if e.kind() == ErrorKind::NotFound {
+                    tracing::info!("Config file does not exist -> creating default config");
+                    let default_cfg_json = match serde_json::to_string(&default_cfg) {
+                        Ok(json) => json,
+                        Err(e) => {
+                            tracing::error!("Failure serializing default cfg -> {e}");
+                            return default_cfg;
+                        }
+                    };
+
+                    match fs::write(&cfg_path, default_cfg_json) {
+                        Ok(_) => {}
+                        Err(e) => tracing::error!("Failure writing default config file -> {e}"),
+                    };
+                }
+                return default_cfg;
             }
         };
 
@@ -280,7 +298,7 @@ pub fn default_sc_toggle_gallery() -> Shortcut {
 }
 
 pub fn default_sc_exit() -> Shortcut {
-    Shortcut::from("q", &[])
+    Shortcut::from("q", &[MOD_ALT])
 }
 
 pub fn default_sc_menu() -> Shortcut {
@@ -305,7 +323,7 @@ pub fn default_sc_watch_directory() -> Shortcut {
 
 //Gallery
 pub fn default_nr_loaded_images() -> usize {
-    4
+    6
 }
 pub fn default_should_wait() -> bool {
     true
@@ -323,6 +341,7 @@ pub fn default_metadata_tags() -> Vec<String> {
         "Image Size".to_string(),
         "Color Space".to_string(),
         "Directory".to_string(),
+        "Software".to_string(),
     ]
 }
 pub fn default_frame_size_relative_to_image() -> f32 {
