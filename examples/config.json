@@ -1,0 +1,174 @@
+{
+  "image_view": {
+    "nr_loaded_images": 6,
+    "should_wait": true,
+    "frame_size_relative_to_image": 0.2,
+    "scroll_navigation": true,
+    "name_format": "$(#File Name#)$( • ƒ#Aperture#)$( • #Shutter Speed#)$( • #ISO# ISO)",
+    "user_actions": [ 
+      {
+        "shortcut": {
+          "key": "c",
+          "modifiers": [ "shift" ] 
+        },
+        "exec": "bash -c 'magick {} png:- | wl-copy && notify-send -i {} \"Copied Image to Clipboard!\" -t 5000'",
+        "callback": null
+      },
+      {
+        "shortcut": {
+          "key": "delete",
+          "modifiers": [  ] 
+          },
+          "exec": "bash -c 'mkdir -p $HOME/trash && mv -f {} $HOME/trash && notify-send -i $HOME/trash/{/} \"Moved Image to Trash!\" -t 5000 -u critical'",
+          "callback": "Pop"
+      }
+    ],
+    "context_menu": [
+      {
+        "description": "Copy to Clipboard",
+        "exec": "bash -c 'magick {} png:- | wl-copy && notify-send -i {} \"Copied Image to Clipboard!\" -t 5000'",
+        "callback": null
+      },
+      {
+        "description": "Delete",
+        "exec": "bash -c 'mkdir -p $HOME/trash && mv -f {} $HOME/trash && notify-send -i $HOME/trash/{/} \"Moved Image to Trash!\" -t 5000 -u critical'",
+        "callback": "Pop"
+      }
+    ],
+    "sc_fit": {
+      "key": "f",
+      "modifiers": []
+    },
+    "sc_frame": {
+      "key": "g",
+      "modifiers": []
+    },
+    "sc_zoom": {
+      "key": "Space",
+      "modifiers": []
+    },
+    "sc_next": {
+      "key": "ArrowRight",
+      "modifiers": []
+    },
+    "sc_prev": {
+      "key": "ArrowLeft",
+      "modifiers": []
+    },
+    "sc_one_to_one": {
+      "key": "1",
+      "modifiers": [
+        "alt"
+      ]
+    },
+    "sc_fit_horizontal": {
+      "key": "h",
+      "modifiers": []
+    },
+    "sc_fit_vertical": {
+      "key": "v",
+      "modifiers": []
+    },
+    "sc_fit_maximize": {
+      "key": "m",
+      "modifiers": []
+    },
+    "sc_latch_fit_maximize": {
+      "key": "m",
+      "modifiers": [
+        "ctrl"
+      ]
+    }
+  },
+  "grid_view": {
+    "images_per_row": 5,
+    "preloaded_rows": 1,
+    "simultaneous_load": 8,
+    "context_menu": [
+      {
+        "description": "Copy to Clipboard",
+        "exec": "bash -c 'magick {} png:- | wl-copy && notify-send -i {} \"Copied Image to Clipboard!\" -t 5000'",
+        "callback": null
+      },
+      {
+        "description": "Delete",
+        "exec": "bash -c 'mkdir -p $HOME/trash && mv -f {} $HOME/trash && notify-send -i $HOME/trash/{/} \"Moved Image to Trash!\" -t 5000 -u critical'",
+        "callback": "Pop"
+      }
+    ],
+    "sc_scroll": {
+      "key": "Space",
+      "modifiers": []
+    },
+    "sc_more_per_row": {
+      "key": "Plus",
+      "modifiers": []
+    },
+    "sc_less_per_row": {
+      "key": "Minus",
+      "modifiers": []
+    }
+  },
+  "general": {
+    "limit_cached": 1000000,
+    "output_icc_profile": "srgb",
+    "text_scaling": 1.25,
+    "metadata_tags": [
+      "Date/Time Original",
+      "Created Date",
+      "Camera Model Name",
+      "Lens Model",
+      "Focal Length",
+      "Aperture Value",
+      "Exposure Time",
+      "ISO",
+      "Image Size",
+      "Color Space",
+      "Directory",
+      "Software"
+    ],
+    "sc_toggle_gallery": {
+      "key": "Backspace",
+      "modifiers": []
+    },
+    "sc_exit": {
+      "key": "q",
+      "modifiers": [
+        "alt"
+      ]
+    },
+    "sc_menu": {
+      "key": "F1",
+      "modifiers": []
+    },
+    "sc_navigator": {
+      "key": "l",
+      "modifiers": [
+        "ctrl"
+      ]
+    },
+    "sc_dir_tree": {
+      "key": "t",
+      "modifiers": []
+    },
+    "sc_flatten_dir": {
+      "key": "f",
+      "modifiers": [
+        "ctrl"
+      ]
+    },
+    "sc_watch_directory": {
+      "key": "w",
+      "modifiers": [
+        "ctrl"
+      ]
+    },
+    "sc_toggle_side_panel": {
+      "key": "i",
+      "modifiers": []
+    }
+  },
+  "filter": {
+    "exif_tags": []
+  }
+}

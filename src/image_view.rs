@@ -460,7 +460,8 @@ impl ImageView {
                     }
                 });
             })
-            .response;
+            .response
+            .interact(Sense::click());
 
         //unfortunately we'll always be one frame behind
         //when advancing with the scroll wheel
