@@ -1,7 +1,7 @@
 use crate::config::FilterConfig;
 use crate::db::{Db, SqlOperator, SqlOrder};
 use crate::dropdown::DropDownBox;
-use crate::metadata::{METADATA_DATE, METADATA_DIRECTORY};
+use crate::metadata::{Metadata, METADATA_DATE, METADATA_DIRECTORY};
 use crate::worker::Worker;
 use eframe::egui;
 use eframe::egui::{Align, Id, Layout};
@@ -20,6 +20,7 @@ pub struct Filters {
     unique_exif_tags: Vec<String>,
     unique_exif_tags_job: Option<JoinHandle<Option<Vec<String>>>>,
     worker: Arc<Worker>,
+    group_raw_jpeg: bool,
 }
 
 pub struct FilterField {
@@ -92,6 +93,7 @@ impl Filters {
             last_query_count: None,
             query_handle: None,
             worker,
+            group_raw_jpeg: true,
         }
     }
 
@@ -218,6 +220,11 @@ impl Filters {
             });
 
             ui.add_space(10.);
+
+            ui.checkbox(&mut self.group_raw_jpeg, "Group RAW + JPEG");
+
+            ui.add_space(10.);
+
             ui.horizontal(|ui| {
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
                     if ui.button("Filter").clicked() {
@@ -231,21 +238,27 @@ impl Filters {
                             let order_tag = self.order_field.tag.clone();
                             let order_direction = self.order_field.order.clone();
                             let worker = self.worker.clone();
+                            let group_raw_jpeg = self.group_raw_jpeg;
                             self.query_handle = Some(thread::spawn(move || {
-                                let paths = Db::get_paths_filtered_by_metadata(
+                                let mut filtered_paths = Db::get_paths_filtered_by_metadata(
                                     &fields,
                                     &order_tag,
                                     &order_direction,
                                 )
                                 .ok();
 
-                                if let Some(paths) = paths.clone() {
+                                if let Some(paths) = filtered_paths.clone() {
                                     worker.send_job(crate::worker::Job::ClearMovedFiles(
                                         paths.clone(),
                                     ));
+
+                                    if group_raw_jpeg {
+                                        filtered_paths =
+                                            Some(Metadata::group_raw_jpg_paths(&paths));
+                                    }
                                 }
 
-                                paths
+                                filtered_paths
                             }));
                         }
                     }

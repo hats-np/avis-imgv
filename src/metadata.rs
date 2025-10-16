@@ -1,4 +1,6 @@
 use crate::db::{self, Db};
+use crate::RAW_EXTENSIONS;
+use itertools::Itertools;
 use regex::{self, Regex};
 use std::sync::mpsc;
 use std::{
@@ -374,6 +376,52 @@ impl Metadata {
 
         paths_to_remove.len()
     }
+
+    pub fn group_raw_jpg_paths(paths: &[PathBuf]) -> Vec<PathBuf> {
+        paths
+            .iter()
+            .map(|x| {
+                (
+                    x.clone(),
+                    x.file_stem()
+                        .unwrap_or_default()
+                        .to_str()
+                        .unwrap_or_default(),
+                )
+            })
+            .sorted()
+            .chunk_by(|x| x.1)
+            .into_iter()
+            .map(|(_, chunk)| {
+                let chunk: Vec<(PathBuf, &str)> = chunk.collect();
+
+                if chunk.len() == 1 {
+                    chunk.first().unwrap().0.clone()
+                } else {
+                    let non_raw = chunk
+                        .iter()
+                        .filter(|x| {
+                            !RAW_EXTENSIONS.contains(
+                                &x.0.extension()
+                                    .unwrap_or_default()
+                                    .to_str()
+                                    .unwrap_or_default()
+                                    .to_lowercase()
+                                    .as_str(),
+                            )
+                        })
+                        .map(|x| x.0.clone())
+                        .next();
+
+                    if let Some(non_raw) = non_raw {
+                        non_raw
+                    } else {
+                        chunk.first().unwrap().0.clone()
+                    }
+                }
+            })
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -392,5 +440,88 @@ mod tests {
             Metadata::format_string_with_metadata(input, &metadata),
             "test.jpg • ƒ5.0 • 500 ISO".to_string()
         );
+    }
+
+    #[test]
+    fn test_group_raw_jpg_paths() {
+        // Single JPG file
+        let paths = vec![PathBuf::from("photo1.JPG")];
+        let result = Metadata::group_raw_jpg_paths(&paths);
+        assert_eq!(result, vec![PathBuf::from("photo1.JPG")]);
+
+        // Single RAF file
+        let paths = vec![PathBuf::from("photo1.RAF")];
+        let result = Metadata::group_raw_jpg_paths(&paths);
+        assert_eq!(result, vec![PathBuf::from("photo1.RAF")]);
+
+        // RAF and JPG with same stem, should prefer JPG
+        let paths = vec![PathBuf::from("photo1.RAF"), PathBuf::from("photo1.JPG")];
+        let result = Metadata::group_raw_jpg_paths(&paths);
+        assert_eq!(result, vec![PathBuf::from("photo1.JPG")]);
+
+        // JPG and RAF with same stem (reversed order), should prefer JPG
+        let paths = vec![PathBuf::from("photo1.JPG"), PathBuf::from("photo1.RAF")];
+        let result = Metadata::group_raw_jpg_paths(&paths);
+        assert_eq!(result, vec![PathBuf::from("photo1.JPG")]);
+
+        // Multiple pairs
+        let paths = vec![
+            PathBuf::from("photo1.RAF"),
+            PathBuf::from("photo1.JPG"),
+            PathBuf::from("photo2.RAF"),
+            PathBuf::from("photo2.JPG"),
+        ];
+        let result = Metadata::group_raw_jpg_paths(&paths);
+        assert_eq!(
+            result,
+            vec![PathBuf::from("photo1.JPG"), PathBuf::from("photo2.JPG")]
+        );
+
+        // Mixed, some with pairs, some without
+        let paths = vec![
+            PathBuf::from("photo1.RAF"),
+            PathBuf::from("photo1.JPG"),
+            PathBuf::from("photo2.JPG"),
+            PathBuf::from("photo3.RAF"),
+        ];
+        let result = Metadata::group_raw_jpg_paths(&paths);
+        assert_eq!(
+            result,
+            vec![
+                PathBuf::from("photo1.JPG"),
+                PathBuf::from("photo2.JPG"),
+                PathBuf::from("photo3.RAF")
+            ]
+        );
+
+        // Unsorted input
+        let paths = vec![
+            PathBuf::from("photo3.RAF"),
+            PathBuf::from("photo1.JPG"),
+            PathBuf::from("photo2.RAF"),
+            PathBuf::from("photo1.RAF"),
+        ];
+        let result = Metadata::group_raw_jpg_paths(&paths);
+        assert_eq!(
+            result,
+            vec![
+                PathBuf::from("photo1.JPG"),
+                PathBuf::from("photo2.RAF"),
+                PathBuf::from("photo3.RAF")
+            ]
+        );
+
+        // Multiple RAFs with same stem (no JPG)
+        let paths = vec![
+            PathBuf::from("photo1.RAF"),
+            PathBuf::from("photo1.RAF"), // duplicate
+        ];
+        let result = Metadata::group_raw_jpg_paths(&paths);
+        assert_eq!(result, vec![PathBuf::from("photo1.RAF")]);
+
+        // Empty input
+        let paths: Vec<PathBuf> = vec![];
+        let result = Metadata::group_raw_jpg_paths(&paths);
+        assert_eq!(result, Vec::<PathBuf>::new());
     }
 }
