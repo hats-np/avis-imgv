@@ -422,12 +422,11 @@ impl Image {
         let texture = render_state
             .device
             .create_texture(&wgpu::TextureDescriptor {
-                label: Some(&file_name),
+                label: Some(file_name),
                 size: texture_size,
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
-                // *** CRUCIAL: LINEAR format ***
                 format: wgpu::TextureFormat::Rgba8Unorm,
                 usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                 view_formats: &[],
@@ -470,8 +469,8 @@ impl Image {
         let mut flat_samples = image.into_rgb8().into_flat_samples();
         let pixels = flat_samples.as_mut_slice();
 
-        match Self::load_wgpu_linear_texture(pixels, size, &ctx, &file_name) {
-            Some((texture_id, render_state)) => Some(Image {
+        Self::load_wgpu_linear_texture(pixels, size, ctx, file_name).map(
+            |(texture_id, render_state)| Image {
                 texture_id,
                 size: Vec2 {
                     x: size[0] as f32,
@@ -479,9 +478,8 @@ impl Image {
                 },
                 metadata: HashMap::new(),
                 render_state: Some(render_state),
-            }),
-            None => None,
-        }
+            },
+        )
     }
 }
 
