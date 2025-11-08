@@ -1,4 +1,5 @@
 use crate::image::Image;
+use eframe::egui::load::SizedTexture;
 use eframe::egui::{self, Color32, Response, UiBuilder, Vec2};
 use eframe::epaint::vec2;
 use std::path::PathBuf;
@@ -51,14 +52,13 @@ impl ThumbnailImage {
             }
         };
 
-        let texture = &image.texture;
-
         let prev_size = [size[0], size[1]];
+        let aspect_ratio = image.size.x / image.size.y;
 
-        if texture.aspect_ratio() > 1. {
-            size[1] /= texture.aspect_ratio();
+        if aspect_ratio > 1. {
+            size[1] /= aspect_ratio;
         } else {
-            size[0] *= texture.aspect_ratio();
+            size[0] *= aspect_ratio;
         }
 
         let mut response: Option<Response> = None;
@@ -72,7 +72,7 @@ impl ThumbnailImage {
             ui.centered_and_justified(|ui| {
                 let img_response = ui
                     .add(
-                        egui::Image::new(texture)
+                        egui::Image::new(SizedTexture::new(image.texture_id, image.size))
                             .fit_to_exact_size(vec2(size[0], size[1]))
                             .sense(egui::Sense::CLICK),
                     )

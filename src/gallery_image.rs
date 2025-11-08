@@ -1,5 +1,6 @@
 use crate::image::Image;
 use crate::metadata;
+use eframe::egui::load::SizedTexture;
 use eframe::egui::{self, vec2, Rect, RichText, Widget};
 use eframe::epaint::{Pos2, Vec2};
 use std;
@@ -79,11 +80,9 @@ impl GalleryImage {
             }
         };
 
-        let texture = &image.texture;
-
-        let original_size = texture.size_vec2();
-        let mut target_size = texture.size_vec2();
-        let aspect_ratio = texture.aspect_ratio();
+        let original_size = image.size;
+        let mut target_size = image.size;
+        let aspect_ratio = image.size.x / image.size.y;
 
         //Fits image to available screen space, therefore images will never be cropped
         //By default
@@ -189,13 +188,15 @@ impl GalleryImage {
             display_size[0] -= stroke;
             display_size[1] -= stroke / aspect_ratio;
 
-            let image = egui::Image::new(texture)
+            let image = egui::Image::new(SizedTexture::new(image.texture_id, image.size))
                 .fit_to_exact_size(vec2(display_size[0], display_size[1]))
                 .maintain_aspect_ratio(false)
                 .uv(visible_rect_normalized);
 
-            let offset_x = (ui.available_width() - (display_size[0] + stroke)) / 2.;
-            let offset_y = (ui.available_height() - (display_size[1] + stroke)) / 2.;
+            let available = ui.available_rect_before_wrap();
+            let offset_x = available.center().x - (display_size[0] + stroke) / 2.0;
+            let offset_y = available.center().y - (display_size[1] + stroke) / 2.0;
+
             ui.painter().rect_filled(
                 Rect {
                     min: Pos2::new(offset_x, offset_y),
@@ -210,7 +211,7 @@ impl GalleryImage {
 
             ui.add(image);
         } else {
-            egui::Image::new(texture)
+            egui::Image::new(SizedTexture::new(image.texture_id, image.size))
                 .uv(visible_rect_normalized)
                 .fit_to_exact_size(vec2(display_size[0], display_size[1]))
                 .maintain_aspect_ratio(false)
@@ -273,12 +274,17 @@ impl GalleryImage {
         let lih = self.load_image_handle.take().unwrap();
         if lih.is_finished() {
             match lih.join() {
-                Ok(image) => self.image = image,
+                Ok(image) => {
+                    tracing::info!("JOINED IMAGEEE");
+                    self.image = image;
+                }
                 Err(_) => tracing::info!("Failure joining load image thread"),
             }
         } else {
             self.load_image_handle = Some(lih);
         }
+
+        tracing::info!("[{}] YEAH: {}", self.name, self.load_image_handle.is_some());
     }
 
     pub fn metadata_ui(&mut self, ui: &mut egui::Ui, tags_to_display: &Vec<String>) {
@@ -307,7 +313,7 @@ impl GalleryImage {
 
     pub fn image_size(&self) -> Option<Vec2> {
         if let Some(img) = &self.image {
-            return Some(img.texture.size_vec2());
+            return Some(img.size);
         }
 
         None
@@ -376,6 +382,7 @@ impl GalleryImage {
     }
 
     pub fn is_loading(&self) -> bool {
+        tracing::info!("[{}] YEAH: {}", self.name, self.load_image_handle.is_some());
         self.load_image_handle.is_some()
     }
 }

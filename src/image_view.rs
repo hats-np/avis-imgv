@@ -23,6 +23,7 @@ pub struct ImageView {
     jump_to: String,
     output_profile: String,
     callback: Option<Callback>,
+    nr_images_displayed: u32,
 }
 
 impl ImageView {
@@ -51,6 +52,7 @@ impl ImageView {
             output_profile: output_profile.to_owned(),
             callback: None,
             config,
+            nr_images_displayed: 3,
         };
 
         sg.set_images(image_paths, selected_image_path, ctx);
@@ -137,6 +139,7 @@ impl ImageView {
         }
 
         if self.config.should_wait && self.active_img_is_loading() {
+            tracing::info!("IS LOADING");
             return;
         }
 
@@ -453,12 +456,32 @@ impl ImageView {
         let image_pannel_resp = egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(egui::Color32::from_rgb(119, 119, 119)))
             .show(ctx, |ui| {
-                ui.centered_and_justified(|ui| {
-                    if !self.imgs.is_empty() {
-                        let img: &mut GalleryImage = &mut self.imgs[self.selected_img_index];
-                        img.ui(ui, &self.frame, &mut self.sizing);
+                if !self.imgs.is_empty() {
+                    if self.imgs.len() == 1 {
+                        ui.centered_and_justified(|ui| {
+                            let img: &mut GalleryImage = &mut self.imgs[self.selected_img_index];
+                            img.ui(ui, &self.frame, &mut self.sizing);
+                        });
+                    } else {
+                        let w = (ui.available_width() / self.nr_images_displayed as f32) - 1.;
+                        let h = ui.available_height();
+                        ui.horizontal(|ui| {
+                            for i in 0..self.nr_images_displayed {
+                                ui.allocate_ui(Vec2 { x: w, y: h }, |ui| {
+                                    ui.centered_and_justified(|ui| {
+                                        let index = get_vec_index_sum_by(
+                                            self.imgs.len(),
+                                            self.selected_img_index,
+                                            i as usize,
+                                        );
+                                        let img: &mut GalleryImage = &mut self.imgs[index];
+                                        img.ui(ui, &self.frame, &mut self.sizing);
+                                    });
+                                });
+                            }
+                        });
                     }
-                });
+                }
             })
             .response
             .interact(Sense::click());

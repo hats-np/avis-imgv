@@ -150,6 +150,7 @@ pub const VALID_EXTENSIONS: &[&str] = &[
 pub const SKIP_ORIENT_EXTENSIONS: &[&str] = &[JXL_EXTENSION];
 
 pub const WORKER_MESSAGE_MEMORY_KEY: &str = "worker-message";
+pub const FRAME_MEMORY_KEY: &str = "frame-memory";
 
 pub fn no_icon(
     _ui: &egui::Ui,

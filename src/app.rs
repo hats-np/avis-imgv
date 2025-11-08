@@ -1,6 +1,5 @@
 use crate::filters::Filters;
 use crate::worker::Worker;
-use crate::WORKER_MESSAGE_MEMORY_KEY;
 use crate::{
     callback::Callback,
     config::{Config, GeneralConfig},
@@ -12,7 +11,9 @@ use crate::{
     perf_metrics::PerfMetrics,
     tree, utils, VALID_EXTENSIONS,
 };
+use crate::{FRAME_MEMORY_KEY, WORKER_MESSAGE_MEMORY_KEY};
 use eframe::egui::{self, Id, KeyboardShortcut, RichText};
+use eframe::Frame;
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
 use notify::FsEventWatcher;
 #[cfg(any(target_os = "linux", target_os = "android"))]
@@ -202,6 +203,16 @@ impl App {
                 }
             }
         }
+    }
+
+    fn set_wgpu_render_state_in_memory(&self, ctx: &egui::Context, frame: &Frame) {
+        //This is fast but there may be a better way.
+        ctx.memory_mut(|mem| {
+            if let Some(wgpu_render_state) = frame.wgpu_render_state() {
+                mem.data
+                    .insert_temp(Id::new(FRAME_MEMORY_KEY), wgpu_render_state.clone());
+            }
+        });
     }
 
     fn folder_picker(&mut self, ctx: &egui::Context) {
@@ -438,6 +449,7 @@ impl App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.perf_metrics.new_frame();
+        self.set_wgpu_render_state_in_memory(ctx, _frame);
         self.handle_input_muters(ctx);
         self.handle_input(ctx);
 
