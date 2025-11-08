@@ -275,7 +275,6 @@ impl GalleryImage {
         if lih.is_finished() {
             match lih.join() {
                 Ok(image) => {
-                    tracing::info!("JOINED IMAGEEE");
                     self.image = image;
                 }
                 Err(_) => tracing::info!("Failure joining load image thread"),
@@ -283,8 +282,6 @@ impl GalleryImage {
         } else {
             self.load_image_handle = Some(lih);
         }
-
-        tracing::info!("[{}] YEAH: {}", self.name, self.load_image_handle.is_some());
     }
 
     pub fn metadata_ui(&mut self, ui: &mut egui::Ui, tags_to_display: &Vec<String>) {
@@ -382,7 +379,6 @@ impl GalleryImage {
     }
 
     pub fn is_loading(&self) -> bool {
-        tracing::info!("[{}] YEAH: {}", self.name, self.load_image_handle.is_some());
         self.load_image_handle.is_some()
     }
 }

@@ -50,6 +50,8 @@ pub struct GeneralConfig {
 pub struct ImageViewConfig {
     #[serde(default = "default_nr_loaded_images")]
     pub nr_loaded_images: usize,
+    #[serde(default = "default_nr_images_shown")]
+    pub nr_images_shown: usize,
     #[serde(default = "default_should_wait")]
     pub should_wait: bool,
     #[serde(default = "default_frame_size_relative_to_image")]
@@ -83,6 +85,10 @@ pub struct ImageViewConfig {
     pub sc_fit_maximize: Shortcut,
     #[serde(default = "default_sc_latch_fit_maximize")]
     pub sc_latch_fit_maximize: Shortcut,
+    #[serde(default = "default_sc_more_images_shown")]
+    pub sc_more_images_shown: Shortcut,
+    #[serde(default = "default_sc_less_images_shown")]
+    pub sc_less_images_shown: Shortcut,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -180,6 +186,7 @@ impl Default for ImageViewConfig {
     fn default() -> Self {
         ImageViewConfig {
             nr_loaded_images: default_nr_loaded_images(),
+            nr_images_shown: default_nr_images_shown(),
             should_wait: default_should_wait(),
             frame_size_relative_to_image: default_frame_size_relative_to_image(),
             scroll_navigation: default_scroll_navigation(),
@@ -197,6 +204,8 @@ impl Default for ImageViewConfig {
             sc_fit_horizontal: default_sc_fit_horizontal(),
             sc_fit_maximize: default_sc_fit_maximize(),
             sc_latch_fit_maximize: default_sc_latch_fit_maximize(),
+            sc_more_images_shown: default_sc_more_images_shown(),
+            sc_less_images_shown: default_sc_less_images_shown(),
         }
     }
 }
@@ -390,6 +399,16 @@ pub fn default_sc_fit_maximize() -> Shortcut {
 }
 pub fn default_sc_latch_fit_maximize() -> Shortcut {
     Shortcut::from("m", &[MOD_CTRL])
+}
+
+pub fn default_nr_images_shown() -> usize {
+    1
+}
+pub fn default_sc_more_images_shown() -> Shortcut {
+    Shortcut::from("Plus", &[])
+}
+pub fn default_sc_less_images_shown() -> Shortcut {
+    Shortcut::from("Minus", &[])
 }
 
 //Multi Gallery

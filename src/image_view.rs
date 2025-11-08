@@ -1,5 +1,6 @@
 use eframe::egui::Sense;
 use eframe::{egui, epaint::Vec2};
+use std::cmp::min;
 use std::path::{Path, PathBuf};
 
 use crate::gallery_image::{GalleryImageFrame, GalleryImageSizing};
@@ -23,7 +24,7 @@ pub struct ImageView {
     jump_to: String,
     output_profile: String,
     callback: Option<Callback>,
-    nr_images_displayed: u32,
+    nr_images_displayed: usize,
 }
 
 impl ImageView {
@@ -51,8 +52,8 @@ impl ImageView {
             jump_to: String::new(),
             output_profile: output_profile.to_owned(),
             callback: None,
-            config,
-            nr_images_displayed: 3,
+            nr_images_displayed: config.nr_images_shown,
+            config: config.clone(),
         };
 
         sg.set_images(image_paths, selected_image_path, ctx);
@@ -139,7 +140,6 @@ impl ImageView {
         }
 
         if self.config.should_wait && self.active_img_is_loading() {
-            tracing::info!("IS LOADING");
             return;
         }
 
@@ -466,13 +466,15 @@ impl ImageView {
                         let w = (ui.available_width() / self.nr_images_displayed as f32) - 1.;
                         let h = ui.available_height();
                         ui.horizontal(|ui| {
-                            for i in 0..self.nr_images_displayed {
+                            let nr_images_to_display =
+                                min(self.nr_images_displayed, self.imgs.len());
+                            for i in 0..nr_images_to_display {
                                 ui.allocate_ui(Vec2 { x: w, y: h }, |ui| {
                                     ui.centered_and_justified(|ui| {
                                         let index = get_vec_index_sum_by(
                                             self.imgs.len(),
                                             self.selected_img_index,
-                                            i as usize,
+                                            i,
                                         );
                                         let img: &mut GalleryImage = &mut self.imgs[index];
                                         img.ui(ui, &self.frame, &mut self.sizing);
@@ -557,6 +559,16 @@ impl ImageView {
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_latch_fit_maximize.kbd_shortcut)) {
             self.latch_fit_maximize();
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_more_images_shown.kbd_shortcut))
+            && self.nr_images_displayed < self.config.nr_loaded_images
+        {
+            self.nr_images_displayed += 1;
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_less_images_shown.kbd_shortcut))
+            && self.nr_images_displayed > 1
+        {
+            self.nr_images_displayed -= 1;
         }
 
         self.multiply_zoom(ctx.input(|i| i.zoom_delta()));
