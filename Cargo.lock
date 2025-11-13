@@ -524,6 +524,7 @@ dependencies = [
  "jpegxl-rs",
  "lcms2",
  "notify",
+ "pollster",
  "regex",
  "rfd",
  "rusqlite",

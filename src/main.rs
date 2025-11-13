@@ -1,10 +1,15 @@
 use avis_imgv::app::App;
 use avis_imgv::db::Db;
-use eframe::NativeOptions;
+use eframe::egui_wgpu::{WgpuConfiguration, WgpuSetup, WgpuSetupCreateNew};
+use eframe::wgpu::ExperimentalFeatures;
+use eframe::{wgpu, NativeOptions};
 use std::env;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
+
+const DEVICE_LABEL: &str = "avis-imgv-device";
 
 fn main() {
     let subscriber = FmtSubscriber::builder()
@@ -53,8 +58,40 @@ fn main() {
         return;
     }
 
-    let native_options = eframe::NativeOptions {
-        ..NativeOptions::default()
+    let device_descriptor_fn = Arc::new(|adapter: &wgpu::Adapter| {
+        let adapter_limits = adapter.limits();
+
+        let limits = wgpu::Limits {
+            max_texture_dimension_2d: adapter_limits.max_texture_dimension_2d,
+            max_texture_array_layers: adapter_limits.max_texture_array_layers,
+            ..adapter_limits.clone()
+        };
+
+        tracing::info!(
+            "Max 2d texture size: {}",
+            adapter_limits.max_texture_dimension_2d
+        );
+
+        wgpu::DeviceDescriptor {
+            label: Some(DEVICE_LABEL),
+            required_features: wgpu::Features::empty(),
+            required_limits: limits,
+            memory_hints: wgpu::MemoryHints::default(),
+            experimental_features: ExperimentalFeatures::default(),
+            trace: wgpu::Trace::default(),
+        }
+    });
+
+    let native_options = NativeOptions {
+        wgpu_options: WgpuConfiguration {
+            wgpu_setup: WgpuSetup::CreateNew(WgpuSetupCreateNew {
+                device_descriptor: device_descriptor_fn,
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                ..Default::default()
+            }),
+            ..Default::default()
+        },
+        ..Default::default()
     };
 
     match eframe::run_native(
