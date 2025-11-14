@@ -3,6 +3,7 @@ use crate::{
     icc::profile_desc_to_icc,
     metadata::{self, Orientation, METADATA_ORIENTATION, METADATA_PROFILE_DESCRIPTION},
     FRAME_MEMORY_KEY, JXL_EXTENSION, RAW_EXTENSIONS, SKIP_ORIENT_EXTENSIONS,
+    TWO_DIM_TEXTURE_LIMIT_MEMORY_KEY,
 };
 use eframe::{
     egui::{self, Id},
@@ -109,6 +110,8 @@ impl Image {
                 now.elapsed().as_millis()
             );
             now = Instant::now();
+
+            let image_size = set_image_size(image_size, &ctx, image_size);
 
             if image_size.is_some() {
                 image = Self::resize(image, image_size);
@@ -251,7 +254,7 @@ impl Image {
                     dest_height = if img.height() > target_size {
                         target_size
                     } else {
-                        img.width()
+                        img.height()
                     };
                     dest_width = (dest_height as f32 * aspect_ratio) as u32;
                 };
@@ -510,6 +513,30 @@ pub fn extract_preview_from_raw_file(path: &Path) -> Option<Vec<u8>> {
         let error_message = String::from_utf8_lossy(&output.stderr);
         tracing::error!("Failure fetching raw image preview with exiftool: {error_message}");
         None
+    }
+}
+
+pub fn set_image_size(
+    desired_size: Option<u32>,
+    ctx: &egui::Context,
+    image_largest_size: Option<u32>,
+) -> Option<u32> {
+    let limit: Option<u32> = ctx.memory(|x| {
+        x.data
+            .get_temp::<u32>(egui::Id::new(TWO_DIM_TEXTURE_LIMIT_MEMORY_KEY))
+    });
+
+    match (desired_size, limit, image_largest_size) {
+        (Some(desired), Some(max), _) => Some(desired.min(max)),
+        (Some(desired), None, _) => Some(desired),
+        (None, Some(max), Some(image_largest_size)) => {
+            if image_largest_size > max {
+                Some(max)
+            } else {
+                None
+            }
+        }
+        _ => None,
     }
 }
 

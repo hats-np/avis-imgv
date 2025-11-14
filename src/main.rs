@@ -1,7 +1,7 @@
 use avis_imgv::app::App;
 use avis_imgv::db::Db;
 use eframe::egui_wgpu::{WgpuConfiguration, WgpuSetup, WgpuSetupCreateNew};
-use eframe::wgpu::ExperimentalFeatures;
+use eframe::wgpu::{ExperimentalFeatures, Limits};
 use eframe::{wgpu, NativeOptions};
 use std::env;
 use std::path::PathBuf;
@@ -58,6 +58,20 @@ fn main() {
         return;
     }
 
+    match eframe::run_native(
+        "Avis Image Viewer",
+        get_native_options(),
+        Box::new(|cc| Ok(Box::new(App::new(cc)))),
+    ) {
+        Ok(_) => {}
+        Err(e) => tracing::error!("{e}"),
+    }
+}
+
+//Some low powered pcs like raspberry pis can only handle small texture sizes
+//The default for egui w/ wgpu seems to be 8192, which is too high for the
+//RPi5 which can only handle 4096,
+fn get_native_options() -> NativeOptions {
     let device_descriptor_fn = Arc::new(|adapter: &wgpu::Adapter| {
         let adapter_limits = adapter.limits();
 
@@ -68,38 +82,25 @@ fn main() {
         };
 
         tracing::info!(
-            "Max 2d texture size: {}",
+            "Max 2D texture size: {}",
             adapter_limits.max_texture_dimension_2d
         );
 
         wgpu::DeviceDescriptor {
             label: Some(DEVICE_LABEL),
-            required_features: wgpu::Features::empty(),
             required_limits: limits,
-            memory_hints: wgpu::MemoryHints::default(),
-            experimental_features: ExperimentalFeatures::default(),
-            trace: wgpu::Trace::default(),
+            ..wgpu::DeviceDescriptor::default()
         }
     });
 
-    let native_options = NativeOptions {
+    NativeOptions {
         wgpu_options: WgpuConfiguration {
             wgpu_setup: WgpuSetup::CreateNew(WgpuSetupCreateNew {
                 device_descriptor: device_descriptor_fn,
-                power_preference: wgpu::PowerPreference::HighPerformance,
                 ..Default::default()
             }),
             ..Default::default()
         },
         ..Default::default()
-    };
-
-    match eframe::run_native(
-        "Avis Image Viewer",
-        native_options,
-        Box::new(|cc| Ok(Box::new(App::new(cc)))),
-    ) {
-        Ok(_) => {}
-        Err(e) => tracing::error!("{e}"),
     }
 }

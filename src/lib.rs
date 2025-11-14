@@ -151,6 +151,7 @@ pub const SKIP_ORIENT_EXTENSIONS: &[&str] = &[JXL_EXTENSION];
 
 pub const WORKER_MESSAGE_MEMORY_KEY: &str = "worker-message";
 pub const FRAME_MEMORY_KEY: &str = "frame-memory";
+pub const TWO_DIM_TEXTURE_LIMIT_MEMORY_KEY: &str = "2d-texture-limit";
 
 pub fn no_icon(
     _ui: &egui::Ui,
