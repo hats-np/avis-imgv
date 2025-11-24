@@ -111,7 +111,7 @@ impl Image {
             );
             now = Instant::now();
 
-            let image_size = set_image_size(image_size, &ctx, image_size);
+            let image_size = set_image_size(image_size, &ctx, image.width().max(image.height()));
 
             if image_size.is_some() {
                 image = Self::resize(image, image_size);
@@ -519,17 +519,17 @@ pub fn extract_preview_from_raw_file(path: &Path) -> Option<Vec<u8>> {
 pub fn set_image_size(
     desired_size: Option<u32>,
     ctx: &egui::Context,
-    image_largest_size: Option<u32>,
+    image_largest_size: u32,
 ) -> Option<u32> {
     let limit: Option<u32> = ctx.memory(|x| {
         x.data
             .get_temp::<u32>(egui::Id::new(TWO_DIM_TEXTURE_LIMIT_MEMORY_KEY))
     });
 
-    match (desired_size, limit, image_largest_size) {
-        (Some(desired), Some(max), _) => Some(desired.min(max)),
-        (Some(desired), None, _) => Some(desired),
-        (None, Some(max), Some(image_largest_size)) => {
+    match (desired_size, limit) {
+        (Some(desired), Some(max)) => Some(desired.min(max)),
+        (Some(desired), None) => Some(desired),
+        (None, Some(max)) => {
             if image_largest_size > max {
                 Some(max)
             } else {
