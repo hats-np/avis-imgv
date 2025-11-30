@@ -1,10 +1,17 @@
 use avis_imgv::app::App;
 use avis_imgv::db::Db;
-use eframe::NativeOptions;
+use eframe::egui_wgpu::{WgpuConfiguration, WgpuSetup, WgpuSetupCreateNew};
+use eframe::{
+    wgpu::{self},
+    NativeOptions,
+};
 use std::env;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
+
+const DEVICE_LABEL: &str = "avis-imgv-device";
 
 fn main() {
     let mut slideshow = false;
@@ -62,16 +69,49 @@ fn main() {
         return;
     }
 
-    let native_options = eframe::NativeOptions {
-        ..NativeOptions::default()
-    };
-
     match eframe::run_native(
         "Avis Image Viewer",
-        native_options,
+        get_native_options(),
         Box::new(|cc| Ok(Box::new(App::new(cc, slideshow, fullscreen)))),
     ) {
         Ok(_) => {}
         Err(e) => tracing::error!("{e}"),
+    }
+}
+
+//Some low powered pcs like raspberry pis can only handle small texture sizes
+//The default for egui w/ wgpu seems to be 8192, which is too high for the
+//RPi5 which can only handle 4096,
+fn get_native_options() -> NativeOptions {
+    let device_descriptor_fn = Arc::new(|adapter: &wgpu::Adapter| {
+        let adapter_limits = adapter.limits();
+
+        let limits = wgpu::Limits {
+            max_texture_dimension_2d: adapter_limits.max_texture_dimension_2d,
+            max_texture_array_layers: adapter_limits.max_texture_array_layers,
+            ..adapter_limits.clone()
+        };
+
+        tracing::info!(
+            "Max 2D texture size: {}",
+            adapter_limits.max_texture_dimension_2d
+        );
+
+        wgpu::DeviceDescriptor {
+            label: Some(DEVICE_LABEL),
+            required_limits: limits,
+            ..wgpu::DeviceDescriptor::default()
+        }
+    });
+
+    NativeOptions {
+        wgpu_options: WgpuConfiguration {
+            wgpu_setup: WgpuSetup::CreateNew(WgpuSetupCreateNew {
+                device_descriptor: device_descriptor_fn,
+                ..Default::default()
+            }),
+            ..Default::default()
+        },
+        ..Default::default()
     }
 }

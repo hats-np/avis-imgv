@@ -524,6 +524,7 @@ dependencies = [
  "jpegxl-rs",
  "lcms2",
  "notify",
+ "pollster",
  "regex",
  "rfd",
  "rusqlite",
@@ -743,6 +744,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bde03770d3df201d4fb868f2c9c59e66a3e4e2bd06692a0fe701e7103c7e84d4"
 dependencies = [
  "error-code",
+]
+
+[[package]]
+name = "cmake"
+version = "0.1.54"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7caa3f9de89ddbe2c607f4101924c5abec803763ae9534e4f4d7d8f84aa81f0"
+dependencies = [
+ "cc",
 ]
 
 [[package]]
@@ -2023,11 +2033,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "jpegxl-src"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96c328aa9d824459bfb9aef47b8b3defa126df1bbd6fd3a1e59e703911d6dd00"
+dependencies = [
+ "cmake",
+]
+
+[[package]]
 name = "jpegxl-sys"
 version = "0.11.2+libjxl-0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fdaef0388e8220dc89a4ab47f92f942b68dfc237fa2dd3c3881948c5d88ce2f0"
 dependencies = [
+ "jpegxl-src",
  "pkg-config",
 ]
 
