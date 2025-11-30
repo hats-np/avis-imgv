@@ -1,8 +1,10 @@
 use avis_imgv::app::App;
 use avis_imgv::db::Db;
 use eframe::egui_wgpu::{WgpuConfiguration, WgpuSetup, WgpuSetupCreateNew};
-use eframe::wgpu::{ExperimentalFeatures, Limits};
-use eframe::{wgpu, NativeOptions};
+use eframe::{
+    wgpu::{self},
+    NativeOptions,
+};
 use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;
