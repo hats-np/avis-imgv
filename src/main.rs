@@ -7,6 +7,8 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 fn main() {
+    let mut slideshow = false;
+    let mut fullscreen = false;
     let subscriber = FmtSubscriber::builder()
         .with_max_level(Level::DEBUG)
         .finish();
@@ -14,6 +16,8 @@ fn main() {
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     let args: Vec<String> = env::args().collect();
+
+    tracing::info!("Starting avis-imgv with args: {}", args.join(","));
 
     if args.len() > 1 && args[1] == "--import" {
         if args.len() < 3 {
@@ -45,9 +49,14 @@ fn main() {
     } else if args.len() > 1 && args[1] == "--help" {
         tracing::info!("Usage:");
         tracing::info!("\t --help");
+        tracing::info!("\t --slideshow <path> \n \t\t Starts in slideshow mode. Useful as a photoframe, screen saver, etc.");
         tracing::info!("\t --import <path> \n \t\t Imports all images in the directory and sub directories into the database");
         tracing::info!("\t --clean <path> \n \t\t Removes moved/deleted files from the database");
         return;
+    } else if args.len() > 1 && args.contains(&"--slideshow".to_string()) {
+        slideshow = true;
+    } else if args.len() > 1 && args.contains(&"--fullscreen".to_string()) {
+        fullscreen = true;
     } else if args.len() > 1 && args[1] == "--clean" {
         avis_imgv::metadata::Metadata::clean_moved_files();
         return;
@@ -60,7 +69,7 @@ fn main() {
     match eframe::run_native(
         "Avis Image Viewer",
         native_options,
-        Box::new(|cc| Ok(Box::new(App::new(cc)))),
+        Box::new(|cc| Ok(Box::new(App::new(cc, slideshow, fullscreen)))),
     ) {
         Ok(_) => {}
         Err(e) => tracing::error!("{e}"),

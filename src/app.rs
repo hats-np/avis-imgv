@@ -12,7 +12,7 @@ use crate::{
     tree, utils, VALID_EXTENSIONS,
 };
 use crate::{FRAME_MEMORY_KEY, WORKER_MESSAGE_MEMORY_KEY};
-use eframe::egui::{self, Id, KeyboardShortcut, RichText};
+use eframe::egui::{self, Id, KeyboardShortcut, RichText, ViewportCommand};
 use eframe::Frame;
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
 use notify::FsEventWatcher;
@@ -49,10 +49,11 @@ pub struct App {
     filters: Filters,
     side_panel_visible: bool,
     worker: Arc<Worker>,
+    fullscreen: bool,
 }
 
 impl App {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, slideshow: bool, fullscreen: bool) -> Self {
         let cfg = Config::new();
 
         crate::theme::apply_theme(&cc.egui_ctx);
@@ -63,6 +64,11 @@ impl App {
         }
 
         cc.egui_ctx.set_style(style);
+
+        if fullscreen {
+            cc.egui_ctx
+                .send_viewport_cmd(ViewportCommand::Fullscreen(true));
+        }
 
         let (mut img_paths, opened_img_path) = crawler::paths_from_args();
 
@@ -96,6 +102,8 @@ impl App {
                 cfg.image_view,
                 &cfg.general.output_icc_profile,
                 &cc.egui_ctx,
+                slideshow,
+                cfg.slideshow,
             ),
             gallery_selected_index: None,
             grid_view: GridView::new(&img_paths, cfg.grid_view, &cfg.general.output_icc_profile),
@@ -115,6 +123,7 @@ impl App {
             watcher: None,
             watcher_events: Arc::new(Mutex::new(vec![])),
             worker,
+            fullscreen,
         }
     }
 
@@ -148,25 +157,31 @@ impl App {
             self.perf_metrics_visible = !self.perf_metrics_visible;
         }
 
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_menu.kbd_shortcut)) {
-            self.top_menu_visible = !self.top_menu_visible;
-        }
+        ctx.input_mut(|i| {
+            if i.consume_shortcut(&self.config.sc_toggle_side_panel.kbd_shortcut) {
+                self.side_panel_visible = !self.side_panel_visible;
+            }
 
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_toggle_gallery.kbd_shortcut)) {
-            self.grid_view_visible = !self.grid_view_visible;
-            self.gallery_selected_index = Some(self.gallery.selected_img_index);
-        }
+            if i.consume_shortcut(&self.config.sc_watch_directory.kbd_shortcut) {
+                self.enable_watcher();
+            }
 
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_flatten_dir.kbd_shortcut)) {
-            self.flatten_open_dir(ctx);
-        }
+            if i.consume_shortcut(&self.config.sc_flatten_dir.kbd_shortcut) {
+                self.flatten_open_dir(ctx);
+            }
 
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_watch_directory.kbd_shortcut)) {
-            self.enable_watcher();
-        }
+            if i.consume_shortcut(&self.config.sc_toggle_gallery.kbd_shortcut) {
+                self.grid_view_visible = !self.grid_view_visible;
+                self.gallery_selected_index = Some(self.gallery.selected_img_index);
+            }
 
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_toggle_side_panel.kbd_shortcut)) {
-            self.side_panel_visible = !self.side_panel_visible;
+            if i.consume_shortcut(&self.config.sc_menu.kbd_shortcut) {
+                self.top_menu_visible = !self.top_menu_visible;
+            }
+        });
+
+        if ctx.input(|i| i.viewport().fullscreen.unwrap_or(false)) {
+            self.fullscreen = true;
         }
     }
 

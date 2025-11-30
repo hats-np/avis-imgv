@@ -1,8 +1,10 @@
-use eframe::egui::Sense;
+use eframe::egui::{Response, Sense};
 use eframe::{egui, epaint::Vec2};
 use std::cmp::min;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
+use crate::config::SlideshowConfig;
 use crate::gallery_image::{GalleryImageFrame, GalleryImageSizing};
 use crate::{
     callback::Callback,
@@ -13,6 +15,46 @@ use crate::{
 };
 
 pub const PERCENTAGES: &[f32] = &[200., 100., 75., 50., 25.];
+
+#[derive(Clone)]
+pub struct Slideshow {
+    last_adv_instant: Instant,
+    last_zoom_instant: Instant,
+    zoom_step: Option<f32>,
+    zoom_step_ms: u128,
+    zoom_step_count: f32,
+}
+
+impl Slideshow {
+    pub fn new(cfg: &SlideshowConfig) -> Slideshow {
+        //For now we use a hardcoded step count. Zoom every 50ms to conserve energy
+        let total_zoom_steps = cfg.seconds_per_image as f32 * 20.;
+
+        Slideshow {
+            last_adv_instant: Instant::now(),
+            last_zoom_instant: Instant::now(),
+            zoom_step_ms: 50,
+            zoom_step: None,
+            zoom_step_count: total_zoom_steps,
+        }
+    }
+
+    //when the slideshow advances to the next image it should always display it maximized in  the screen,
+    // aka, no cropping. This can lead to different %zoom baselines for each image
+    pub fn set_zoom_step(&mut self, percent_zoom: f32, active_image: Option<&GalleryImage>) {
+        if percent_zoom != 0. {
+            if let Some(active_image) = active_image {
+                //in the very first frame of the app this value is always 0.0
+                if active_image.prev_percentage_zoom != 0.0 {
+                    self.zoom_step = Some(
+                        (active_image.prev_percentage_zoom * percent_zoom / self.zoom_step_count)
+                            / 100.,
+                    );
+                }
+            }
+        }
+    }
+}
 
 pub struct ImageView {
     imgs: Vec<GalleryImage>,
@@ -25,6 +67,8 @@ pub struct ImageView {
     output_profile: String,
     callback: Option<Callback>,
     nr_images_displayed: usize,
+    slideshow_config: SlideshowConfig,
+    slideshow: Option<Slideshow>,
 }
 
 impl ImageView {
@@ -34,26 +78,47 @@ impl ImageView {
         config: ImageViewConfig,
         output_profile: &String,
         ctx: &egui::Context,
+        start_slideshow: bool,
+        slideshow_config: SlideshowConfig,
     ) -> ImageView {
+        let mut gallery_sizing = GalleryImageSizing {
+            zoom_factor: 1.0,
+            scroll_delta: Vec2::new(0., 0.),
+            should_maximize: false,
+            has_maximized: false,
+        };
+
+        let mut frame = GalleryImageFrame {
+            enabled: false,
+            size_r: config.frame_size_relative_to_image,
+        };
+
+        let slideshow: Option<Slideshow>;
+
+        if start_slideshow {
+            slideshow = Some(Slideshow::new(&slideshow_config));
+            gallery_sizing.should_maximize = true;
+
+            if slideshow_config.start_with_frame_enabled {
+                frame.enabled = true;
+            }
+        } else {
+            slideshow = None;
+        };
+
         let mut sg = ImageView {
             imgs: vec![],
             selected_img_index: 0,
             preload_active: true,
-            frame: GalleryImageFrame {
-                enabled: false,
-                size_r: config.frame_size_relative_to_image,
-            },
-            sizing: GalleryImageSizing {
-                zoom_factor: 1.0,
-                scroll_delta: Vec2::new(0., 0.),
-                should_maximize: false,
-                has_maximized: false,
-            },
+            frame,
+            sizing: gallery_sizing,
             jump_to: String::new(),
             output_profile: output_profile.to_owned(),
             callback: None,
             nr_images_displayed: config.nr_images_shown,
             config: config.clone(),
+            slideshow_config,
+            slideshow,
         };
 
         sg.set_images(image_paths, selected_image_path, ctx);
@@ -99,7 +164,6 @@ impl ImageView {
             return;
         }
 
-        //Not many entries in this vec so it's not worth to use a hasmap
         let mut indexes_to_load: Vec<usize> = vec![self.selected_img_index];
 
         for i in 1..self.config.nr_loaded_images + 1 {
@@ -363,7 +427,226 @@ impl ImageView {
     pub fn ui(&mut self, ctx: &egui::Context, flattened: bool, watcher_enabled: bool) {
         self.handle_input(ctx);
 
-        egui::TopBottomPanel::bottom("gallery_bottom")
+        //In slideshow mode we only want to see the picture
+        if self.slideshow.is_none() {
+            self.show_view_bottom_bar(ctx, flattened, watcher_enabled);
+        } else {
+            self.handle_slideshow(ctx);
+        }
+
+        let show_image_response = self.show_image(ctx);
+        self.handle_image_scroll(ctx, &show_image_response);
+        self.handle_callbacks(&show_image_response);
+    }
+
+    pub fn handle_input(&mut self, ctx: &egui::Context) {
+        if utils::are_inputs_muted(ctx) {
+            return;
+        }
+
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_fit.kbd_shortcut)) {
+            self.reset_zoom();
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_frame.kbd_shortcut)) {
+            self.toggle_frame();
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_zoom.kbd_shortcut)) {
+            self.double_zoom();
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_next.kbd_shortcut)) {
+            self.next_image(ctx);
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_prev.kbd_shortcut)) {
+            self.previous_image(ctx);
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_one_to_one.kbd_shortcut)) {
+            self.set_zoom_factor_from_percentage(&100.);
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_fit_horizontal.kbd_shortcut)) {
+            self.fit_horizontal();
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_fit_vertical.kbd_shortcut)) {
+            self.fit_vertical();
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_fit_maximize.kbd_shortcut)) {
+            self.fit_maximize();
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_latch_fit_maximize.kbd_shortcut)) {
+            self.latch_fit_maximize();
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_more_images_shown.kbd_shortcut))
+            && self.nr_images_displayed < self.config.nr_loaded_images
+        {
+            self.nr_images_displayed += 1;
+        }
+        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_less_images_shown.kbd_shortcut))
+            && self.nr_images_displayed > 1
+        {
+            self.nr_images_displayed -= 1;
+        }
+
+        self.multiply_zoom(ctx.input(|i| i.zoom_delta()));
+
+        for action in &self.config.user_actions {
+            if !ctx.input_mut(|i| i.consume_shortcut(&action.shortcut.kbd_shortcut)) {
+                continue;
+            }
+
+            if let Some(path) = self.get_active_img_path() {
+                if user_action::execute(&action.exec, &path) {
+                    if let Some(callback) = action.callback.to_owned() {
+                        self.callback =
+                            Some(Callback::from_callback(callback, Some(path.to_owned())));
+                    }
+                }
+            } else {
+                tracing::error!("Unable to get active image path for user action");
+            }
+        }
+    }
+
+    pub fn take_callback(&mut self) -> Option<Callback> {
+        self.callback.take()
+    }
+
+    pub fn show_image(&mut self, ctx: &egui::Context) -> Response {
+        egui::CentralPanel::default()
+            .frame(self.get_image_frame())
+            .show(ctx, |ui| {
+                if !self.imgs.is_empty() {
+                    if self.imgs.len() == 1 {
+                        ui.centered_and_justified(|ui| {
+                            let img: &mut GalleryImage = &mut self.imgs[self.selected_img_index];
+                            img.ui(ui, &self.frame, &mut self.sizing);
+                        });
+                    } else {
+                        let w = (ui.available_width() / self.nr_images_displayed as f32) - 1.;
+                        let h = ui.available_height();
+                        ui.horizontal(|ui| {
+                            let nr_images_to_display =
+                                min(self.nr_images_displayed, self.imgs.len());
+                            for i in 0..nr_images_to_display {
+                                ui.allocate_ui(Vec2 { x: w, y: h }, |ui| {
+                                    ui.centered_and_justified(|ui| {
+                                        let index = get_vec_index_sum_by(
+                                            self.imgs.len(),
+                                            self.selected_img_index,
+                                            i,
+                                        );
+                                        let img: &mut GalleryImage = &mut self.imgs[index];
+                                        img.ui(ui, &self.frame, &mut self.sizing);
+                                    });
+                                });
+                            }
+                        });
+                    }
+                }
+            })
+            .response
+            .interact(Sense::click())
+    }
+
+    pub fn get_image_frame(&mut self) -> egui::Frame {
+        let default_background_color = egui::Color32::from_rgb(119, 119, 119);
+        if let Some(override_hex) = self
+            .slideshow_config
+            .image_frame_background_color_override
+            .as_ref()
+        {
+            egui::Frame::NONE
+                .fill(egui::Color32::from_hex(override_hex).unwrap_or(default_background_color))
+        } else {
+            egui::Frame::NONE.fill(default_background_color)
+        }
+    }
+
+    pub fn handle_image_scroll(&mut self, ctx: &egui::Context, response: &Response) {
+        //unfortunately we'll always be one frame behind
+        //when advancing with the scroll wheel
+        if response.contains_pointer() {
+            if self.config.scroll_navigation {
+                if ctx.input(|i| i.raw_scroll_delta.y) > 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
+                {
+                    self.next_image(ctx);
+                }
+
+                if ctx.input(|i| i.raw_scroll_delta.y) < 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
+                {
+                    self.previous_image(ctx);
+                }
+            }
+
+            self.sizing.scroll_delta = ctx.input(|i| i.smooth_scroll_delta);
+            if ctx.input(|i| i.pointer.is_decidedly_dragging()) {
+                //drag
+                self.sizing.scroll_delta +=
+                    ctx.input(|i| i.pointer.delta()) * ctx.pixels_per_point();
+            }
+        } else {
+            //lest we lose hover in the frame that there's a scroll
+            //delta and we get infinite zoom
+            self.sizing.scroll_delta.x = 0.;
+            self.sizing.scroll_delta.y = 0.;
+        }
+    }
+
+    pub fn handle_callbacks(&mut self, response: &Response) {
+        if let Some(path) = self.get_active_img_path() {
+            let callback = show_context_menu(&self.config.context_menu, response, &path);
+
+            if let Some(callback) = callback {
+                self.callback = Some(Callback::from_callback(callback, Some(path)));
+            }
+        }
+    }
+
+    pub fn handle_slideshow(&mut self, ctx: &egui::Context) {
+        if self.slideshow.is_none() {
+            return;
+        }
+
+        let mut slideshow = self.slideshow.clone().unwrap();
+
+        if slideshow.zoom_step.is_none() {
+            slideshow.set_zoom_step(self.slideshow_config.percent_zoom, self.get_active_img());
+        }
+
+        let mut new_zoom_percentage = if let Some(active_image) = self.get_active_img() {
+            active_image.prev_percentage_zoom
+        } else {
+            100.
+        };
+
+        if slideshow.last_zoom_instant.elapsed().as_millis() > slideshow.zoom_step_ms {
+            slideshow.last_zoom_instant = Instant::now();
+            new_zoom_percentage += slideshow.zoom_step.unwrap_or(0.);
+        }
+
+        if slideshow.last_adv_instant.elapsed().as_secs() > self.slideshow_config.seconds_per_image
+        {
+            slideshow.last_zoom_instant = Instant::now();
+            slideshow.last_adv_instant = Instant::now();
+            slideshow.zoom_step = None;
+            self.next_image(ctx);
+        }
+
+        if self.slideshow_config.percent_zoom != 0. {
+            self.set_zoom_factor_from_percentage(&new_zoom_percentage);
+            ctx.request_repaint_after(Duration::from_millis(slideshow.zoom_step_ms as u64));
+        } else {
+            ctx.request_repaint_after(Duration::from_secs(self.slideshow_config.seconds_per_image));
+        }
+
+        self.slideshow = Some(slideshow);
+    }
+
+    pub fn show_view_bottom_bar(
+        &mut self,
+        ctx: &egui::Context,
+        flattened: bool,
+        watcher_enabled: bool,
+    ) {
+        egui::TopBottomPanel::bottom("image_view_bottom_bar")
             .show_separator_line(false)
             .show(ctx, |ui| {
                 ui.horizontal_centered(|ui| {
@@ -452,147 +735,6 @@ impl ImageView {
                     )
                 });
             });
-
-        let image_pannel_resp = egui::CentralPanel::default()
-            .frame(egui::Frame::NONE.fill(egui::Color32::from_rgb(119, 119, 119)))
-            .show(ctx, |ui| {
-                if !self.imgs.is_empty() {
-                    if self.imgs.len() == 1 {
-                        ui.centered_and_justified(|ui| {
-                            let img: &mut GalleryImage = &mut self.imgs[self.selected_img_index];
-                            img.ui(ui, &self.frame, &mut self.sizing);
-                        });
-                    } else {
-                        let w = (ui.available_width() / self.nr_images_displayed as f32) - 1.;
-                        let h = ui.available_height();
-                        ui.horizontal(|ui| {
-                            let nr_images_to_display =
-                                min(self.nr_images_displayed, self.imgs.len());
-                            for i in 0..nr_images_to_display {
-                                ui.allocate_ui(Vec2 { x: w, y: h }, |ui| {
-                                    ui.centered_and_justified(|ui| {
-                                        let index = get_vec_index_sum_by(
-                                            self.imgs.len(),
-                                            self.selected_img_index,
-                                            i,
-                                        );
-                                        let img: &mut GalleryImage = &mut self.imgs[index];
-                                        img.ui(ui, &self.frame, &mut self.sizing);
-                                    });
-                                });
-                            }
-                        });
-                    }
-                }
-            })
-            .response
-            .interact(Sense::click());
-
-        //unfortunately we'll always be one frame behind
-        //when advancing with the scroll wheel
-        if image_pannel_resp.contains_pointer() {
-            if self.config.scroll_navigation {
-                if ctx.input(|i| i.raw_scroll_delta.y) > 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
-                {
-                    self.next_image(ctx);
-                }
-
-                if ctx.input(|i| i.raw_scroll_delta.y) < 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
-                {
-                    self.previous_image(ctx);
-                }
-            }
-
-            self.sizing.scroll_delta = ctx.input(|i| i.smooth_scroll_delta);
-            if ctx.input(|i| i.pointer.is_decidedly_dragging()) {
-                //drag
-                self.sizing.scroll_delta +=
-                    ctx.input(|i| i.pointer.delta()) * ctx.pixels_per_point();
-            }
-        } else {
-            //lest we lose hover in the frame that there's a scroll
-            //delta and we get infinite zoom
-            self.sizing.scroll_delta.x = 0.;
-            self.sizing.scroll_delta.y = 0.;
-        }
-
-        if let Some(path) = self.get_active_img_path() {
-            let callback = show_context_menu(&self.config.context_menu, image_pannel_resp, &path);
-
-            if let Some(callback) = callback {
-                self.callback = Some(Callback::from_callback(callback, Some(path)));
-            }
-        }
-    }
-
-    pub fn handle_input(&mut self, ctx: &egui::Context) {
-        if utils::are_inputs_muted(ctx) {
-            return;
-        }
-
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_fit.kbd_shortcut)) {
-            self.reset_zoom();
-        }
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_frame.kbd_shortcut)) {
-            self.toggle_frame();
-        }
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_zoom.kbd_shortcut)) {
-            self.double_zoom();
-        }
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_next.kbd_shortcut)) {
-            self.next_image(ctx);
-        }
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_prev.kbd_shortcut)) {
-            self.previous_image(ctx);
-        }
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_one_to_one.kbd_shortcut)) {
-            self.set_zoom_factor_from_percentage(&100.);
-        }
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_fit_horizontal.kbd_shortcut)) {
-            self.fit_horizontal();
-        }
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_fit_vertical.kbd_shortcut)) {
-            self.fit_vertical();
-        }
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_fit_maximize.kbd_shortcut)) {
-            self.fit_maximize();
-        }
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_latch_fit_maximize.kbd_shortcut)) {
-            self.latch_fit_maximize();
-        }
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_more_images_shown.kbd_shortcut))
-            && self.nr_images_displayed < self.config.nr_loaded_images
-        {
-            self.nr_images_displayed += 1;
-        }
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_less_images_shown.kbd_shortcut))
-            && self.nr_images_displayed > 1
-        {
-            self.nr_images_displayed -= 1;
-        }
-
-        self.multiply_zoom(ctx.input(|i| i.zoom_delta()));
-
-        for action in &self.config.user_actions {
-            if !ctx.input_mut(|i| i.consume_shortcut(&action.shortcut.kbd_shortcut)) {
-                continue;
-            }
-
-            if let Some(path) = self.get_active_img_path() {
-                if user_action::execute(&action.exec, &path) {
-                    if let Some(callback) = action.callback.to_owned() {
-                        self.callback =
-                            Some(Callback::from_callback(callback, Some(path.to_owned())));
-                    }
-                }
-            } else {
-                tracing::error!("Unable to get active image path for user action");
-            }
-        }
-    }
-
-    pub fn take_callback(&mut self) -> Option<Callback> {
-        self.callback.take()
     }
 }
 

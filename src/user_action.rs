@@ -112,7 +112,7 @@ pub fn get_command_args(cmd: &str) -> Vec<String> {
 
 pub fn show_context_menu(
     entries: &Vec<ContextMenuEntry>,
-    response: Response,
+    response: &Response,
     path: &Path,
 ) -> Option<Callback> {
     if entries.is_empty() {

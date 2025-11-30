@@ -246,7 +246,7 @@ impl GridView {
                 ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
             }
 
-            let return_callback = show_context_menu(&self.config.context_menu, resp, &image.path);
+            let return_callback = show_context_menu(&self.config.context_menu, &resp, &image.path);
 
             if let Some(return_callback) = return_callback {
                 self.callback = Some(Callback::from_callback(

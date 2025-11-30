@@ -3,15 +3,21 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::VALID_EXTENSIONS;
+use crate::{STARTER_STATE_ARGS, VALID_EXTENSIONS};
 
-//TODO: Does not work if file has spaces in it.
 pub fn paths_from_args() -> (Vec<PathBuf>, Option<PathBuf>) {
-    let args: Vec<String> = env::args().collect();
+    let mut args: Vec<String> = env::args().collect();
+
+    //This could be a little more elegant, but works for now.
+    for (i, arg) in args.clone().iter().enumerate() {
+        if STARTER_STATE_ARGS.contains(&arg.as_str()) {
+            args.remove(i);
+        }
+    }
 
     if args.len() <= 2 {
-        let mut path = if args.len() == 2 {
-            PathBuf::from(args[1].clone())
+        let mut path = if args.len() >= 2 {
+            PathBuf::from(args.last().unwrap().clone()) //Not very thorough but at the moment path is always the last arg.
         } else {
             match env::current_dir() {
                 Ok(dir) => dir,

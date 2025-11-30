@@ -15,6 +15,7 @@ pub struct Config {
     pub grid_view: GridViewConfig,
     pub general: GeneralConfig,
     pub filter: FilterConfig,
+    pub slideshow: SlideshowConfig,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -120,6 +121,18 @@ pub struct FilterConfig {
 pub struct FilterableExifTag {
     pub name: String,
     pub fetch_distinct: bool,
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct SlideshowConfig {
+    #[serde(default = "default_seconds_per_image")]
+    pub seconds_per_image: u64,
+    #[serde(default = "default_percent_zoom")]
+    pub percent_zoom: f32,
+    #[serde(default = "default_start_with_frame_enabled")]
+    pub start_with_frame_enabled: bool,
+    #[serde(default = "default_image_frame_background_color_override")]
+    pub image_frame_background_color_override: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -233,6 +246,17 @@ impl Default for FilterConfig {
     }
 }
 
+impl Default for SlideshowConfig {
+    fn default() -> Self {
+        SlideshowConfig {
+            seconds_per_image: default_seconds_per_image(),
+            percent_zoom: default_percent_zoom(),
+            start_with_frame_enabled: default_start_with_frame_enabled(),
+            image_frame_background_color_override: default_image_frame_background_color_override(),
+        }
+    }
+}
+
 impl Config {
     pub fn new() -> Config {
         Self::fetch_cfg()
@@ -263,6 +287,13 @@ impl Config {
                             return default_cfg;
                         }
                     };
+
+                    if !config_dir.exists() {
+                        tracing::info!("Config directory does not exist, creating");
+                        if let Err(e) = fs::create_dir_all(&config_dir) {
+                            tracing::error!("Failure creating config directory {:?}", e);
+                        }
+                    }
 
                     match fs::write(&cfg_path, default_cfg_json) {
                         Ok(_) => {}
@@ -434,6 +465,23 @@ pub fn default_sc_less_per_row() -> Shortcut {
 //Filter
 pub fn default_exif_tags() -> Vec<FilterableExifTag> {
     vec![]
+}
+
+//Slideshow
+pub fn default_seconds_per_image() -> u64 {
+    15
+}
+
+pub fn default_percent_zoom() -> f32 {
+    25.
+}
+
+pub fn default_start_with_frame_enabled() -> bool {
+    false
+}
+
+pub fn default_image_frame_background_color_override() -> Option<String> {
+    None
 }
 
 //Shortcuts
