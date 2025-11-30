@@ -11,7 +11,7 @@ use crate::{
     perf_metrics::PerfMetrics,
     tree, utils, VALID_EXTENSIONS,
 };
-use crate::{FRAME_MEMORY_KEY, WORKER_MESSAGE_MEMORY_KEY};
+use crate::{FRAME_MEMORY_KEY, TWO_DIM_TEXTURE_LIMIT_MEMORY_KEY, WORKER_MESSAGE_MEMORY_KEY};
 use eframe::egui::{self, Id, KeyboardShortcut, RichText};
 use eframe::Frame;
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
@@ -86,6 +86,15 @@ impl App {
                 tracing::info!("Failure initiating db -> {e}");
             }
         };
+
+        cc.egui_ctx.memory_mut(|mem| {
+            if let Some(wgpu_render_state) = cc.wgpu_render_state.clone() {
+                mem.data.insert_temp(
+                    Id::new(TWO_DIM_TEXTURE_LIMIT_MEMORY_KEY),
+                    wgpu_render_state.adapter.limits().max_texture_dimension_2d,
+                );
+            }
+        });
 
         let base_path = Self::get_base_path(&img_paths);
         let worker = Arc::new(worker);
