@@ -547,17 +547,20 @@ impl ImageView {
     }
 
     pub fn get_image_frame(&mut self) -> egui::Frame {
-        let default_background_color = egui::Color32::from_rgb(119, 119, 119);
-        if let Some(override_hex) = self
-            .slideshow_config
-            .image_frame_background_color_override
-            .as_ref()
-        {
-            egui::Frame::NONE
-                .fill(egui::Color32::from_hex(override_hex).unwrap_or(default_background_color))
-        } else {
-            egui::Frame::NONE.fill(default_background_color)
+        let mut background_color = egui::Color32::from_rgb(119, 119, 119);
+
+        if self.slideshow.is_some() {
+            if let Some(override_hex) = self
+                .slideshow_config
+                .image_frame_background_color_override
+                .as_ref()
+            {
+                background_color =
+                    egui::Color32::from_hex(override_hex).unwrap_or(background_color);
+            }
         }
+
+        egui::Frame::NONE.fill(background_color)
     }
 
     pub fn handle_image_scroll(&mut self, ctx: &egui::Context, response: &Response) {

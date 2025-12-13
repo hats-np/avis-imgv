@@ -8,12 +8,20 @@ use crate::{STARTER_STATE_ARGS, VALID_EXTENSIONS};
 pub fn paths_from_args() -> (Vec<PathBuf>, Option<PathBuf>) {
     let mut args: Vec<String> = env::args().collect();
 
+    tracing::info!("Crawling with args {:?}", args);
+
     //This could be a little more elegant, but works for now.
-    for (i, arg) in args.clone().iter().enumerate() {
-        if STARTER_STATE_ARGS.contains(&arg.as_str()) {
-            args.remove(i);
+    //We should consume the other args at startup
+    let mut crawl_args = vec![];
+    for arg in &args {
+        if !STARTER_STATE_ARGS.contains(&arg.as_str()) {
+            crawl_args.push(arg.to_string());
         }
     }
+
+    args = crawl_args;
+
+    tracing::info!("Crawling with args after cleanup: {:?}", args);
 
     if args.len() <= 2 {
         let mut path = if args.len() >= 2 {

@@ -53,20 +53,26 @@ fn main() {
         avis_imgv::metadata::Metadata::clean_moved_files();
         tracing::info!("Metadata caching finished. Exiting.");
         return;
-    } else if args.len() > 1 && args[1] == "--help" {
+    }
+    if args.len() > 1 && args[1] == "--help" {
         tracing::info!("Usage:");
         tracing::info!("\t --help");
         tracing::info!("\t --slideshow <path> \n \t\t Starts in slideshow mode. Useful as a photoframe, screen saver, etc.");
         tracing::info!("\t --import <path> \n \t\t Imports all images in the directory and sub directories into the database");
         tracing::info!("\t --clean <path> \n \t\t Removes moved/deleted files from the database");
         return;
-    } else if args.len() > 1 && args.contains(&"--slideshow".to_string()) {
-        slideshow = true;
-    } else if args.len() > 1 && args.contains(&"--fullscreen".to_string()) {
-        fullscreen = true;
-    } else if args.len() > 1 && args[1] == "--clean" {
+    }
+    if args.len() > 1 && args[1] == "--clean" {
         avis_imgv::metadata::Metadata::clean_moved_files();
         return;
+    }
+    if args.len() > 1 && args.contains(&"--slideshow".to_string()) {
+        slideshow = true;
+        tracing::info!("Starting with slideshow enabled");
+    }
+    if args.len() > 1 && args.contains(&"--fullscreen".to_string()) {
+        fullscreen = true;
+        tracing::info!("Starting with fullscreen enabled");
     }
 
     match eframe::run_native(
