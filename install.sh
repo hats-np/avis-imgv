@@ -1,3 +1,5 @@
+#!/bin/bash
+
 if ! which cmake >/dev/null 2>&1; then
   echo "Please install cmake"
   exit
