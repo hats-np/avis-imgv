@@ -43,7 +43,7 @@ directory. This will allow you to search your images using their exif data.
 
 ## Color Management
 
-Color management is done through [qcms](https://github.com/FirefoxGraphics/qcms).
+Color management is done through `lcms2`.
 
 As of now avis-imgv is shipped with three(sRGB, Adobe RGB and Display P3) profiles. A profile is chosen based on the
 exiftool tag "Profile Description" through a `contains` function. This is pretty lax as we can match more specific
