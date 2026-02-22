@@ -42,8 +42,8 @@ impl Slideshow {
     //when the slideshow advances to the next image it should always display it maximized in  the screen,
     // aka, no cropping. This can lead to different %zoom baselines for each image
     pub fn set_zoom_step(&mut self, percent_zoom: f32, active_image: Option<&GalleryImage>) {
-        if percent_zoom != 0. {
-            if let Some(active_image) = active_image {
+        if percent_zoom != 0.
+            && let Some(active_image) = active_image {
                 //in the very first frame of the app this value is always 0.0
                 if active_image.prev_percentage_zoom != 0.0 {
                     self.zoom_step = Some(
@@ -52,7 +52,6 @@ impl Slideshow {
                     );
                 }
             }
-        }
     }
 }
 
@@ -493,12 +492,11 @@ impl ImageView {
             }
 
             if let Some(path) = self.get_active_img_path() {
-                if user_action::execute(&action.exec, &path) {
-                    if let Some(callback) = action.callback.to_owned() {
+                if user_action::execute(&action.exec, &path)
+                    && let Some(callback) = action.callback.to_owned() {
                         self.callback =
                             Some(Callback::from_callback(callback, Some(path.to_owned())));
                     }
-                }
             } else {
                 tracing::error!("Unable to get active image path for user action");
             }
@@ -549,8 +547,8 @@ impl ImageView {
     pub fn get_image_frame(&mut self) -> egui::Frame {
         let mut background_color = egui::Color32::from_rgb(119, 119, 119);
 
-        if self.slideshow.is_some() {
-            if let Some(override_hex) = self
+        if self.slideshow.is_some()
+            && let Some(override_hex) = self
                 .slideshow_config
                 .image_frame_background_color_override
                 .as_ref()
@@ -558,7 +556,6 @@ impl ImageView {
                 background_color =
                     egui::Color32::from_hex(override_hex).unwrap_or(background_color);
             }
-        }
 
         egui::Frame::NONE.fill(background_color)
     }

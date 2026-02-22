@@ -146,11 +146,10 @@ impl<F: FnMut(&mut Ui, &str) -> Response, V: AsRef<str>, I: Iterator<Item = V>> 
                 ui.set_max_height(max);
             }
 
-            if let Some(dw) = desired_width {
-                if dw != f32::INFINITY {
+            if let Some(dw) = desired_width
+                && dw != f32::INFINITY {
                     ui.set_min_width(dw);
                 }
-            }
 
             ScrollArea::vertical()
                 .max_height(f32::INFINITY)

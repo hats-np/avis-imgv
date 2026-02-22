@@ -165,11 +165,10 @@ impl Tree {
                     let mut img_count = 0;
                     if let Ok(rd) = path.path().read_dir() {
                         rd.for_each(|x| {
-                            if let Ok(p) = &x {
-                                if utils::is_valid_file(&p.path()) {
+                            if let Ok(p) = &x
+                                && utils::is_valid_file(&p.path()) {
                                     img_count += 1
                                 }
-                            }
                         })
                     };
 

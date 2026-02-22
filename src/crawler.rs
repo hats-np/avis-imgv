@@ -46,7 +46,7 @@ pub fn paths_from_args() -> (Vec<PathBuf>, Option<PathBuf>) {
             }
 
             let paths = crawl(&path, false);
-            return (paths, None);
+            return (paths, Some(path));
         }
 
         if !path.has_root() {

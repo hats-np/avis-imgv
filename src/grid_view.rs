@@ -303,11 +303,10 @@ impl GridView {
     }
 
     pub fn reload_at(&mut self, path: &Path) {
-        if let Some(pos) = self.imgs.iter().position(|x| x.path == path) {
-            if let Some(img) = self.imgs.get_mut(pos) {
+        if let Some(pos) = self.imgs.iter().position(|x| x.path == path)
+            && let Some(img) = self.imgs.get_mut(pos) {
                 img.unload_delayed();
                 img.unload(pos);
             }
-        }
     }
 }

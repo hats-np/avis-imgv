@@ -5,28 +5,28 @@ license = "GPL-3.0"
 homepage = "https://github.com/hats-np/avis-imgv"
 repository = "https://github.com/hats-np/avis-imgv"
 version = "0.3.2"
-edition = "2021"
+edition = "2024"
 readme = "README.md"
 keywords = ["image_viewer", "image"]
 
 [dependencies]
-eframe = { version = "0.33.0", features = ["wgpu"] }
-epaint = { version = "0.33.0" }
-image = { version = "0.25.6", default-features = true }
-serde = { version = "1.0.219" }
-serde_json = { version = "1.0.140" }
+eframe = { version = "0.33.3", features = ["wgpu"] }
+epaint = { version = "0.33.3" }
+image = { version = "0.25.8", default-features = true }
+serde = { version = "1.0.228" }
+serde_json = { version = "1.0.149" }
 directories = { version = "6.0.0" }
-lcms2 = { version = "6.1.0" }
-regex = { version = "1.11.1" }
-rfd = { version = "0.15.3" }
-fast_image_resize = { version = "5.1.4" }
-notify = "8.0.0"
-rusqlite = { version = "0.37.0", features = ["bundled"] }
-uuid = { version = "1.0", features = ["v4"] }
-jpegxl-rs = { version = "0.11.2", features = ["vendored"] }
-tempfile = "3.22.0"
+lcms2 = { version = "6.1.1" }
+regex = { version = "1.12.3" }
+rfd = { version = "0.17.2" }
+fast_image_resize = { version = "6.0.0" }
+notify = "8.2.0"
+rusqlite = { version = "0.38.0", features = ["bundled"] }
+uuid = { version = "1.21", features = ["v4"] }
+jpegxl-rs = { version = "0.13.1", features = ["vendored"] }
+tempfile = "3.25.0"
 tracing-subscriber = { version = "0.3", default-features = true }
-tracing = "0.1.41"
+tracing = "0.1.44"
 itertools = "0.14.0"
 pollster = "0.4.0"
 

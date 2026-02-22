@@ -1,6 +1,8 @@
 use crate::filters::Filters;
 use crate::worker::Worker;
+use crate::{FRAME_MEMORY_KEY, TWO_DIM_TEXTURE_LIMIT_MEMORY_KEY, WORKER_MESSAGE_MEMORY_KEY};
 use crate::{
+    VALID_EXTENSIONS,
     callback::Callback,
     config::{Config, GeneralConfig},
     crawler,
@@ -9,11 +11,10 @@ use crate::{
     image_view::ImageView,
     navigator,
     perf_metrics::PerfMetrics,
-    tree, utils, VALID_EXTENSIONS,
+    tree, utils,
 };
-use crate::{FRAME_MEMORY_KEY, TWO_DIM_TEXTURE_LIMIT_MEMORY_KEY, WORKER_MESSAGE_MEMORY_KEY};
-use eframe::egui::{self, Id, KeyboardShortcut, RichText, ViewportCommand};
 use eframe::Frame;
+use eframe::egui::{self, Id, KeyboardShortcut, RichText, ViewportCommand};
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
 use notify::FsEventWatcher;
 #[cfg(any(target_os = "linux", target_os = "android"))]
@@ -102,7 +103,7 @@ impl App {
             }
         });
 
-        let base_path = Self::get_base_path(&img_paths);
+        let base_path = Self::get_base_path(&img_paths, &opened_img_path);
         let worker = Arc::new(worker);
         Self {
             gallery: ImageView::new(
@@ -138,14 +139,19 @@ impl App {
 
     ///Returns the path to the opened image directory if it's not unable to do this, it then
     ///tries to return the users home, if this fails, it just returns a default PathBuf
-    fn get_base_path(paths: &[PathBuf]) -> PathBuf {
-        if let Some(first_path) = paths.first() {
-            if let Some(parent) = first_path.parent() {
-                return parent.to_path_buf();
-            }
+    fn get_base_path(paths: &[PathBuf], opened_img_path: &Option<PathBuf>) -> PathBuf {
+        if let Some(opened_img_path) = opened_img_path {
+            return opened_img_path.clone();
+        }
+
+        if let Some(first_path) = paths.first()
+            && let Some(parent) = first_path.parent()
+        {
+            return parent.to_path_buf();
         }
 
         if let Some(user_dirs) = directories::UserDirs::new() {
+            tracing::info!("Failure fetching opened path, using users home");
             return user_dirs.home_dir().to_path_buf();
         }
 
@@ -257,20 +263,20 @@ impl App {
             return;
         }
 
-        if let Some(files) = files {
-            if let Some(parent) = &files[0].parent() {
-                self.set_images_from_path(parent, &Some(files[0].clone()), ctx)
-            }
+        if let Some(files) = files
+            && let Some(parent) = &files[0].parent()
+        {
+            self.set_images_from_path(parent, &Some(files[0].clone()), ctx)
         }
     }
 
     fn get_file_dialog(&mut self) -> FileDialog {
         let mut file_dialog = FileDialog::new();
 
-        if let Some(path) = self.gallery.get_active_img_path() {
-            if let Some(parent) = path.parent() {
-                file_dialog = file_dialog.set_directory(parent);
-            }
+        if let Some(path) = self.gallery.get_active_img_path()
+            && let Some(parent) = path.parent()
+        {
+            file_dialog = file_dialog.set_directory(parent);
         }
 
         file_dialog
@@ -315,7 +321,7 @@ impl App {
         self.grid_view.set_images(&self.paths);
 
         if new_dir_opened {
-            self.base_path = Self::get_base_path(&self.paths);
+            self.base_path = Self::get_base_path(&self.paths, &None);
             self.filters.set_metadata_directory_value(&self.base_path);
             self.navigator_search = self.base_path.to_str().unwrap_or_default().to_string();
         }
@@ -546,14 +552,13 @@ impl eframe::App for App {
             self.set_images_from_path(&PathBuf::from(self.navigator_search.clone()), &None, ctx);
         }
 
-        if self.dir_tree_visible {
-            if let Some(path) = self.gallery.get_active_img_path() {
-                if let Some(path) = tree::ui(path.to_str().unwrap_or(""), ctx) {
-                    self.dir_tree_visible = false;
-                    utils::set_mute_state(ctx, false);
-                    self.set_images_from_path(&path, &None, ctx);
-                }
-            }
+        if self.dir_tree_visible
+            && let Some(path) = self.gallery.get_active_img_path()
+            && let Some(path) = tree::ui(path.to_str().unwrap_or(""), ctx)
+        {
+            self.dir_tree_visible = false;
+            utils::set_mute_state(ctx, false);
+            self.set_images_from_path(&path, &None, ctx);
         }
 
         if self.grid_view_visible {

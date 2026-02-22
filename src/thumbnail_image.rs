@@ -148,15 +148,13 @@ impl ThumbnailImage {
 
     ///If image is marked for unloading, unload it
     pub fn unload_delayed(&mut self) {
-        if self.should_unload {
-            if let Some(ih) = &mut self.load_image_handle {
-                if ih.is_finished() {
+        if self.should_unload
+            && let Some(ih) = &mut self.load_image_handle
+                && ih.is_finished() {
                     self.load_image_handle = None;
                     self.image = None;
                     self.should_unload = false;
                 }
-            }
-        }
     }
 
     ///If image is currently loading marks it for unload
