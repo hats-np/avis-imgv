@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 
 use crate::config::SlideshowConfig;
 use crate::gallery_image::{GalleryImageFrame, GalleryImageSizing};
+use crate::image_store::ImageStore;
 use crate::{
     callback::Callback,
     config::ImageViewConfig,
@@ -43,15 +44,16 @@ impl Slideshow {
     // aka, no cropping. This can lead to different %zoom baselines for each image
     pub fn set_zoom_step(&mut self, percent_zoom: f32, active_image: Option<&GalleryImage>) {
         if percent_zoom != 0.
-            && let Some(active_image) = active_image {
-                //in the very first frame of the app this value is always 0.0
-                if active_image.prev_percentage_zoom != 0.0 {
-                    self.zoom_step = Some(
-                        (active_image.prev_percentage_zoom * percent_zoom / self.zoom_step_count)
-                            / 100.,
-                    );
-                }
+            && let Some(active_image) = active_image
+        {
+            //in the very first frame of the app this value is always 0.0
+            if active_image.prev_percentage_zoom != 0.0 {
+                self.zoom_step = Some(
+                    (active_image.prev_percentage_zoom * percent_zoom / self.zoom_step_count)
+                        / 100.,
+                );
             }
+        }
     }
 }
 
@@ -63,7 +65,6 @@ pub struct ImageView {
     sizing: GalleryImageSizing,
     config: ImageViewConfig,
     jump_to: String,
-    output_profile: String,
     callback: Option<Callback>,
     nr_images_displayed: usize,
     slideshow_config: SlideshowConfig,
@@ -75,10 +76,9 @@ impl ImageView {
         image_paths: &[PathBuf],
         selected_image_path: &Option<PathBuf>,
         config: ImageViewConfig,
-        output_profile: &String,
-        ctx: &egui::Context,
         start_slideshow: bool,
         slideshow_config: SlideshowConfig,
+        image_store: &mut ImageStore,
     ) -> ImageView {
         let mut gallery_sizing = GalleryImageSizing {
             zoom_factor: 1.0,
@@ -112,7 +112,6 @@ impl ImageView {
             frame,
             sizing: gallery_sizing,
             jump_to: String::new(),
-            output_profile: output_profile.to_owned(),
             callback: None,
             nr_images_displayed: config.nr_images_shown,
             config: config.clone(),
@@ -120,7 +119,7 @@ impl ImageView {
             slideshow,
         };
 
-        sg.set_images(image_paths, selected_image_path, ctx);
+        sg.set_images(image_paths, selected_image_path, image_store);
 
         sg
     }
@@ -129,9 +128,13 @@ impl ImageView {
         &mut self,
         image_paths: &[PathBuf],
         selected_image_path: &Option<PathBuf>,
-        ctx: &egui::Context,
+        image_store: &mut ImageStore,
     ) {
-        let imgs = GalleryImage::from_paths(image_paths, &self.output_profile);
+        for img in &self.imgs {
+            image_store.deregister_img(&img.path);
+        }
+
+        let imgs = GalleryImage::from_paths(image_paths);
 
         self.imgs = imgs;
         self.selected_img_index = match selected_image_path {
@@ -147,17 +150,17 @@ impl ImageView {
             self.selected_img_index + 1
         );
 
-        self.load(ctx);
+        self.load(image_store);
     }
 
-    pub fn load(&mut self, ctx: &egui::Context) {
+    pub fn load(&mut self, image_store: &mut ImageStore) {
         if self.imgs.is_empty() {
             return;
         }
 
         if !self.preload_active {
             for i in 0..self.imgs.len() {
-                self.imgs[i].load(ctx);
+                image_store.register_img(&self.imgs[i].path, None);
             }
 
             return;
@@ -180,29 +183,29 @@ impl ImageView {
 
         for (i, img) in &mut self.imgs.iter_mut().enumerate() {
             if indexes_to_load.contains(&i) {
-                img.load(ctx);
+                image_store.register_img(&img.path, None);
             } else {
-                img.unload();
+                image_store.deregister_img(&img.path)
             }
         }
     }
 
-    pub fn select_by_name(&mut self, img_name: String, ctx: &egui::Context) {
+    pub fn select_by_name(&mut self, img_name: String, image_store: &mut ImageStore) {
         self.selected_img_index = self
             .imgs
             .iter()
             .position(|x| x.name == img_name)
             .unwrap_or(0);
 
-        self.load(ctx);
+        self.load(image_store);
     }
 
-    pub fn next_image(&mut self, ctx: &egui::Context) {
+    pub fn next_image(&mut self, image_store: &mut ImageStore) {
         if self.imgs.is_empty() {
             return;
         }
 
-        if self.config.should_wait && self.active_img_is_loading() {
+        if self.config.should_wait && self.active_img_is_loading(image_store) {
             return;
         }
 
@@ -219,8 +222,8 @@ impl ImageView {
                 self.config.nr_loaded_images,
             );
 
-            self.imgs[index_to_clear].unload();
-            self.imgs[index_to_preload].load(ctx);
+            image_store.deregister_img(&self.imgs[index_to_clear].path);
+            image_store.register_img(&self.imgs[index_to_preload].path, None);
         }
 
         if self.selected_img_index == self.imgs.len() - 1 {
@@ -232,7 +235,7 @@ impl ImageView {
         self.sizing.has_maximized = false;
     }
 
-    pub fn previous_image(&mut self, ctx: &egui::Context) {
+    pub fn previous_image(&mut self, image_store: &mut ImageStore) {
         if self.imgs.is_empty() {
             return;
         }
@@ -250,8 +253,8 @@ impl ImageView {
                 self.config.nr_loaded_images,
             );
 
-            self.imgs[index_to_clear].unload();
-            self.imgs[index_to_preload].load(ctx);
+            image_store.deregister_img(&self.imgs[index_to_clear].path);
+            image_store.register_img(&self.imgs[index_to_preload].path, None);
         }
 
         if self.selected_img_index == 0 {
@@ -287,13 +290,13 @@ impl ImageView {
     }
 
     ///Sets zoom factor based on percentage and opened image size
-    pub fn set_zoom_factor_from_percentage(&mut self, percentage: &f32) {
+    pub fn set_zoom_factor_from_percentage(&mut self, percentage: &f32, image_store: &ImageStore) {
         let img = match self.get_active_img() {
             Some(img) => img,
             None => return,
         };
 
-        let original_size = match img.image_size() {
+        let original_size = match image_store.get_image_size(&img.path) {
             Some(org_size) => org_size,
             None => return,
         };
@@ -360,10 +363,10 @@ impl ImageView {
         None
     }
 
-    pub fn get_active_img_name(&mut self) -> String {
+    pub fn get_active_img_name(&mut self, image_store: &ImageStore) -> String {
         let format = self.config.name_format.clone();
         match self.get_active_img_mut() {
-            Some(img) => img.get_display_name(format),
+            Some(img) => img.get_display_name(format, image_store),
             None => "".to_string(),
         }
     }
@@ -372,14 +375,14 @@ impl ImageView {
         self.get_active_img().map(|img| img.path.clone())
     }
 
-    pub fn active_img_is_loading(&self) -> bool {
+    pub fn active_img_is_loading(&self, image_store: &ImageStore) -> bool {
         match self.get_active_img() {
-            Some(img) => img.is_loading(),
+            Some(img) => !image_store.is_image_loaded(&img.path),
             None => false,
         }
     }
 
-    pub fn jump_to_image(&mut self, ctx: &egui::Context) {
+    pub fn jump_to_image(&mut self, image_store: &mut ImageStore) {
         self.selected_img_index = match self.jump_to.parse::<usize>() {
             Ok(i) => {
                 if i > self.imgs.len() || i < 1 {
@@ -391,20 +394,20 @@ impl ImageView {
             Err(_) => self.selected_img_index,
         };
 
-        self.load(ctx);
+        self.load(image_store);
         self.jump_to.clear();
     }
 
-    pub fn reload_at(&mut self, path: &Path, ctx: &egui::Context) {
+    pub fn reload_at(&mut self, path: &Path, image_store: &mut ImageStore) {
         if let Some(index) = self.imgs.iter().position(|x| x.path == path) {
             let img = &mut self.imgs[index];
-            img.unload();
-            img.load(ctx);
+            image_store.reload(&img.path, None);
         }
     }
 
+    //TODO: Manage this outside of his view.
     ///Pops image from the collection
-    pub fn pop(&mut self, path: &Path, ctx: &egui::Context) {
+    pub fn pop(&mut self, path: &Path, image_store: &mut ImageStore) {
         if let Some(pos) = self.imgs.iter().position(|x| x.path == path) {
             self.imgs.remove(pos);
             self.preload_active =
@@ -415,7 +418,7 @@ impl ImageView {
                 self.selected_img_index = self.imgs.len() - 1;
             }
 
-            self.load(ctx);
+            self.load(image_store);
         }
     }
 
@@ -423,22 +426,28 @@ impl ImageView {
         preload_nr * 2 <= image_count
     }
 
-    pub fn ui(&mut self, ctx: &egui::Context, flattened: bool, watcher_enabled: bool) {
-        self.handle_input(ctx);
+    pub fn ui(
+        &mut self,
+        ctx: &egui::Context,
+        flattened: bool,
+        watcher_enabled: bool,
+        image_store: &mut ImageStore,
+    ) {
+        self.handle_input(ctx, image_store);
 
         //In slideshow mode we only want to see the picture
         if self.slideshow.is_none() {
-            self.show_view_bottom_bar(ctx, flattened, watcher_enabled);
+            self.show_view_bottom_bar(ctx, flattened, watcher_enabled, image_store);
         } else {
-            self.handle_slideshow(ctx);
+            self.handle_slideshow(ctx, image_store);
         }
 
-        let show_image_response = self.show_image(ctx);
-        self.handle_image_scroll(ctx, &show_image_response);
+        let show_image_response = self.show_image(ctx, image_store);
+        self.handle_image_scroll(ctx, &show_image_response, image_store);
         self.handle_callbacks(&show_image_response);
     }
 
-    pub fn handle_input(&mut self, ctx: &egui::Context) {
+    pub fn handle_input(&mut self, ctx: &egui::Context, image_store: &mut ImageStore) {
         if utils::are_inputs_muted(ctx) {
             return;
         }
@@ -453,13 +462,13 @@ impl ImageView {
             self.double_zoom();
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_next.kbd_shortcut)) {
-            self.next_image(ctx);
+            self.next_image(image_store);
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_prev.kbd_shortcut)) {
-            self.previous_image(ctx);
+            self.previous_image(image_store);
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_one_to_one.kbd_shortcut)) {
-            self.set_zoom_factor_from_percentage(&100.);
+            self.set_zoom_factor_from_percentage(&100., image_store);
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_fit_horizontal.kbd_shortcut)) {
             self.fit_horizontal();
@@ -493,10 +502,10 @@ impl ImageView {
 
             if let Some(path) = self.get_active_img_path() {
                 if user_action::execute(&action.exec, &path)
-                    && let Some(callback) = action.callback.to_owned() {
-                        self.callback =
-                            Some(Callback::from_callback(callback, Some(path.to_owned())));
-                    }
+                    && let Some(callback) = action.callback.to_owned()
+                {
+                    self.callback = Some(Callback::from_callback(callback, Some(path.to_owned())));
+                }
             } else {
                 tracing::error!("Unable to get active image path for user action");
             }
@@ -507,7 +516,7 @@ impl ImageView {
         self.callback.take()
     }
 
-    pub fn show_image(&mut self, ctx: &egui::Context) -> Response {
+    pub fn show_image(&mut self, ctx: &egui::Context, image_store: &ImageStore) -> Response {
         egui::CentralPanel::default()
             .frame(self.get_image_frame())
             .show(ctx, |ui| {
@@ -515,7 +524,7 @@ impl ImageView {
                     if self.imgs.len() == 1 {
                         ui.centered_and_justified(|ui| {
                             let img: &mut GalleryImage = &mut self.imgs[self.selected_img_index];
-                            img.ui(ui, &self.frame, &mut self.sizing);
+                            img.ui(ui, &self.frame, &mut self.sizing, image_store);
                         });
                     } else {
                         let w = (ui.available_width() / self.nr_images_displayed as f32) - 1.;
@@ -532,7 +541,7 @@ impl ImageView {
                                             i,
                                         );
                                         let img: &mut GalleryImage = &mut self.imgs[index];
-                                        img.ui(ui, &self.frame, &mut self.sizing);
+                                        img.ui(ui, &self.frame, &mut self.sizing, image_store);
                                     });
                                 });
                             }
@@ -552,27 +561,31 @@ impl ImageView {
                 .slideshow_config
                 .image_frame_background_color_override
                 .as_ref()
-            {
-                background_color =
-                    egui::Color32::from_hex(override_hex).unwrap_or(background_color);
-            }
+        {
+            background_color = egui::Color32::from_hex(override_hex).unwrap_or(background_color);
+        }
 
         egui::Frame::NONE.fill(background_color)
     }
 
-    pub fn handle_image_scroll(&mut self, ctx: &egui::Context, response: &Response) {
+    pub fn handle_image_scroll(
+        &mut self,
+        ctx: &egui::Context,
+        response: &Response,
+        image_store: &mut ImageStore,
+    ) {
         //unfortunately we'll always be one frame behind
         //when advancing with the scroll wheel
         if response.contains_pointer() {
             if self.config.scroll_navigation {
                 if ctx.input(|i| i.raw_scroll_delta.y) > 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
                 {
-                    self.next_image(ctx);
+                    self.next_image(image_store);
                 }
 
                 if ctx.input(|i| i.raw_scroll_delta.y) < 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
                 {
-                    self.previous_image(ctx);
+                    self.previous_image(image_store);
                 }
             }
 
@@ -600,7 +613,7 @@ impl ImageView {
         }
     }
 
-    pub fn handle_slideshow(&mut self, ctx: &egui::Context) {
+    pub fn handle_slideshow(&mut self, ctx: &egui::Context, image_store: &mut ImageStore) {
         if self.slideshow.is_none() {
             return;
         }
@@ -627,11 +640,11 @@ impl ImageView {
             slideshow.last_zoom_instant = Instant::now();
             slideshow.last_adv_instant = Instant::now();
             slideshow.zoom_step = None;
-            self.next_image(ctx);
+            self.next_image(image_store);
         }
 
         if self.slideshow_config.percent_zoom != 0. {
-            self.set_zoom_factor_from_percentage(&new_zoom_percentage);
+            self.set_zoom_factor_from_percentage(&new_zoom_percentage, image_store);
             ctx.request_repaint_after(Duration::from_millis(slideshow.zoom_step_ms as u64));
         } else {
             ctx.request_repaint_after(Duration::from_secs(self.slideshow_config.seconds_per_image));
@@ -645,6 +658,7 @@ impl ImageView {
         ctx: &egui::Context,
         flattened: bool,
         watcher_enabled: bool,
+        image_store: &mut ImageStore,
     ) {
         egui::TopBottomPanel::bottom("image_view_bottom_bar")
             .show_separator_line(false)
@@ -658,7 +672,7 @@ impl ImageView {
                     if response.lost_focus()
                         && response.ctx.input(|i| i.key_pressed(egui::Key::Enter))
                     {
-                        self.jump_to_image(ctx);
+                        self.jump_to_image(image_store);
                     }
 
                     ui.add_sized(
@@ -682,7 +696,7 @@ impl ImageView {
                         ui.label("Maximizing");
                     }
 
-                    let mut label = egui::Label::new(self.get_active_img_name());
+                    let mut label = egui::Label::new(self.get_active_img_name(image_store));
                     label = label.truncate();
                     ui.add_sized(
                         Vec2::new(ui.available_width() - 245., ui.available_height()),
@@ -725,7 +739,10 @@ impl ImageView {
 
                                     for percentage in PERCENTAGES {
                                         if ui.button(format!("{percentage:.0}%")).clicked() {
-                                            self.set_zoom_factor_from_percentage(percentage);
+                                            self.set_zoom_factor_from_percentage(
+                                                percentage,
+                                                image_store,
+                                            );
                                             ui.close();
                                         }
                                     }

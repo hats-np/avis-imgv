@@ -1,19 +1,19 @@
+use crate::WORKER_MESSAGE_MEMORY_KEY;
+use crate::db::DbRepository;
 use crate::filters::Filters;
+use crate::image_store::ImageStore;
 use crate::worker::Worker;
-use crate::{FRAME_MEMORY_KEY, TWO_DIM_TEXTURE_LIMIT_MEMORY_KEY, WORKER_MESSAGE_MEMORY_KEY};
 use crate::{
     VALID_EXTENSIONS,
     callback::Callback,
     config::{Config, GeneralConfig},
     crawler,
-    db::Db,
     grid_view::GridView,
     image_view::ImageView,
     navigator,
     perf_metrics::PerfMetrics,
     tree, utils,
 };
-use eframe::Frame;
 use eframe::egui::{self, Id, KeyboardShortcut, RichText, ViewportCommand};
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
 use notify::FsEventWatcher;
@@ -51,6 +51,8 @@ pub struct App {
     side_panel_visible: bool,
     worker: Arc<Worker>,
     fullscreen: bool,
+    image_store: ImageStore,
+    thumbnail_store: ImageStore,
 }
 
 impl App {
@@ -75,12 +77,13 @@ impl App {
 
         img_paths.sort();
 
-        let worker = Worker::new(cc.egui_ctx.clone());
+        let mut db_repo = DbRepository::new();
+        let worker = Worker::new(cc.egui_ctx.clone(), &db_repo);
 
-        match Db::init_db() {
+        match db_repo.init_db() {
             Ok(_) => {
                 tracing::info!("Database initiated successfully");
-                match Db::trim_db(&cfg.general.limit_cached) {
+                match db_repo.trim_db(&cfg.general.limit_cached) {
                     Ok(_) => worker.send_job(crate::worker::Job::CacheMetadataForImages(
                         img_paths.clone(),
                     )),
@@ -94,29 +97,40 @@ impl App {
             }
         };
 
-        cc.egui_ctx.memory_mut(|mem| {
-            if let Some(wgpu_render_state) = cc.wgpu_render_state.clone() {
-                mem.data.insert_temp(
-                    Id::new(TWO_DIM_TEXTURE_LIMIT_MEMORY_KEY),
-                    wgpu_render_state.adapter.limits().max_texture_dimension_2d,
-                );
-            }
-        });
+        let render_state = match cc.wgpu_render_state.clone() {
+            Some(rs) => rs,
+            None => panic!("Failure fetching render state at startup. Startup cannot proceed"),
+        };
+
+        let max_texture_size = render_state.adapter.limits().max_texture_dimension_2d;
 
         let base_path = Self::get_base_path(&img_paths, &opened_img_path);
         let worker = Arc::new(worker);
+        let mut image_store = ImageStore::new(
+            cfg.general.output_icc_profile.to_owned(),
+            max_texture_size,
+            &render_state,
+            &db_repo,
+            cfg.general.simultaneous_load,
+        );
+        let thumbnail_store = ImageStore::new(
+            cfg.general.output_icc_profile.to_owned(),
+            max_texture_size,
+            &render_state,
+            &db_repo,
+            cfg.general.simultaneous_load,
+        );
         Self {
             gallery: ImageView::new(
                 &img_paths,
                 &opened_img_path,
                 cfg.image_view,
-                &cfg.general.output_icc_profile,
-                &cc.egui_ctx,
                 slideshow,
                 cfg.slideshow,
+                &mut image_store,
             ),
             gallery_selected_index: None,
-            grid_view: GridView::new(&img_paths, cfg.grid_view, &cfg.general.output_icc_profile),
+            grid_view: GridView::new(&img_paths, cfg.grid_view),
             perf_metrics_visible: false,
             grid_view_visible: false,
             top_menu_visible: false,
@@ -127,8 +141,15 @@ impl App {
             navigator_visible: false,
             navigator_search: base_path.to_str().unwrap_or_default().to_string(),
             perf_metrics: PerfMetrics::new(),
+            image_store,
+            thumbnail_store,
             config: cfg.general,
-            filters: Filters::new(cfg.filter, base_path.to_str().unwrap_or(""), worker.clone()),
+            filters: Filters::new(
+                cfg.filter,
+                base_path.to_str().unwrap_or(""),
+                worker.clone(),
+                &db_repo,
+            ),
             paths: img_paths,
             watcher: None,
             watcher_events: Arc::new(Mutex::new(vec![])),
@@ -182,7 +203,7 @@ impl App {
             }
 
             if i.consume_shortcut(&self.config.sc_flatten_dir.kbd_shortcut) {
-                self.flatten_open_dir(ctx);
+                self.flatten_open_dir();
             }
 
             if i.consume_shortcut(&self.config.sc_toggle_gallery.kbd_shortcut) {
@@ -235,25 +256,15 @@ impl App {
         }
     }
 
-    fn set_wgpu_render_state_in_memory(&self, ctx: &egui::Context, frame: &Frame) {
-        //This is fast but there may be a better way.
-        ctx.memory_mut(|mem| {
-            if let Some(wgpu_render_state) = frame.wgpu_render_state() {
-                mem.data
-                    .insert_temp(Id::new(FRAME_MEMORY_KEY), wgpu_render_state.clone());
-            }
-        });
-    }
-
-    fn folder_picker(&mut self, ctx: &egui::Context) {
+    fn folder_picker(&mut self) {
         let folder = self.get_file_dialog().pick_folder();
 
         if let Some(folder) = folder {
-            self.set_images_from_path(&folder, &None, ctx)
+            self.set_images_from_path(&folder, &None)
         }
     }
 
-    fn files_picker(&mut self, ctx: &egui::Context) {
+    fn files_picker(&mut self) {
         let files = self
             .get_file_dialog()
             .add_filter("image", VALID_EXTENSIONS)
@@ -266,7 +277,7 @@ impl App {
         if let Some(files) = files
             && let Some(parent) = &files[0].parent()
         {
-            self.set_images_from_path(parent, &Some(files[0].clone()), ctx)
+            self.set_images_from_path(parent, &Some(files[0].clone()))
         }
     }
 
@@ -283,42 +294,29 @@ impl App {
     }
 
     //Will crawl, assumes new directory
-    fn set_images_from_path(
-        &mut self,
-        path: &Path,
-        selected_img: &Option<PathBuf>,
-        ctx: &egui::Context,
-    ) {
+    fn set_images_from_path(&mut self, path: &Path, selected_img: &Option<PathBuf>) {
         self.paths = crawler::crawl(path, self.dir_flattened);
-        self.set_images(selected_img, true, ctx);
+        self.set_images(selected_img, true);
     }
 
-    fn set_images_from_paths(&mut self, paths: Vec<PathBuf>, ctx: &egui::Context) {
+    fn set_images_from_paths(&mut self, paths: Vec<PathBuf>) {
         self.paths = paths;
-        self.set_images(&None, true, ctx);
+        self.set_images(&None, true);
     }
 
-    fn set_images(
-        &mut self,
-        selected_img: &Option<PathBuf>,
-        new_dir_opened: bool,
-        ctx: &egui::Context,
-    ) {
+    fn set_images(&mut self, selected_img: &Option<PathBuf>, new_dir_opened: bool) {
         self.worker
             .send_job(crate::worker::Job::CacheMetadataForImages(
                 self.paths.clone(),
             ));
-        self.load_images(selected_img, new_dir_opened, ctx);
+        self.load_images(selected_img, new_dir_opened);
     }
 
-    fn load_images(
-        &mut self,
-        selected_img: &Option<PathBuf>,
-        new_dir_opened: bool,
-        ctx: &egui::Context,
-    ) {
-        self.gallery.set_images(&self.paths, selected_img, ctx);
-        self.grid_view.set_images(&self.paths);
+    fn load_images(&mut self, selected_img: &Option<PathBuf>, new_dir_opened: bool) {
+        self.gallery
+            .set_images(&self.paths, selected_img, &mut self.image_store);
+        self.grid_view
+            .set_images(&self.paths, &mut self.thumbnail_store);
 
         if new_dir_opened {
             self.base_path = Self::get_base_path(&self.paths, &None);
@@ -363,7 +361,7 @@ impl App {
         self.watcher = Some(watcher);
     }
 
-    fn process_file_watcher_events(&mut self, ctx: &egui::Context) {
+    fn process_file_watcher_events(&mut self) {
         //Ignore when we can't lock the mutex, it'll try next frame anyway
         if let Ok(mut events) = self.watcher_events.clone().try_lock() {
             if events.is_empty() {
@@ -385,7 +383,7 @@ impl App {
 
                 if event.kind.is_modify() {
                     if self.paths.contains(first) {
-                        self.reload_galleries_image(Some(first.clone()), ctx);
+                        self.reload_galleries_image(Some(first.clone()));
                     } else {
                         self.paths.push(first.clone());
                         selected_img_path = Some(first.clone());
@@ -399,14 +397,14 @@ impl App {
             }
 
             if should_reload {
-                self.set_images(&selected_img_path, false, ctx);
+                self.set_images(&selected_img_path, false);
             }
 
             events.clear();
         }
     }
 
-    fn flatten_open_dir(&mut self, ctx: &egui::Context) {
+    fn flatten_open_dir(&mut self) {
         if self.dir_flattened {
             tracing::info!("Returning to original directory");
             self.dir_flattened = false;
@@ -417,7 +415,7 @@ impl App {
                 self.enable_watcher();
             }
 
-            self.set_images_from_path(&self.base_path.clone(), &None, ctx);
+            self.set_images_from_path(&self.base_path.clone(), &None);
         } else {
             tracing::info!("Flattening open directory: {:?}", &self.base_path);
             self.dir_flattened = true;
@@ -428,58 +426,55 @@ impl App {
                 self.enable_watcher();
             }
 
-            self.set_images_from_path(
-                &self.base_path.clone(),
-                &self.gallery.get_active_img_path(),
-                ctx,
-            );
+            self.set_images_from_path(&self.base_path.clone(), &self.gallery.get_active_img_path());
         }
     }
 
     //Some callbacks affect both collections so it's important
     //to deal them in the base of the app
-    fn execute_callback(&mut self, callback: Callback, ctx: &egui::Context) {
+    fn execute_callback(&mut self, callback: Callback) {
         tracing::info!("Executing callback with {callback:?}");
         match callback {
-            Callback::Pop(path) => self.callback_pop(path, ctx),
-            Callback::Reload(path) => self.reload_galleries_image(path, ctx),
-            Callback::ReloadAll => self.callback_reload_all(ctx),
-            Callback::Advance => self.callback_advance(ctx),
+            Callback::Pop(path) => self.callback_pop(path),
+            Callback::Reload(path) => self.reload_galleries_image(path),
+            Callback::ReloadAll => self.callback_reload_all(),
+            Callback::Advance => self.callback_advance(),
             Callback::NoAction => {}
         }
     }
 
-    fn callback_pop(&mut self, path: Option<PathBuf>, ctx: &egui::Context) {
+    fn callback_pop(&mut self, path: Option<PathBuf>) {
         if let Some(path) = path {
-            self.gallery.pop(&path, ctx);
+            self.gallery.pop(&path, &mut self.image_store);
             self.grid_view.pop(&path);
         }
     }
 
-    fn callback_advance(&mut self, ctx: &egui::Context) {
-        self.gallery.next_image(ctx);
+    fn callback_advance(&mut self) {
+        self.gallery.next_image(&mut self.image_store);
     }
 
-    fn reload_galleries_image(&mut self, path: Option<PathBuf>, ctx: &egui::Context) {
+    fn reload_galleries_image(&mut self, path: Option<PathBuf>) {
         if let Some(path) = path {
-            self.gallery.reload_at(&path, ctx);
-            self.grid_view.reload_at(&path);
+            self.gallery.reload_at(&path, &mut self.image_store);
+            self.grid_view.reload_at(&path, &mut self.thumbnail_store);
         }
     }
 
-    fn callback_reload_all(&mut self, ctx: &egui::Context) {
-        self.set_images_from_path(
-            &self.base_path.clone(),
-            &self.gallery.get_active_img_path(),
-            ctx,
-        );
+    fn callback_reload_all(&mut self) {
+        self.set_images_from_path(&self.base_path.clone(), &self.gallery.get_active_img_path());
+    }
+
+    fn execute_img_store_routines(&mut self) {
+        self.image_store.update();
+        self.thumbnail_store.update();
     }
 }
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.perf_metrics.new_frame();
-        self.set_wgpu_render_state_in_memory(ctx, _frame);
+        self.execute_img_store_routines();
         self.handle_input_muters(ctx);
         self.handle_input(ctx);
 
@@ -495,12 +490,12 @@ impl eframe::App for App {
             .show_animated(ctx, self.top_menu_visible, |ui| {
                 ui.menu_button("File", |ui| {
                     if ui.button("Open Folder").clicked() {
-                        self.folder_picker(ctx);
+                        self.folder_picker();
                         ui.close();
                     }
 
                     if ui.button("Open Files").clicked() {
-                        self.files_picker(ctx);
+                        self.files_picker();
                         ui.close();
                     }
                 });
@@ -513,7 +508,7 @@ impl eframe::App for App {
             .show_animated(ctx, self.side_panel_visible, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     if let Some(filtered_paths) = self.filters.ui(ui) {
-                        self.set_images_from_paths(filtered_paths, ctx);
+                        self.set_images_from_paths(filtered_paths);
                     }
                     ui.add_space(20.);
                     ui.separator();
@@ -521,7 +516,7 @@ impl eframe::App for App {
                     ui.label(RichText::new("Image Metadata").heading());
                     ui.add_space(10.);
                     if let Some(selected_img) = self.gallery.get_active_img_mut() {
-                        selected_img.metadata_ui(ui, &self.config.metadata_tags);
+                        selected_img.metadata_ui(ui, &self.config.metadata_tags, &self.image_store);
                     }
                 });
 
@@ -549,7 +544,7 @@ impl eframe::App for App {
         if self.navigator_visible && navigator::ui(&mut self.navigator_search, ctx) {
             self.navigator_visible = false;
             utils::set_mute_state(ctx, false);
-            self.set_images_from_path(&PathBuf::from(self.navigator_search.clone()), &None, ctx);
+            self.set_images_from_path(&PathBuf::from(self.navigator_search.clone()), &None);
         }
 
         if self.dir_tree_visible
@@ -558,26 +553,34 @@ impl eframe::App for App {
         {
             self.dir_tree_visible = false;
             utils::set_mute_state(ctx, false);
-            self.set_images_from_path(&path, &None, ctx);
+            self.set_images_from_path(&path, &None);
         }
 
         if self.grid_view_visible {
-            self.grid_view.ui(ctx, &mut self.gallery_selected_index);
+            self.grid_view.ui(
+                ctx,
+                &mut self.gallery_selected_index,
+                &mut self.thumbnail_store,
+            );
 
             if let Some(img_name) = self.grid_view.selected_image_name() {
-                self.gallery.select_by_name(img_name, ctx);
+                self.gallery.select_by_name(img_name, &mut self.image_store);
                 self.grid_view_visible = false;
             }
 
             if let Some(callback) = self.grid_view.take_callback() {
-                self.execute_callback(callback, ctx);
+                self.execute_callback(callback);
             }
         } else {
-            self.gallery
-                .ui(ctx, self.dir_flattened, self.watcher.is_some());
+            self.gallery.ui(
+                ctx,
+                self.dir_flattened,
+                self.watcher.is_some(),
+                &mut self.image_store,
+            );
 
             if let Some(callback) = self.gallery.take_callback() {
-                self.execute_callback(callback, ctx);
+                self.execute_callback(callback);
             }
         }
 
@@ -585,7 +588,7 @@ impl eframe::App for App {
             ctx.request_repaint();
         }
 
-        self.process_file_watcher_events(ctx);
+        self.process_file_watcher_events();
 
         self.perf_metrics.end_frame();
     }

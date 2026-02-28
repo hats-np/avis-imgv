@@ -1,9 +1,18 @@
 # Change Log
 
+## 2026-02-28
+
+- BREAKING: `simultaneous_load` config is now part of general_config and applies to both image stores(full_size, thumbnail) separately.
+- Improved architecture and fixed some rare deadlocks when loading extremely high number of images at once. Now we use a centralized store for loading and unloading images from/to the GPU.
+- Small bugfixes.
+- RAW files are now supported through thumbnail extraction with `exiftool`.
+- Allow displaying more than one image side by side in Image View
+- Added stance on AI code in README.
+
 ## 2025-07-06
 
 - BREAKING: Improved database operations and storage footprint by using JSONB column type
-    - You will need to delete your old database. A new cli argument has been added to recursively scan a directory
+  - You will need to delete your old database. A new cli argument has been added to recursively scan a directory
       `avis-imgv --import <path>`
 - Added a new panel to replace the old metadata one. This new panel allows you to filter and sort by exif tags and also
   displays the image metadata.

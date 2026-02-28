@@ -6,19 +6,40 @@ use std::{
     vec,
 };
 
-use rusqlite::{Connection, Result};
+use r2d2::{Pool, PooledConnection};
+use r2d2_sqlite::SqliteConnectionManager;
+use rusqlite::Result;
 
 use crate::{APPLICATION, ORGANIZATION, QUALIFIER};
 
 pub const IN_CHUNKS: &usize = &500;
 
-pub struct Db {}
+#[derive(Clone)]
+pub struct DbRepository {
+    pool: Pool<SqliteConnectionManager>,
+}
 
-impl Db {
-    pub fn insert_files_metadata(data: Vec<(String, String)>) -> Result<(), Box<dyn Error>> {
-        let conn = Self::get_sqlite_conn()?;
+impl Default for DbRepository {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl DbRepository {
+    pub fn new() -> DbRepository {
+        let path = Self::get_db_path().expect("Failure determining database path");
+        let manager = SqliteConnectionManager::file(path);
+        let pool = r2d2::Pool::new(manager).unwrap();
+        DbRepository { pool }
+    }
+
+    pub fn insert_files_metadata(
+        &mut self,
+        data: Vec<(String, String)>,
+    ) -> Result<(), Box<dyn Error>> {
+        let conn = self.get_sqlite_conn()?;
         let now = Instant::now();
-        conn.execute("begin transaction;", ())?;
+        conn.execute("begin immediate transaction;", ())?;
 
         let mut q = String::from("insert into file (path, metadata) values ");
 
@@ -41,9 +62,12 @@ impl Db {
         Ok(())
     }
 
-    pub fn get_cached_images_by_paths(paths: &[String]) -> Result<Vec<String>, Box<dyn Error>> {
+    pub fn get_cached_images_by_paths(
+        &mut self,
+        paths: &[String],
+    ) -> Result<Vec<String>, Box<dyn Error>> {
         let mut existing_files: Vec<String> = vec![];
-        let conn = Self::get_sqlite_conn()?;
+        let conn = self.get_sqlite_conn()?;
 
         //safeguard lest we go over the limit. Although unlikely since metadata processing is done in chunks too.
         let chunks: Vec<&[String]> = paths.chunks(*IN_CHUNKS).collect();
@@ -64,8 +88,8 @@ impl Db {
         Ok(existing_files)
     }
 
-    pub fn get_image_metadata(path: &str) -> Result<Option<String>, Box<dyn Error>> {
-        let conn = Self::get_sqlite_conn()?;
+    pub fn get_image_metadata(&mut self, path: &str) -> Result<Option<String>, Box<dyn Error>> {
+        let conn = self.get_sqlite_conn()?;
         let mut q = conn.prepare("select json(metadata) from file where path = ?1")?;
         match q.query_row([path], |row| {
             let value: String = row.get(0)?;
@@ -77,8 +101,8 @@ impl Db {
         }
     }
 
-    pub fn init_db() -> Result<(), Box<dyn Error>> {
-        let conn = Self::get_sqlite_conn()?;
+    pub fn init_db(&mut self) -> Result<(), Box<dyn Error>> {
+        let conn = self.get_sqlite_conn()?;
 
         let stms = vec![
             "create table if not exists file (
@@ -92,14 +116,12 @@ impl Db {
             conn.execute(stm, ())?;
         }
 
-        conn.pragma_update(None, "journal_mode", "WAL")?;
-
         Ok(())
     }
 
-    pub fn trim_db(limit: &u32) -> Result<(), Box<dyn Error>> {
+    pub fn trim_db(&mut self, limit: &u32) -> Result<(), Box<dyn Error>> {
         tracing::info!("Trimming database, leaving {limit} records");
-        let conn = Self::get_sqlite_conn()?;
+        let conn = self.get_sqlite_conn()?;
 
         let q = format!(
             "delete from file where path not in (select path from file order by ts desc limit {limit})"
@@ -110,11 +132,16 @@ impl Db {
         Ok(())
     }
 
-    pub fn get_sqlite_conn() -> Result<Connection, Box<dyn Error>> {
-        //Maybe inefficient to compute this path every time?
-        let path = Self::get_db_path()?;
+    pub fn get_sqlite_conn(
+        &mut self,
+    ) -> Result<PooledConnection<SqliteConnectionManager>, Box<dyn Error>> {
+        let conn = self.pool.get()?;
 
-        let conn = Connection::open(path)?;
+        conn.execute_batch(
+            "PRAGMA journal_mode = WAL;
+                  PRAGMA synchronous = NORMAL;
+        ",
+        )?;
         Ok(conn)
     }
 
@@ -134,6 +161,7 @@ impl Db {
     }
 
     pub fn get_paths_filtered_by_metadata(
+        &mut self,
         exif_tags: &[(String, String, SqlOperator)],
         order_tag: &str,
         order_direction: &SqlOrder,
@@ -161,7 +189,7 @@ impl Db {
             );
         }
 
-        let conn = Self::get_sqlite_conn()?;
+        let conn = self.get_sqlite_conn()?;
         let mut q = conn.prepare(&query)?;
         let paths = q
             .query_map([], |row| row.get::<_, String>(0))?
@@ -172,12 +200,15 @@ impl Db {
         Ok(paths)
     }
 
-    pub fn get_distinct_values_for_exif_tag(exif_tag: &str) -> Result<Vec<String>, Box<dyn Error>> {
+    pub fn get_distinct_values_for_exif_tag(
+        &mut self,
+        exif_tag: &str,
+    ) -> Result<Vec<String>, Box<dyn Error>> {
         let query = format!(
             "select distinct(json_extract(metadata,'$.{exif_tag}')) as dist from file where dist is not null"
         );
 
-        let conn = Self::get_sqlite_conn()?;
+        let conn = self.get_sqlite_conn()?;
         let mut q = conn.prepare(&query)?;
 
         let distinct_values = q
@@ -188,10 +219,10 @@ impl Db {
         Ok(distinct_values)
     }
 
-    pub fn get_unique_exif_tags() -> Result<Vec<String>, Box<dyn Error>> {
+    pub fn get_unique_exif_tags(&mut self) -> Result<Vec<String>, Box<dyn Error>> {
         let query = "SELECT DISTINCT key FROM file, json_each(metadata) ORDER BY key ASC";
 
-        let conn = Self::get_sqlite_conn()?;
+        let conn = self.get_sqlite_conn()?;
         let mut q = conn.prepare(query)?;
 
         let unique_tags = q
@@ -202,8 +233,8 @@ impl Db {
         Ok(unique_tags)
     }
 
-    pub fn get_img_count() -> Result<u32, Box<dyn Error>> {
-        let conn = Self::get_sqlite_conn()?;
+    pub fn get_img_count(&mut self) -> Result<u32, Box<dyn Error>> {
+        let conn = self.get_sqlite_conn()?;
         let mut q = conn.prepare("select count(-1) as count from file")?;
 
         Ok(q.query_one([], |row| {
@@ -212,14 +243,17 @@ impl Db {
         })?)
     }
 
-    pub fn delete_file_by_path(path: &Path) -> Result<(), Box<dyn Error>> {
-        let conn = Self::get_sqlite_conn()?;
+    pub fn delete_file_by_path(&mut self, path: &Path) -> Result<(), Box<dyn Error>> {
+        let conn = self.get_sqlite_conn()?;
         conn.execute("delete from file where path = ?1", [path.to_str()])?;
         Ok(())
     }
 
-    pub fn delete_files_by_paths<T: AsRef<Path>>(paths: &[T]) -> Result<(), Box<dyn Error>> {
-        let conn = Self::get_sqlite_conn()?;
+    pub fn delete_files_by_paths<T: AsRef<Path>>(
+        &mut self,
+        paths: &[T],
+    ) -> Result<(), Box<dyn Error>> {
+        let conn = self.get_sqlite_conn()?;
 
         let string_vec: Vec<String> = paths
             .iter()
@@ -237,10 +271,10 @@ impl Db {
         Ok(())
     }
 
-    pub fn get_all_file_paths() -> Result<Vec<String>, Box<dyn Error>> {
+    pub fn get_all_file_paths(&mut self) -> Result<Vec<String>, Box<dyn Error>> {
         let query = "SELECT path FROM file";
 
-        let conn = Self::get_sqlite_conn()?;
+        let conn = self.get_sqlite_conn()?;
         let mut q = conn.prepare(query)?;
 
         let paths = q

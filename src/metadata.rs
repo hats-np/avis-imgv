@@ -1,5 +1,5 @@
-use crate::db::{self, Db};
 use crate::RAW_EXTENSIONS;
+use crate::db::DbRepository;
 use itertools::Itertools;
 use regex::{self, Regex};
 use std::sync::mpsc;
@@ -48,7 +48,7 @@ impl Orientation {
 pub struct Metadata {}
 
 impl Metadata {
-    pub fn cache_metadata_for_images(image_paths: &[PathBuf]) {
+    pub fn cache_metadata_for_images(db_repo: &mut DbRepository, image_paths: &[PathBuf]) {
         let timer = Instant::now();
 
         let mut image_paths = image_paths
@@ -56,7 +56,7 @@ impl Metadata {
             .map(|p| p.to_string_lossy().to_string())
             .collect::<Vec<String>>();
 
-        let cached_paths = match db::Db::get_cached_images_by_paths(&image_paths) {
+        let cached_paths = match db_repo.get_cached_images_by_paths(&image_paths) {
             Ok(cached_paths) => cached_paths,
             Err(e) => {
                 tracing::error!(
@@ -132,7 +132,7 @@ impl Metadata {
             drop(tx);
 
             for output in rx {
-                Self::parse_exiftool_output(&output, single_image_path);
+                Self::parse_exiftool_output(db_repo, &output, single_image_path);
             }
 
             let chunk_elapsed_ms = chunk_timer.elapsed().as_millis();
@@ -166,7 +166,11 @@ impl Metadata {
         );
     }
 
-    pub fn parse_exiftool_output(output: &Output, path: Option<&String>) {
+    pub fn parse_exiftool_output(
+        db_repo: &mut DbRepository,
+        output: &Output,
+        path: Option<&String>,
+    ) {
         //only panics if regex is invalid, impossible to happen in tested builds
         let re = regex::Regex::new(r"========").unwrap();
 
@@ -192,7 +196,7 @@ impl Metadata {
             metadata_to_insert[0].0 = path.clone()
         }
 
-        match db::Db::insert_files_metadata(metadata_to_insert) {
+        match db_repo.insert_files_metadata(metadata_to_insert) {
             Ok(_) => {}
             Err(e) => {
                 tracing::error!("Failure inserting metadata into db -> {e}");
@@ -228,8 +232,11 @@ impl Metadata {
         Some((file_path.trim().to_string(), tags))
     }
 
-    pub fn get_image_metadata(path: &str) -> Option<HashMap<String, String>> {
-        match db::Db::get_image_metadata(path) {
+    pub fn get_image_metadata(
+        db_repo: &mut DbRepository,
+        path: &str,
+    ) -> Option<HashMap<String, String>> {
+        match db_repo.get_image_metadata(path) {
             Ok(opt) => {
                 if let Some(data) = opt {
                     return Some(serde_json::from_str(&data).unwrap_or_default());
@@ -331,11 +338,11 @@ impl Metadata {
         output
     }
 
-    pub fn clean_moved_files() {
+    pub fn clean_moved_files(db_repo: &mut DbRepository) {
         //This can be a bit heavy if the user has lots of files. We are talking in the millions
         //though... Highly unlikely. Even with 250k images it will use less than 100MB of ram
         //Either way, not a bad idea to do this in chunks eventually
-        let paths = match db::Db::get_all_file_paths() {
+        let paths = match db_repo.get_all_file_paths() {
             Ok(paths) => paths,
             Err(e) => {
                 tracing::error!("Failure fetching file paths from the database: {e}");
@@ -353,7 +360,7 @@ impl Metadata {
 
         tracing::info!("Found {} files to clean from the database", to_delete.len());
 
-        match db::Db::delete_files_by_paths(&to_delete) {
+        match db_repo.delete_files_by_paths(&to_delete) {
             Ok(()) => tracing::info!("Successfully cleaned moved/removed files from the database."),
             Err(e) => {
                 tracing::error!("Failure deleting moved files from the database: {e}");
@@ -361,7 +368,7 @@ impl Metadata {
         }
     }
 
-    pub fn clear_moved_files(paths: &[PathBuf]) -> usize {
+    pub fn clear_moved_files(db_repo: &mut DbRepository, paths: &[PathBuf]) -> usize {
         let mut paths_to_remove: Vec<PathBuf> = vec![];
 
         for path in paths.iter() {
@@ -370,7 +377,7 @@ impl Metadata {
             }
         }
 
-        if let Err(e) = Db::delete_files_by_paths(&paths_to_remove) {
+        if let Err(e) = db_repo.delete_files_by_paths(&paths_to_remove) {
             tracing::error!("Failure deleting nonexistant files from the database -> {e}");
         }
 

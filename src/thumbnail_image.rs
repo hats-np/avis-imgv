@@ -1,21 +1,17 @@
-use crate::image::Image;
+use crate::image_store::ImageStore;
 use eframe::egui::load::SizedTexture;
 use eframe::egui::{self, Color32, Response, UiBuilder, Vec2};
 use eframe::epaint::vec2;
 use std::path::PathBuf;
-use std::thread::JoinHandle;
 
 pub struct ThumbnailImage {
     pub path: PathBuf,
     pub name: String,
-    should_unload: bool,
-    image: Option<Image>,
-    load_image_handle: Option<JoinHandle<Option<Image>>>,
-    output_profile: String,
+    pub registered: bool,
 }
 
 impl ThumbnailImage {
-    pub fn from_paths(paths: &[PathBuf], output_profile: &String) -> Vec<Self> {
+    pub fn from_paths(paths: &[PathBuf]) -> Vec<Self> {
         paths
             .iter()
             .map(|p| Self {
@@ -25,10 +21,7 @@ impl ThumbnailImage {
                     .unwrap_or_default()
                     .to_string_lossy()
                     .to_string(),
-                image: None,
-                load_image_handle: None,
-                should_unload: false,
-                output_profile: output_profile.to_owned(),
+                registered: false,
             })
             .collect()
     }
@@ -37,15 +30,23 @@ impl ThumbnailImage {
         &mut self,
         ui: &mut egui::Ui,
         mut size: [f32; 2],
-        skip_loading: &mut bool,
+        image_store: &mut ImageStore,
     ) -> Option<Response> {
-        if !*skip_loading && self.image.is_none() {
-            self.finish_img_loading();
-            *skip_loading = true;
+        if !image_store.is_image_loaded(&self.path) {
+            Self::display_empty_image_frame(ui, size[1]);
+            return None;
         }
 
-        let image = match &mut self.image {
-            Some(image) => image,
+        let image_size = match image_store.get_image_size(&self.path) {
+            Some(size) => size,
+            None => {
+                Self::display_empty_image_frame(ui, size[1]);
+                return None;
+            }
+        };
+
+        let texture_id = match image_store.get_texture_id(&self.path) {
+            Some(texture_id) => texture_id,
             None => {
                 Self::display_empty_image_frame(ui, size[1]);
                 return None;
@@ -53,7 +54,7 @@ impl ThumbnailImage {
         };
 
         let prev_size = [size[0], size[1]];
-        let aspect_ratio = image.size.x / image.size.y;
+        let aspect_ratio = image_size.x / image_size.y;
 
         if aspect_ratio > 1. {
             size[1] /= aspect_ratio;
@@ -72,7 +73,7 @@ impl ThumbnailImage {
             ui.centered_and_justified(|ui| {
                 let img_response = ui
                     .add(
-                        egui::Image::new(SizedTexture::new(image.texture_id, image.size))
+                        egui::Image::new(SizedTexture::new(texture_id, image_size))
                             .fit_to_exact_size(vec2(size[0], size[1]))
                             .sense(egui::Sense::CLICK),
                     )
@@ -112,71 +113,5 @@ impl ThumbnailImage {
             egui::Stroke::new(1.0, Color32::from_rgb(48, 48, 48)),
             egui::StrokeKind::Outside, // Border thickness and color
         );
-    }
-
-    pub fn finish_img_loading(&mut self) {
-        if self.load_image_handle.is_none() {
-            return;
-        };
-
-        let lih = self.load_image_handle.take().unwrap();
-        if lih.is_finished() {
-            match lih.join() {
-                Ok(image) => self.image = image,
-                Err(_) => tracing::error!("Failure joining load image thread"),
-            }
-        } else {
-            self.load_image_handle = Some(lih);
-        }
-    }
-
-    pub fn load(&mut self, image_size: u32, ctx: &egui::Context) -> bool {
-        if self.load_image_handle.is_none() && self.image.is_none() {
-            tracing::info!("Loading image -> {}", self.path.display());
-            self.should_unload = false;
-            self.load_image_handle = Some(Image::load(
-                self.path.clone(),
-                Some(image_size),
-                self.output_profile.clone(),
-                ctx,
-            ));
-            true
-        } else {
-            false
-        }
-    }
-
-    ///If image is marked for unloading, unload it
-    pub fn unload_delayed(&mut self) {
-        if self.should_unload
-            && let Some(ih) = &mut self.load_image_handle
-                && ih.is_finished() {
-                    self.load_image_handle = None;
-                    self.image = None;
-                    self.should_unload = false;
-                }
-    }
-
-    ///If image is currently loading marks it for unload
-    ///If image is loaded, unloads it
-    pub fn unload(&mut self, image_nr: usize) {
-        if self.load_image_handle.is_some() {
-            self.should_unload = true;
-            tracing::info!(
-                "Marking Image Handle for delayed unload {} - {}",
-                image_nr,
-                self.name
-            );
-        } else {
-            self.image = None;
-            self.load_image_handle = None;
-        }
-    }
-
-    pub fn is_loading(&self) -> bool {
-        match &self.load_image_handle {
-            Some(lih) => !lih.is_finished(),
-            None => false,
-        }
     }
 }

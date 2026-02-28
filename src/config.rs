@@ -1,4 +1,4 @@
-use crate::{callback::Callback, utils, APPLICATION, ORGANIZATION, QUALIFIER};
+use crate::{APPLICATION, ORGANIZATION, QUALIFIER, callback::Callback, utils};
 use eframe::egui::{Key, KeyboardShortcut, Modifiers};
 use serde::{Deserialize, Serialize};
 use std::{fs, io::ErrorKind, path::PathBuf, vec};
@@ -28,6 +28,8 @@ pub struct GeneralConfig {
     pub text_scaling: f32,
     #[serde(default = "default_metadata_tags")]
     pub metadata_tags: Vec<String>,
+    #[serde(default = "default_simultaneous_load")]
+    pub simultaneous_load: usize,
 
     #[serde(default = "default_sc_toggle_gallery")]
     pub sc_toggle_gallery: Shortcut,
@@ -98,8 +100,6 @@ pub struct GridViewConfig {
     pub images_per_row: usize,
     #[serde(default = "default_preloaded_rows")]
     pub preloaded_rows: usize,
-    #[serde(default = "default_simultaneous_load")]
-    pub simultaneous_load: usize,
     #[serde(default = "default_ctx_menu")]
     pub context_menu: Vec<ContextMenuEntry>,
 
@@ -183,6 +183,7 @@ impl Default for GeneralConfig {
             output_icc_profile: default_output_icc_profile(),
             text_scaling: default_text_scaling(),
             metadata_tags: default_metadata_tags(),
+            simultaneous_load: default_simultaneous_load(),
             sc_toggle_gallery: default_sc_toggle_gallery(),
             sc_toggle_side_panel: default_sc_toggle_side_panel(),
             sc_exit: default_sc_exit(),
@@ -228,7 +229,6 @@ impl Default for GridViewConfig {
         GridViewConfig {
             images_per_row: default_images_per_row(),
             preloaded_rows: default_preloaded_rows(),
-            simultaneous_load: default_simultaneous_load(),
             context_menu: default_ctx_menu(),
 
             sc_scroll: default_sc_scroll(),

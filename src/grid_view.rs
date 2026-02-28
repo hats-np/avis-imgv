@@ -1,9 +1,9 @@
 use crate::{
-    callback::Callback, config::GridViewConfig, thumbnail_image::ThumbnailImage,
-    user_action::show_context_menu, utils,
+    callback::Callback, config::GridViewConfig, image_store::ImageStore,
+    thumbnail_image::ThumbnailImage, user_action::show_context_menu, utils,
 };
 use eframe::{
-    egui::{self, scroll_area::ScrollSource, Ui},
+    egui::{self, Ui, scroll_area::ScrollSource},
     epaint::Vec2,
 };
 use std::path::{Path, PathBuf};
@@ -11,7 +11,6 @@ use std::path::{Path, PathBuf};
 pub struct GridView {
     imgs: Vec<ThumbnailImage>,
     config: GridViewConfig,
-    output_profile: String,
     selected_image_name: Option<String>,
     prev_img_size: f32,
     prev_scroll_offset: f32,
@@ -24,12 +23,8 @@ pub struct GridView {
 }
 
 impl GridView {
-    pub fn new(
-        image_paths: &[PathBuf],
-        config: GridViewConfig,
-        output_profile: &String,
-    ) -> GridView {
-        let imgs = ThumbnailImage::from_paths(image_paths, output_profile);
+    pub fn new(image_paths: &[PathBuf], config: GridViewConfig) -> GridView {
+        let imgs = ThumbnailImage::from_paths(image_paths);
         let mut mg = GridView {
             total_rows: 0,
             imgs,
@@ -40,7 +35,6 @@ impl GridView {
             prev_img_size: 0.,
             prev_scroll_offset: 0.,
             prev_row_range_start: 0,
-            output_profile: output_profile.to_owned(),
             reset_scroll: false,
             callback: None,
         };
@@ -50,21 +44,27 @@ impl GridView {
         mg
     }
 
-    pub fn set_images(&mut self, img_paths: &[PathBuf]) {
-        self.imgs = ThumbnailImage::from_paths(img_paths, &self.output_profile);
+    pub fn set_images(&mut self, img_paths: &[PathBuf], image_store: &mut ImageStore) {
+        for img in self.imgs.iter().filter(|x| x.registered) {
+            image_store.deregister_img(&img.path);
+        }
+        self.imgs = ThumbnailImage::from_paths(img_paths);
         self.reset_scroll = true;
         self.set_total_rows();
     }
 
-    pub fn ui(&mut self, ctx: &egui::Context, jump_to_index: &mut Option<usize>) {
-        let mut loaded_img_this_frame = false;
+    pub fn ui(
+        &mut self,
+        ctx: &egui::Context,
+        jump_to_index: &mut Option<usize>,
+        image_store: &mut ImageStore,
+    ) {
         self.handle_input(ctx);
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.spacing_mut().item_spacing = Vec2::new(0., 0.);
             ui.set_min_width(ui.available_width());
 
-            let mut loading_imgs = self.imgs.iter().filter(|i| i.is_loading()).count();
             let mut img_size = ui.available_width() / self.images_per_row as f32;
             let prev_img_size = img_size;
 
@@ -130,9 +130,8 @@ impl GridView {
                                 i,
                                 row_range.start,
                                 row_range.end,
-                                &mut loading_imgs,
                                 img_size,
-                                ctx,
+                                image_store,
                             );
                         }
                     }
@@ -144,9 +143,8 @@ impl GridView {
                                 i,
                                 preload_from,
                                 preload_to,
-                                &mut loading_imgs,
                                 img_size,
-                                ctx,
+                                image_store,
                             );
                         }
                     }
@@ -158,9 +156,8 @@ impl GridView {
                                 i,
                                 preload_from,
                                 preload_to,
-                                &mut loading_imgs,
                                 img_size,
-                                ctx,
+                                image_store,
                             );
                         }
                     }
@@ -171,13 +168,7 @@ impl GridView {
                             ui.add_space(remainder / 2.0);
 
                             for j in r * self.images_per_row..(r + 1) * self.images_per_row {
-                                self.show_image_at(
-                                    ui,
-                                    ctx,
-                                    j,
-                                    img_size,
-                                    &mut loaded_img_this_frame,
-                                );
+                                self.show_image_at(ui, ctx, j, img_size, image_store);
                             }
                         });
                     }
@@ -202,9 +193,8 @@ impl GridView {
         i: usize,
         preload_from: usize,
         preload_to: usize,
-        loading_imgs: &mut usize,
         image_size: f32,
-        ctx: &egui::Context,
+        image_store: &mut ImageStore,
     ) {
         let img = &mut match self.imgs.get_mut(i) {
             Some(img) => img,
@@ -212,16 +202,15 @@ impl GridView {
         };
 
         if i >= preload_from * self.images_per_row && i <= preload_to * self.images_per_row {
-            if loading_imgs != &self.config.simultaneous_load {
-                //Double the square size so we have a little downscale going on
-                //Looks better than without and won't impact speed much. Possibly add as a config
-                if img.load((image_size * 2.) as u32, ctx) {
-                    *loading_imgs += 1;
-                }
+            //Double the square size so we have a little downscale going on
+            //Looks better than without and won't impact speed much. Possibly add as a config
+            if !img.registered {
+                image_store.register_img(&img.path, Some((image_size * 2.) as u32));
+                img.registered = true;
             }
         } else {
-            img.unload_delayed();
-            img.unload(i);
+            image_store.deregister_img(&img.path);
+            img.registered = false;
         }
     }
 
@@ -231,14 +220,14 @@ impl GridView {
         ctx: &egui::Context,
         index: usize,
         max_size: f32,
-        loaded_img_this_frame: &mut bool,
+        image_store: &mut ImageStore,
     ) {
         let image = match self.imgs.get_mut(index) {
             Some(img) => img,
             None => return,
         };
 
-        if let Some(resp) = image.ui(ui, [max_size, max_size], loaded_img_this_frame) {
+        if let Some(resp) = image.ui(ui, [max_size, max_size], image_store) {
             if resp.clicked() {
                 self.selected_image_name = Some(image.name.clone());
             }
@@ -302,11 +291,11 @@ impl GridView {
         self.callback.take()
     }
 
-    pub fn reload_at(&mut self, path: &Path) {
+    pub fn reload_at(&mut self, path: &Path, image_store: &mut ImageStore) {
         if let Some(pos) = self.imgs.iter().position(|x| x.path == path)
-            && let Some(img) = self.imgs.get_mut(pos) {
-                img.unload_delayed();
-                img.unload(pos);
-            }
+            && let Some(img) = self.imgs.get_mut(pos)
+        {
+            image_store.reload(&img.path, Some((self.prev_img_size * 2.) as u32));
+        }
     }
 }

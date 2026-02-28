@@ -1,7 +1,7 @@
 use crate::config::FilterConfig;
-use crate::db::{Db, SqlOperator, SqlOrder};
+use crate::db::{DbRepository, SqlOperator, SqlOrder};
 use crate::dropdown::DropDownBox;
-use crate::metadata::{Metadata, METADATA_DATE, METADATA_DIRECTORY};
+use crate::metadata::{METADATA_DATE, METADATA_DIRECTORY, Metadata};
 use crate::worker::Worker;
 use eframe::egui;
 use eframe::egui::{Align, Id, Layout};
@@ -21,6 +21,7 @@ pub struct Filters {
     unique_exif_tags_job: Option<JoinHandle<Option<Vec<String>>>>,
     worker: Arc<Worker>,
     group_raw_jpeg: bool,
+    db_repo: DbRepository,
 }
 
 pub struct FilterField {
@@ -33,7 +34,7 @@ pub struct FilterField {
 }
 
 impl FilterField {
-    pub fn new(name: &str, default_value: &str) -> FilterField {
+    pub fn new(name: &str, default_value: &str, db_repo: &DbRepository) -> FilterField {
         let mut ff = FilterField {
             id: Id::new(Uuid::new_v4()),
             name: name.to_string(),
@@ -44,8 +45,9 @@ impl FilterField {
         };
 
         let name = ff.name.to_string();
+        let mut repo = db_repo.clone();
         ff.default_values_job = Some(thread::spawn(move || {
-            Db::get_distinct_values_for_exif_tag(&name).ok()
+            repo.get_distinct_values_for_exif_tag(&name).ok()
         }));
 
         ff
@@ -73,13 +75,26 @@ pub struct OrderField {
 }
 
 impl Filters {
-    pub fn new(filter_config: FilterConfig, opened_path: &str, worker: Arc<Worker>) -> Filters {
+    pub fn new(
+        filter_config: FilterConfig,
+        opened_path: &str,
+        worker: Arc<Worker>,
+        db_repo: &DbRepository,
+    ) -> Filters {
+        let mut job_repo = db_repo.clone();
+        let imgs_in_db_job = Some(thread::spawn(move || job_repo.get_img_count().ok()));
+
+        job_repo = db_repo.clone();
+        let unique_exif_tags_job =
+            Some(thread::spawn(move || job_repo.get_unique_exif_tags().ok()));
+
         let mut ffs: Vec<FilterField> = filter_config
             .exif_tags
             .iter()
-            .map(|x| FilterField::new(&x.name, ""))
+            .map(|x| FilterField::new(&x.name, "", db_repo))
             .collect();
-        ffs.push(FilterField::new(METADATA_DIRECTORY, opened_path));
+        ffs.push(FilterField::new(METADATA_DIRECTORY, opened_path, db_repo));
+
         Filters {
             filter_fields: ffs,
             order_field: OrderField {
@@ -87,13 +102,14 @@ impl Filters {
                 order: SqlOrder::Desc,
             },
             imgs_in_db: 0,
-            imgs_in_db_job: Some(thread::spawn(move || Db::get_img_count().ok())),
-            unique_exif_tags_job: Some(thread::spawn(move || Db::get_unique_exif_tags().ok())),
+            imgs_in_db_job,
+            unique_exif_tags_job,
             unique_exif_tags: vec![],
             last_query_count: None,
             query_handle: None,
             worker,
             group_raw_jpeg: true,
+            db_repo: db_repo.clone(),
         }
     }
 
@@ -141,8 +157,9 @@ impl Filters {
                         && self.unique_exif_tags.contains(&field.name)
                     {
                         let name = field.name.clone();
+                        let mut repo = self.db_repo.clone();
                         field.default_values_job = Some(thread::spawn(move || {
-                            Db::get_distinct_values_for_exif_tag(&name).ok()
+                            repo.get_distinct_values_for_exif_tag(&name).ok()
                         }));
                     }
 
@@ -178,7 +195,8 @@ impl Filters {
 
             ui.horizontal(|ui| {
                 if ui.button("+").clicked() {
-                    self.filter_fields.push(FilterField::new("", ""));
+                    self.filter_fields
+                        .push(FilterField::new("", "", &self.db_repo));
                 }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -239,13 +257,15 @@ impl Filters {
                             let order_direction = self.order_field.order.clone();
                             let worker = self.worker.clone();
                             let group_raw_jpeg = self.group_raw_jpeg;
+                            let mut repo = self.db_repo.clone();
                             self.query_handle = Some(thread::spawn(move || {
-                                let mut filtered_paths = Db::get_paths_filtered_by_metadata(
-                                    &fields,
-                                    &order_tag,
-                                    &order_direction,
-                                )
-                                .ok();
+                                let mut filtered_paths = repo
+                                    .get_paths_filtered_by_metadata(
+                                        &fields,
+                                        &order_tag,
+                                        &order_direction,
+                                    )
+                                    .ok();
 
                                 if let Some(paths) = filtered_paths.clone() {
                                     worker.send_job(crate::worker::Job::ClearMovedFiles(

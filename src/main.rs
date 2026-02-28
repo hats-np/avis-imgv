@@ -1,9 +1,9 @@
 use avis_imgv::app::App;
-use avis_imgv::db::Db;
+use avis_imgv::db::DbRepository;
 use eframe::egui_wgpu::{WgpuConfiguration, WgpuSetup, WgpuSetupCreateNew};
 use eframe::{
-    wgpu::{self},
     NativeOptions,
+    wgpu::{self},
 };
 use std::env;
 use std::path::PathBuf;
@@ -16,6 +16,7 @@ const DEVICE_LABEL: &str = "avis-imgv-device";
 fn main() {
     let mut slideshow = false;
     let mut fullscreen = false;
+
     let subscriber = FmtSubscriber::builder()
         .with_max_level(Level::DEBUG)
         .finish();
@@ -42,28 +43,34 @@ fn main() {
         tracing::info!("Starting recursive crawl from: {path:?}");
         let image_paths = avis_imgv::crawler::crawl(&path, true);
         tracing::info!("Found {} images. Caching metadata...", image_paths.len());
-        match Db::init_db() {
+        let mut repo = DbRepository::new();
+        match repo.init_db() {
             Ok(_) => {}
             Err(e) => {
                 panic!("Failure initializing database {e}");
             }
         }
 
-        avis_imgv::metadata::Metadata::cache_metadata_for_images(&image_paths);
-        avis_imgv::metadata::Metadata::clean_moved_files();
+        avis_imgv::metadata::Metadata::cache_metadata_for_images(&mut repo, &image_paths);
+        avis_imgv::metadata::Metadata::clean_moved_files(&mut repo);
         tracing::info!("Metadata caching finished. Exiting.");
         return;
     }
     if args.len() > 1 && args[1] == "--help" {
         tracing::info!("Usage:");
         tracing::info!("\t --help");
-        tracing::info!("\t --slideshow <path> \n \t\t Starts in slideshow mode. Useful as a photoframe, screen saver, etc.");
-        tracing::info!("\t --import <path> \n \t\t Imports all images in the directory and sub directories into the database");
+        tracing::info!(
+            "\t --slideshow <path> \n \t\t Starts in slideshow mode. Useful as a photoframe, screen saver, etc."
+        );
+        tracing::info!(
+            "\t --import <path> \n \t\t Imports all images in the directory and sub directories into the database"
+        );
         tracing::info!("\t --clean <path> \n \t\t Removes moved/deleted files from the database");
         return;
     }
     if args.len() > 1 && args[1] == "--clean" {
-        avis_imgv::metadata::Metadata::clean_moved_files();
+        let mut repo = DbRepository::new();
+        avis_imgv::metadata::Metadata::clean_moved_files(&mut repo);
         return;
     }
     if args.len() > 1 && args.contains(&"--slideshow".to_string()) {

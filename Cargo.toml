@@ -28,7 +28,8 @@ tempfile = "3.25.0"
 tracing-subscriber = { version = "0.3", default-features = true }
 tracing = "0.1.44"
 itertools = "0.14.0"
-pollster = "0.4.0"
+r2d2_sqlite = "0.32.0"
+r2d2 = "0.8.10"
 
 [profile.dev.package.image]
 opt-level = 3

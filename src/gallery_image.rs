@@ -1,11 +1,10 @@
-use crate::image::Image;
+use crate::image_store::ImageStore;
 use crate::metadata;
 use eframe::egui::load::SizedTexture;
-use eframe::egui::{self, vec2, Rect, RichText, Widget};
+use eframe::egui::{self, Rect, RichText, Widget, vec2};
 use eframe::epaint::{Pos2, Vec2};
 use std;
 use std::path::PathBuf;
-use std::thread::JoinHandle;
 
 pub struct GalleryImageSizing {
     pub zoom_factor: f32,
@@ -24,23 +23,17 @@ pub struct GalleryImage {
     pub name: String,
     pub display_name: Option<String>,
     scroll_pos: Pos2,
-    image: Option<Image>,
-    load_image_handle: Option<JoinHandle<Option<Image>>>,
-    output_profile: String,
     display_metadata: Option<Vec<(String, String)>>,
     pub prev_percentage_zoom: f32,
     pub prev_available_size: Vec2,
     ///prev target size before zoom
     pub prev_target_size: Vec2,
     pub prev_cursor_pos_normalized: Vec2,
+    is_loaded: bool,
 }
 
 impl GalleryImage {
-    pub fn from_paths(
-        paths: &[PathBuf],
-        //add a lifetime in the future.
-        output_profile: &String,
-    ) -> Vec<Self> {
+    pub fn from_paths(paths: &[PathBuf]) -> Vec<Self> {
         paths
             .iter()
             .map(|p| Self {
@@ -51,15 +44,13 @@ impl GalleryImage {
                     .to_string_lossy()
                     .to_string(),
                 scroll_pos: Pos2::new(0.0, 0.0),
-                image: None,
-                load_image_handle: None,
-                output_profile: output_profile.to_owned(),
                 display_metadata: None,
                 display_name: None,
                 prev_percentage_zoom: 0.,
                 prev_available_size: vec2(0., 0.),
                 prev_target_size: vec2(0., 0.),
                 prev_cursor_pos_normalized: vec2(0., 0.),
+                is_loaded: false,
             })
             .collect()
     }
@@ -69,20 +60,29 @@ impl GalleryImage {
         ui: &mut egui::Ui,
         frame: &GalleryImageFrame,
         sizing: &mut GalleryImageSizing,
+        image_store: &ImageStore,
     ) {
-        self.finish_img_loading();
-
-        let image = match &mut self.image {
-            Some(image) => image,
+        let image_size = match image_store.get_image_size(&self.path) {
+            Some(is) => is,
             None => {
                 Self::display_loading_frame(ui);
                 return;
             }
         };
 
-        let original_size = image.size;
-        let mut target_size = image.size;
-        let aspect_ratio = image.size.x / image.size.y;
+        let texture_id = match image_store.get_texture_id(&self.path) {
+            Some(is) => is,
+            None => {
+                Self::display_loading_frame(ui);
+                return;
+            }
+        };
+
+        self.is_loaded = true;
+
+        let original_size = image_size;
+        let mut target_size = image_size;
+        let aspect_ratio = image_size.x / image_size.y;
 
         //Fits image to available screen space, therefore images will never be cropped
         //By default
@@ -188,7 +188,7 @@ impl GalleryImage {
             display_size[0] -= stroke;
             display_size[1] -= stroke / aspect_ratio;
 
-            let image = egui::Image::new(SizedTexture::new(image.texture_id, image.size))
+            let image = egui::Image::new(SizedTexture::new(texture_id, image_size))
                 .fit_to_exact_size(vec2(display_size[0], display_size[1]))
                 .maintain_aspect_ratio(false)
                 .uv(visible_rect_normalized);
@@ -211,7 +211,7 @@ impl GalleryImage {
 
             ui.add(image);
         } else {
-            egui::Image::new(SizedTexture::new(image.texture_id, image.size))
+            egui::Image::new(SizedTexture::new(texture_id, image_size))
                 .uv(visible_rect_normalized)
                 .fit_to_exact_size(vec2(display_size[0], display_size[1]))
                 .maintain_aspect_ratio(false)
@@ -265,35 +265,21 @@ impl GalleryImage {
         visible_rect.max.x += scroll_pos.x;
     }
 
-    pub fn finish_img_loading(&mut self) {
-        if self.load_image_handle.is_none() {
-            return;
-        };
-
-        //not ideal can't match because of problem case #3 in https://rust-lang.github.io/rfcs/2094-nll.html
-        let lih = self.load_image_handle.take().unwrap();
-        if lih.is_finished() {
-            match lih.join() {
-                Ok(image) => {
-                    self.image = image;
-                }
-                Err(_) => tracing::info!("Failure joining load image thread"),
-            }
-        } else {
-            self.load_image_handle = Some(lih);
-        }
-    }
-
-    pub fn metadata_ui(&mut self, ui: &mut egui::Ui, tags_to_display: &Vec<String>) {
-        if let Some(img) = &mut self.image {
+    pub fn metadata_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        tags_to_display: &Vec<String>,
+        image_store: &ImageStore,
+    ) {
+        if let Some(metadata) = image_store.get_image_metadata(&self.path) {
             if self.display_metadata.is_none() {
-                let mut metadata: Vec<(String, String)> = vec![];
+                let mut display_metadata: Vec<(String, String)> = vec![];
                 for tag in tags_to_display {
-                    if let Some(value) = &img.metadata.get(tag) {
-                        metadata.push((tag.to_string(), value.to_string()));
+                    if let Some(value) = metadata.get(tag) {
+                        display_metadata.push((tag.to_string(), value.to_string()));
                     };
                 }
-                self.display_metadata = Some(metadata);
+                self.display_metadata = Some(display_metadata);
             }
 
             if let Some(metadata) = &self.display_metadata {
@@ -308,33 +294,8 @@ impl GalleryImage {
         }
     }
 
-    pub fn image_size(&self) -> Option<Vec2> {
-        if let Some(img) = &self.image {
-            return Some(img.size);
-        }
-
-        None
-    }
-
-    pub fn unload(&mut self) {
-        if self.image.is_some() || self.load_image_handle.is_some() {
-            tracing::info!("{} -> Unloading image", self.name);
-        }
-
-        self.image = None;
-        self.load_image_handle = None;
-    }
-
-    pub fn load(&mut self, ctx: &egui::Context) {
-        if self.load_image_handle.is_none() && self.image.is_none() {
-            tracing::info!("{} -> Loading image", self.name);
-            self.load_image_handle = Some(Image::load(
-                self.path.clone(),
-                None,
-                self.output_profile.clone(),
-                ctx,
-            ));
-        }
+    pub fn image_size(&self, image_store: ImageStore) -> Option<Vec2> {
+        image_store.get_image_size(&self.path)
     }
 
     pub fn display_loading_frame(ui: &mut egui::Ui) {
@@ -352,16 +313,15 @@ impl GalleryImage {
             .show(ui, |ui| ui.add(egui::Spinner::new().size(spinner_size)));
     }
 
-    pub fn set_display_name(&mut self, format: &str) -> String {
+    pub fn set_display_name(&mut self, format: &str, image_store: &ImageStore) -> String {
         if format.is_empty() {
             self.display_name = Some(self.name.clone());
 
             return self.name.clone();
         }
 
-        if let Some(img) = &self.image {
-            let display_name =
-                metadata::Metadata::format_string_with_metadata(format, &img.metadata);
+        if let Some(metadata) = image_store.get_image_metadata(&self.path) {
+            let display_name = metadata::Metadata::format_string_with_metadata(format, metadata);
 
             self.display_name = Some(display_name.clone());
 
@@ -371,14 +331,14 @@ impl GalleryImage {
         }
     }
 
-    pub fn get_display_name(&mut self, format: String) -> String {
+    pub fn get_display_name(&mut self, format: String, image_store: &ImageStore) -> String {
         match &self.display_name {
             Some(dn) => dn.clone(),
-            None => self.set_display_name(&format),
+            None => self.set_display_name(&format, image_store),
         }
     }
 
-    pub fn is_loading(&self) -> bool {
-        self.load_image_handle.is_some()
+    pub fn is_loaded(&self) -> bool {
+        self.is_loaded
     }
 }

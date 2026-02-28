@@ -56,7 +56,7 @@ edit `icc.rs` and add whichever ones you need for your local builds. It can be c
 
 sRGB and Adobe RGB(ClayRGB) were taken from [elles_icc_profiles](https://github.com/ellelstone/elles_icc_profiles).
 
-## Supported Image Formats.
+## Supported Image Formats
 
 Supported image formats can be found [here](https://github.com/image-rs/image/blob/master/README.md)
 and [here](https://docs.rs/crate/image/latest/features).
@@ -68,6 +68,10 @@ JPEG-XL is also supported through `libjpegxl`.
 ### Raw File Support
 
 There is some RAW file support. Preview images are extracted using exiftool. As long as your images contain an embedded preview image and exiftool can extract it, it should work.
+
+## Stance on AI Generated Code
+
+While I personally use copilot in my day to day work to meet productivity demands, for me(hats-np) this project is also a way of doing recreational programming and for this reason I do not and will not use such tools to develop this project. Any contributions done with AI tools will also be rejected without any justification. It is my belief that unqualified people are spamming many FOSS projects with complete vibe coded garbage, giving maintainers a hard time catching up and introducing high technical debt into those projects.
 
 ## Planned Features
 
@@ -119,6 +123,7 @@ Configuration file should be: `~/.config/avis-imgv/config.json`. An example is p
 | output_icc_profile | Output icc profile                                                 | srgb                                                                                                                                                  |
 | text_scaling       | Text Scaling                                                       | 1.25                                                                                                                                                  |
 | metadata_tags      | Metadata visible in the Image Information side pannel(when opened) | Date/Time Original, Created Date, Camera Model Name, Lens Model, Focal Length, Aperture Value, Exposure Time, ISO, Image Size, Color Space, Directory |
+| simultaneous_load | How many images should be allowed to load at the same time per store(full res, thumbnails)                       | 8 (Adjust according to core count or how much you want to work your PC) |
 
 ### Image View
 
@@ -136,7 +141,6 @@ Configuration file should be: `~/.config/avis-imgv/config.json`. An example is p
 |-------------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------|
 | images_per_row    | How many images should be displayed per row                                      | 3                                                                       |
 | preloaded_rows    | How many off-screen rows in each direction should be loaded and remain in memory | 2                                                                       |
-| simultaneous_load | How many images should be allowed to load at the same time                       | 8 (Adjust according to core count or how much you want to work your PC) |
 
 ## Default Shortcuts
 
@@ -171,6 +175,8 @@ modifiers.
 | V           | Fit Vertical                                  |
 | M           | Maximize (Center image)                       |
 | Ctrl+M      | Toggle: Maximize automatically when scrolling |
+| \+          | Increase the number of images shown           |
+| \-          | Decrease the number of images shown           |
 
 ### Grid View
 
@@ -181,7 +187,6 @@ modifiers.
 | Ctrl+Scroll  | Increase/Decrease nr of images per row |
 | \+           | Increase nr of images per row          |
 | \-           | Decrease nr of images per row          |
-
 
 ## Font
 

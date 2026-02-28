@@ -1,14 +1,12 @@
 use crate::{
-    db::Db,
+    JXL_EXTENSION, RAW_EXTENSIONS, SKIP_ORIENT_EXTENSIONS,
+    db::DbRepository,
     icc::profile_desc_to_icc,
-    metadata::{self, Orientation, METADATA_ORIENTATION, METADATA_PROFILE_DESCRIPTION},
-    FRAME_MEMORY_KEY, JXL_EXTENSION, RAW_EXTENSIONS, SKIP_ORIENT_EXTENSIONS,
-    TWO_DIM_TEXTURE_LIMIT_MEMORY_KEY,
+    metadata::{self, METADATA_ORIENTATION, METADATA_PROFILE_DESCRIPTION, Orientation},
 };
 use eframe::{
-    egui::{self, Id},
     egui_wgpu::RenderState,
-    wgpu::{self},
+    wgpu::{self, TextureView},
 };
 use epaint::{TextureId, Vec2};
 use image::{DynamicImage, RgbImage};
@@ -24,16 +22,18 @@ use std::{
 };
 use std::{path::Path, time::Instant};
 
-use fast_image_resize::{images::Image as FirImage, ResizeOptions};
 use fast_image_resize::{PixelType, Resizer};
+use fast_image_resize::{ResizeOptions, images::Image as FirImage};
 
 pub const LOAD_FAIL_PNG: &[u8; 95764] = include_bytes!("../resources/load_fail.png");
 
+#[derive(Clone)]
 pub struct Image {
-    pub texture_id: TextureId,
+    pub file_name: String,
     pub size: Vec2,
-    pub render_state: Option<RenderState>,
     pub metadata: HashMap<String, String>,
+    texture_view: Option<TextureView>,
+    texture_id: Option<TextureId>,
 }
 
 impl Image {
@@ -41,9 +41,12 @@ impl Image {
         path: PathBuf,
         image_size: Option<u32>,
         output_icc_profile: String,
-        ctx: &egui::Context,
+        render_state: &RenderState,
+        max_texture_size: u32,
+        db_repo: &DbRepository,
     ) -> JoinHandle<Option<Image>> {
-        let ctx = ctx.clone();
+        let render_state = render_state.clone();
+        let mut db_repo = db_repo.clone();
         thread::spawn(move || {
             let file_name = path
                 .file_name()
@@ -64,7 +67,7 @@ impl Image {
             ) {
                 match extract_preview_from_raw_file(&path) {
                     Some(buf) => buffer = buf,
-                    None => return Self::get_error_image(&file_name, &ctx),
+                    None => return None,
                 };
             } else {
                 let mut f = match File::open(&path) {
@@ -72,12 +75,12 @@ impl Image {
                     Err(e) => {
                         tracing::error!("Failure opening image: {e}");
 
-                        let delete_result = Db::delete_file_by_path(&path);
+                        let delete_result = db_repo.delete_file_by_path(&path);
                         if delete_result.is_err() {
                             tracing::error!("Failure deleting file record from the database {e}");
                         }
 
-                        return Self::get_error_image(&file_name, &ctx);
+                        return None;
                     }
                 };
 
@@ -85,7 +88,7 @@ impl Image {
                     Ok(_) => {}
                     Err(e) => {
                         tracing::error!("{file_name} -> Error reading image into buffer: {e}");
-                        return Self::get_error_image(&file_name, &ctx);
+                        return None;
                     }
                 }
             }
@@ -100,7 +103,7 @@ impl Image {
             let mut image = match Self::decode(&buffer, &file_name, &path) {
                 Some(img) => img,
                 None => {
-                    return Self::get_error_image(&file_name, &ctx);
+                    return None;
                 }
             };
 
@@ -111,7 +114,11 @@ impl Image {
             );
             now = Instant::now();
 
-            let image_size = set_image_size(image_size, &ctx, image.width().max(image.height()));
+            let image_size = set_image_size(
+                image_size,
+                image.width().max(image.height()),
+                Some(max_texture_size),
+            );
 
             if image_size.is_some() {
                 image = Self::resize(image, image_size);
@@ -125,7 +132,8 @@ impl Image {
             now = Instant::now();
 
             let metadata =
-                metadata::Metadata::get_image_metadata(&path.to_string_lossy()).unwrap_or_default();
+                metadata::Metadata::get_image_metadata(&mut db_repo, &path.to_string_lossy())
+                    .unwrap_or_default();
 
             tracing::info!(
                 "{} -> Spent {}ms reading metadata",
@@ -165,23 +173,25 @@ impl Image {
                 now.elapsed().as_millis()
             );
 
-            match Self::load_wgpu_linear_texture(pixels, size, &ctx, &file_name) {
-                Some((texture_id, render_state)) => {
+            match Self::load_wgpu_linear_texture(pixels, size, &file_name, &render_state) {
+                Some(texture_view) => {
                     tracing::info!(
-                        "Spent {}ms loading texture with wgpu",
+                        "{} Spent {}ms loading texture with wgpu",
+                        file_name,
                         now.elapsed().as_millis()
                     );
                     Some(Image {
-                        texture_id,
+                        file_name: file_name.to_string(),
+                        texture_view: Some(texture_view),
+                        texture_id: None,
                         size: Vec2 {
                             x: size[0] as f32,
                             y: size[1] as f32,
                         },
                         metadata,
-                        render_state: Some(render_state),
                     })
                 }
-                None => Self::get_error_image(&file_name, &ctx),
+                None => None,
             }
         })
     }
@@ -397,9 +407,9 @@ impl Image {
     pub fn load_wgpu_linear_texture(
         pixels: &[u8],
         size: [u32; 2],
-        ctx: &egui::Context,
         file_name: &str,
-    ) -> Option<(TextureId, RenderState)> {
+        render_state: &RenderState,
+    ) -> Option<TextureView> {
         let rgba_pixels: Vec<u8> = pixels
             .chunks_exact(3)
             .flat_map(|rgb| [rgb[0], rgb[1], rgb[2], 255])
@@ -410,17 +420,6 @@ impl Image {
             height: size[1],
             depth_or_array_layers: 1,
         };
-
-        let render_state =
-            match ctx.memory(|x| x.data.get_temp::<RenderState>(Id::new(FRAME_MEMORY_KEY))) {
-                Some(rs) => rs,
-                None => {
-                    tracing::error!(
-                        "Failure fetching render state from context, returning error image"
-                    );
-                    return None;
-                }
-            };
 
         let texture = render_state
             .device
@@ -453,36 +452,61 @@ impl Image {
 
         let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        let egui_texture_id = {
-            let re = render_state.clone();
-            let mut renderer = re.renderer.write();
-            renderer.register_native_texture(
-                &render_state.device,
-                &texture_view,
-                wgpu::FilterMode::Linear,
-            )
-        };
-
-        Some((egui_texture_id, render_state))
+        Some(texture_view)
     }
 
-    pub fn get_error_image(file_name: &str, ctx: &egui::Context) -> Option<Image> {
+    pub fn get_error_image(render_state: &RenderState) -> Image {
         let image = image::load_from_memory(LOAD_FAIL_PNG).unwrap();
         let size = [image.width() as _, image.height() as _];
         let mut flat_samples = image.into_rgb8().into_flat_samples();
         let pixels = flat_samples.as_mut_slice();
 
-        Self::load_wgpu_linear_texture(pixels, size, ctx, file_name).map(
-            |(texture_id, render_state)| Image {
-                texture_id,
-                size: Vec2 {
-                    x: size[0] as f32,
-                    y: size[1] as f32,
-                },
-                metadata: HashMap::new(),
-                render_state: Some(render_state),
+        let texture_view =
+            match Self::load_wgpu_linear_texture(pixels, size, "Error Image", render_state) {
+                Some(texture_view) => texture_view,
+                None => panic!("Failure loading error texture into gpu"),
+            };
+
+        let mut img = Image {
+            file_name: "Error Image".to_string(),
+            texture_view: Some(texture_view),
+            texture_id: None,
+            size: Vec2 {
+                x: size[0] as f32,
+                y: size[1] as f32,
             },
-        )
+            metadata: HashMap::new(),
+        };
+
+        img.register_texture(render_state);
+        img
+    }
+
+    pub fn register_texture(&mut self, render_state: &RenderState) {
+        if let Some(texture_view) = &mut self.texture_view {
+            let instant = Instant::now();
+            let texture_id = render_state.renderer.write().register_native_texture(
+                &render_state.device,
+                texture_view,
+                wgpu::FilterMode::Linear,
+            );
+            tracing::info!(
+                "{} -> Spent {}ms registering native texture with wgpu",
+                self.file_name,
+                instant.elapsed().as_millis()
+            );
+            self.texture_id = Some(texture_id);
+        }
+    }
+
+    pub fn get_texture_id(&self) -> Option<TextureId> {
+        self.texture_id
+    }
+
+    pub fn free_texture(&self, render_state: &RenderState) {
+        if let Some(texture_id) = self.texture_id {
+            render_state.renderer.write().free_texture(&texture_id);
+        }
     }
 }
 
@@ -518,15 +542,10 @@ pub fn extract_preview_from_raw_file(path: &Path) -> Option<Vec<u8>> {
 
 pub fn set_image_size(
     desired_size: Option<u32>,
-    ctx: &egui::Context,
     image_largest_size: u32,
+    max_texture_size: Option<u32>,
 ) -> Option<u32> {
-    let limit: Option<u32> = ctx.memory(|x| {
-        x.data
-            .get_temp::<u32>(egui::Id::new(TWO_DIM_TEXTURE_LIMIT_MEMORY_KEY))
-    });
-
-    match (desired_size, limit) {
+    match (desired_size, max_texture_size) {
         (Some(desired), Some(max)) => Some(desired.min(max)),
         (Some(desired), None) => Some(desired),
         (None, Some(max)) => {
@@ -537,13 +556,5 @@ pub fn set_image_size(
             }
         }
         _ => None,
-    }
-}
-
-impl Drop for Image {
-    fn drop(&mut self) {
-        if let Some(rs) = self.render_state.clone() {
-            rs.renderer.write().free_texture(&self.texture_id);
-        }
     }
 }
