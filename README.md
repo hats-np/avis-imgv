@@ -124,6 +124,7 @@ Configuration file should be: `~/.config/avis-imgv/config.json`. An example is p
 | text_scaling       | Text Scaling                                                       | 1.25                                                                                                                                                  |
 | metadata_tags      | Metadata visible in the Image Information side pannel(when opened) | Date/Time Original, Created Date, Camera Model Name, Lens Model, Focal Length, Aperture Value, Exposure Time, ISO, Image Size, Color Space, Directory |
 | simultaneous_load | How many images should be allowed to load at the same time per store(full res, thumbnails)                       | 8 (Adjust according to core count or how much you want to work your PC) |
+| raw_exiftool_preview_ext | Extensions of raw files which should be previewed using the built in thumbnail instead of decoded with rawler |
 
 ### Image View
 
@@ -176,7 +177,7 @@ modifiers.
 | M           | Maximize (Center image)                       |
 | Ctrl+M      | Toggle: Maximize automatically when scrolling |
 | \+          | Increase the number of images shown           |
-| \-          | Decrease the number of images shown           |
+| \-          | Decrease the number of images shown |
 
 ### Grid View
 
