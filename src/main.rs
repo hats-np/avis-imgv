@@ -113,6 +113,7 @@ fn get_native_options() -> NativeOptions {
         wgpu::DeviceDescriptor {
             label: Some(DEVICE_LABEL),
             required_limits: limits,
+            //required_features: wgpu::Features::TEXTURE_FORMAT_16BIT_NORM,
             ..wgpu::DeviceDescriptor::default()
         }
     });

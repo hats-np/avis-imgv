@@ -12,6 +12,7 @@ use epaint::{TextureId, Vec2};
 use image::{DynamicImage, RgbImage};
 use jpegxl_rs::decoder_builder;
 use lcms2::*;
+use rawler::imgop::develop::RawDevelop;
 use std::{
     collections::HashMap,
     fs::File,
@@ -26,6 +27,14 @@ use fast_image_resize::{PixelType, Resizer};
 use fast_image_resize::{ResizeOptions, images::Image as FirImage};
 
 pub const LOAD_FAIL_PNG: &[u8; 95764] = include_bytes!("../resources/load_fail.png");
+
+#[derive(PartialEq, Eq, Debug)]
+pub enum DecodeMethod {
+    Regular,
+    ExtractPreviewExiftool,
+    Rawler,
+    Jxl,
+}
 
 #[derive(Clone)]
 pub struct Image {
@@ -44,27 +53,39 @@ impl Image {
         render_state: &RenderState,
         max_texture_size: u32,
         db_repo: &DbRepository,
+        raw_exiftool_preview_ext: &[String],
     ) -> JoinHandle<Option<Image>> {
         let render_state = render_state.clone();
         let mut db_repo = db_repo.clone();
+        let ext = path
+            .extension()
+            .unwrap_or_default()
+            .to_str()
+            .unwrap_or_default()
+            .to_lowercase();
+
+        let decode_method = if ext == JXL_EXTENSION {
+            DecodeMethod::Jxl
+        } else if raw_exiftool_preview_ext.contains(&ext) {
+            DecodeMethod::ExtractPreviewExiftool
+        } else if RAW_EXTENSIONS.contains(&ext.as_str()) {
+            DecodeMethod::Rawler
+        } else {
+            DecodeMethod::Regular
+        };
+
         thread::spawn(move || {
             let file_name = path
                 .file_name()
                 .unwrap_or(path.as_os_str())
                 .to_string_lossy();
 
+            tracing::info!("{file_name} -> Determined decoding method as: {decode_method:?}",);
+
             let mut now = Instant::now();
 
-            let mut buffer = Vec::new();
-            if RAW_EXTENSIONS.contains(
-                &path
-                    .extension()
-                    .unwrap_or_default()
-                    .to_str()
-                    .unwrap_or_default()
-                    .to_lowercase()
-                    .as_str(),
-            ) {
+            let mut buffer = vec![];
+            if decode_method == DecodeMethod::ExtractPreviewExiftool {
                 match extract_preview_from_raw_file(&path) {
                     Some(buf) => buffer = buf,
                     None => return None,
@@ -73,11 +94,13 @@ impl Image {
                 let mut f = match File::open(&path) {
                     Ok(f) => f,
                     Err(e) => {
-                        tracing::error!("Failure opening image: {e}");
+                        tracing::error!("{file_name} -> Failure opening image: {}", e);
 
                         let delete_result = db_repo.delete_file_by_path(&path);
                         if delete_result.is_err() {
-                            tracing::error!("Failure deleting file record from the database {e}");
+                            tracing::error!(
+                                "{file_name} -> Failure deleting file record from the database"
+                            );
                         }
 
                         return None;
@@ -100,7 +123,7 @@ impl Image {
             );
             now = Instant::now();
 
-            let mut image = match Self::decode(&buffer, &file_name, &path) {
+            let mut image = match Self::decode(&mut buffer, &path, &decode_method) {
                 Some(img) => img,
                 None => {
                     return None;
@@ -196,22 +219,47 @@ impl Image {
         })
     }
 
-    pub fn decode(buffer: &[u8], file_name: &str, path: &Path) -> Option<DynamicImage> {
-        if path.extension().unwrap_or_default() == JXL_EXTENSION {
-            Self::decode_jxl(buffer, file_name)
-        } else {
-            Self::decode_generic(buffer, file_name)
+    pub fn decode(
+        buffer: &mut Vec<u8>,
+        path: &Path,
+        decode_method: &DecodeMethod,
+    ) -> Option<DynamicImage> {
+        match decode_method {
+            DecodeMethod::Jxl => Self::decode_jxl(buffer, path),
+            DecodeMethod::Regular | DecodeMethod::ExtractPreviewExiftool => {
+                Self::decode_generic(buffer, path)
+            }
+            DecodeMethod::Rawler => {
+                if let Some(di) = Self::decode_rawler(path) {
+                    Some(di)
+                } else {
+                    tracing::warn!(
+                        "{path:?} Failure decoding raw image with rawler, falling back to extracting preview with exiftool"
+                    );
+                    match extract_preview_from_raw_file(path) {
+                        Some(buf) => *buffer = buf,
+                        None => return None,
+                    };
+                    Self::decode_generic(buffer, path)
+                }
+            }
         }
     }
 
-    pub fn decode_jxl(buffer: &[u8], file_name: &str) -> Option<DynamicImage> {
+    pub fn decode_rawler(path: &Path) -> Option<DynamicImage> {
+        let r = rawler::decode_file(path).ok()?;
+        let i = RawDevelop::default().develop_intermediate(&r).ok()?;
+        i.to_dynamic_image()
+    }
+
+    pub fn decode_jxl(buffer: &[u8], path: &Path) -> Option<DynamicImage> {
         //JPEG XL has the option to execute with a parallel runner, but since we already manage
         //multithreading decoding by decoding one image per thread, it's better to decode each
         //individual image single threadedly.
         let decoder = match decoder_builder().build() {
             Ok(decoder) => decoder,
             Err(e) => {
-                tracing::error!("Failure initiating JXL decoder for {file_name} -> {e}");
+                tracing::error!("Failure initiating JXL decoder for {path:?} -> {e}");
                 return None;
             }
         };
@@ -223,25 +271,23 @@ impl Image {
                 Some(rgb_image) => Some(DynamicImage::from(rgb_image)),
                 None => {
                     tracing::error!(
-                        "Failure building rgb image from JXL decoded buffer for {file_name}"
+                        "Failure building rgb image from JXL decoded buffer for {path:?}"
                     );
                     None
                 }
             },
             Err(e) => {
-                tracing::error!(
-                    "Failure creating rbimage from raw JXL buffer for {file_name} -> {e}"
-                );
+                tracing::error!("Failure creating rbimage from raw JXL buffer for {path:?} -> {e}");
                 None
             }
         }
     }
 
-    pub fn decode_generic(buffer: &[u8], file_name: &str) -> Option<DynamicImage> {
+    pub fn decode_generic(buffer: &[u8], path: &Path) -> Option<DynamicImage> {
         match image::load_from_memory(buffer) {
             Ok(img) => Some(img),
             Err(e) => {
-                tracing::info!("{file_name} -> Failure decoding image: {e}");
+                tracing::info!("{path:?} -> Failure decoding image: {e}");
                 None
             }
         }
@@ -527,7 +573,8 @@ pub fn extract_preview_from_raw_file(path: &Path) -> Option<Vec<u8>> {
 
         if std_out.is_empty() {
             tracing::error!(
-                "Extracted an empty image, raw likely does not have embeded preview jpg"
+                "{:?} Extracted an empty image, raw likely does not have embeded preview jpg",
+                path.file_name()
             );
             return None;
         }

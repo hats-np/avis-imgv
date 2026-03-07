@@ -112,6 +112,7 @@ impl App {
             &render_state,
             &db_repo,
             cfg.general.simultaneous_load,
+            &cfg.general.raw_exiftool_preview_ext,
         );
         let thumbnail_store = ImageStore::new(
             cfg.general.output_icc_profile.to_owned(),
@@ -119,6 +120,7 @@ impl App {
             &render_state,
             &db_repo,
             cfg.general.simultaneous_load,
+            &cfg.general.raw_exiftool_preview_ext,
         );
         Self {
             gallery: ImageView::new(

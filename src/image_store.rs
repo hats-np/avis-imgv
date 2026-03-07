@@ -17,6 +17,7 @@ pub struct ImageStore {
     simultaneous_load: usize,
     db_repo: DbRepository,
     render_state: RenderState,
+    raw_exiftool_preview_ext: Vec<String>,
 }
 
 struct StoredImage {
@@ -43,6 +44,7 @@ impl ImageStore {
         render_state: &RenderState,
         db_repo: &DbRepository,
         simultaneous_load: usize,
+        raw_exiftool_preview_ext: &[String],
     ) -> ImageStore {
         let error_img = Image::get_error_image(render_state);
         ImageStore {
@@ -57,6 +59,7 @@ impl ImageStore {
             simultaneous_load,
             db_repo: db_repo.clone(),
             render_state: render_state.clone(),
+            raw_exiftool_preview_ext: raw_exiftool_preview_ext.to_vec(),
         }
     }
     pub fn is_image_loaded(&self, pathbuf: &PathBuf) -> bool {
@@ -167,6 +170,7 @@ impl ImageStore {
                 &self.render_state,
                 self.max_texture_size,
                 &self.db_repo,
+                &self.raw_exiftool_preview_ext,
             );
 
             self.loading_imgs.insert(

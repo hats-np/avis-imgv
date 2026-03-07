@@ -30,6 +30,8 @@ pub struct GeneralConfig {
     pub metadata_tags: Vec<String>,
     #[serde(default = "default_simultaneous_load")]
     pub simultaneous_load: usize,
+    #[serde(default = "default_raw_exiftool_preview_ext")]
+    pub raw_exiftool_preview_ext: Vec<String>,
 
     #[serde(default = "default_sc_toggle_gallery")]
     pub sc_toggle_gallery: Shortcut,
@@ -184,6 +186,7 @@ impl Default for GeneralConfig {
             text_scaling: default_text_scaling(),
             metadata_tags: default_metadata_tags(),
             simultaneous_load: default_simultaneous_load(),
+            raw_exiftool_preview_ext: default_raw_exiftool_preview_ext(),
             sc_toggle_gallery: default_sc_toggle_gallery(),
             sc_toggle_side_panel: default_sc_toggle_side_panel(),
             sc_exit: default_sc_exit(),
@@ -451,6 +454,9 @@ pub fn default_preloaded_rows() -> usize {
 }
 pub fn default_simultaneous_load() -> usize {
     8
+}
+pub fn default_raw_exiftool_preview_ext() -> Vec<String> {
+    vec!["raf".to_string()]
 }
 pub fn default_sc_scroll() -> Shortcut {
     Shortcut::from("Space", &[])
