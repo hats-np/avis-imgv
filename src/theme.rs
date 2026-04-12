@@ -10,7 +10,7 @@ pub fn apply_theme(ctx: &egui::Context) {
     #[cfg(feature = "custom_font")]
     apply_fonts(ctx);
 
-    let previous_theme = ctx.style().visuals.clone();
+    let previous_theme = ctx.global_style().visuals.clone();
 
     let accent = Color32::from_rgb(220, 220, 220);
     let bg = Color32::from_rgb(48, 48, 48);

@@ -39,7 +39,7 @@ pub fn paths_from_args() -> (Vec<PathBuf>, Option<PathBuf>) {
         };
 
         if path.is_dir() {
-            if path == PathBuf::from(".") {
+            if *path == *PathBuf::from(".") {
                 path = current_dir;
             } else if !path.has_root() {
                 path = current_dir.join(path.strip_prefix(PathBuf::from(".")).unwrap_or(&path));

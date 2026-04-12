@@ -1,6 +1,7 @@
 use avis_imgv::app::App;
 use avis_imgv::db::DbRepository;
 use eframe::egui_wgpu::{WgpuConfiguration, WgpuSetup, WgpuSetupCreateNew};
+use eframe::wgpu::{BackendOptions, Backends, InstanceDescriptor, InstanceFlags, MemoryBudgetThresholds};
 use eframe::{
     NativeOptions,
     wgpu::{self},
@@ -120,9 +121,23 @@ fn get_native_options() -> NativeOptions {
 
     NativeOptions {
         wgpu_options: WgpuConfiguration {
+            //Fix for slow window resize
+            present_mode: wgpu::PresentMode::Immediate,
+            desired_maximum_frame_latency: Some(2),
+            //End Fix
             wgpu_setup: WgpuSetup::CreateNew(WgpuSetupCreateNew {
                 device_descriptor: device_descriptor_fn,
-                ..Default::default()
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                instance_descriptor: InstanceDescriptor 
+                { 
+                    backends: Backends::all(), 
+                    flags: InstanceFlags::empty(),
+                    memory_budget_thresholds: MemoryBudgetThresholds { for_device_loss: None, for_resource_creation: None}, 
+                    backend_options: BackendOptions::default(), 
+                    display:  None
+                },
+                display_handle: None,
+                native_adapter_selector: None
             }),
             ..Default::default()
         },

@@ -194,7 +194,7 @@ impl Tree {
 pub fn ui(path: &str, ctx: &egui::Context) -> Option<PathBuf> {
     let mut result: Option<PathBuf> = None;
     let mut area_width = 700.;
-    let available_width = ctx.available_rect().width();
+    let available_width = ctx.content_rect().width();
     if available_width < area_width {
         area_width = available_width;
     }

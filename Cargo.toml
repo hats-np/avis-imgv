@@ -10,9 +10,9 @@ readme = "README.md"
 keywords = ["image_viewer", "image"]
 
 [dependencies]
-eframe = { version = "0.33.3", features = ["wgpu"] }
-epaint = { version = "0.33.3" }
-image = { version = "0.25.8", default-features = true }
+eframe = { version = "0.34.1", features = ["wgpu"] }
+epaint = { version = "0.34.1" }
+image = { version = "0.25.10", default-features = true }
 serde = { version = "1.0.228" }
 serde_json = { version = "1.0.149" }
 directories = { version = "6.0.0" }
@@ -21,18 +21,16 @@ regex = { version = "1.12.3" }
 rfd = { version = "0.17.2" }
 fast_image_resize = { version = "6.0.0" }
 notify = "8.2.0"
-rusqlite = { version = "0.38.0", features = ["bundled"] }
-uuid = { version = "1.21", features = ["v4"] }
-jpegxl-rs = { version = "0.13.1", features = ["vendored"] }
-tempfile = "3.25.0"
+rusqlite = { version = "0.39.0", features = ["bundled"] }
+uuid = { version = "1.23", features = ["v4"] }
+jpegxl-rs = { version = "0.14.0", features = ["vendored"] }
+tempfile = "3.27.0"
 tracing-subscriber = { version = "0.3", default-features = true }
 tracing = "0.1.44"
 itertools = "0.14.0"
-r2d2_sqlite = "0.32.0"
+r2d2_sqlite = "0.33.0"
 r2d2 = "0.8.10"
 rawler = "0.7.2"
-half = "2.7.1"
-nalgebra = "0.34.1"
 
 [profile.dev.package.image]
 opt-level = 3

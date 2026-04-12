@@ -6,7 +6,7 @@ use crate::worker::Worker;
 use eframe::egui;
 use eframe::egui::{Align, Id, Layout};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use uuid::Uuid;
 
@@ -19,7 +19,7 @@ pub struct Filters {
     query_handle: Option<JoinHandle<Option<Vec<PathBuf>>>>,
     unique_exif_tags: Vec<String>,
     unique_exif_tags_job: Option<JoinHandle<Option<Vec<String>>>>,
-    worker: Arc<Worker>,
+    worker: Arc<Mutex<Worker>>,
     group_raw_jpeg: bool,
     db_repo: DbRepository,
 }
@@ -78,7 +78,7 @@ impl Filters {
     pub fn new(
         filter_config: FilterConfig,
         opened_path: &str,
-        worker: Arc<Worker>,
+        worker: Arc<Mutex<Worker>>,
         db_repo: &DbRepository,
     ) -> Filters {
         let mut job_repo = db_repo.clone();
@@ -137,9 +137,9 @@ impl Filters {
             ui.strong("Filter");
 
             for field in &mut self.filter_fields {
+                let default_values = field.get_default_values();
                 ui.horizontal(|ui| {
-                    let default_values = field.get_default_values();
-                    let desired_first_dd_width = ui.available_width() / 2. - 15.;
+                    let desired_first_dd_width = ui.available_width() - 15.;
                     if ui
                         .add(
                             DropDownBox::from_iter(
@@ -176,6 +176,9 @@ impl Filters {
                             }
                         });
 
+                });
+
+                ui.horizontal(|ui| {
                     ui.add(
                         DropDownBox::from_iter(
                             &default_values,
@@ -255,9 +258,9 @@ impl Filters {
                         if !fields.is_empty() {
                             let order_tag = self.order_field.tag.clone();
                             let order_direction = self.order_field.order.clone();
-                            let worker = self.worker.clone();
                             let group_raw_jpeg = self.group_raw_jpeg;
                             let mut repo = self.db_repo.clone();
+                            let worker_mutex = self.worker.clone();
                             self.query_handle = Some(thread::spawn(move || {
                                 let mut filtered_paths = repo
                                     .get_paths_filtered_by_metadata(
@@ -268,9 +271,13 @@ impl Filters {
                                     .ok();
 
                                 if let Some(paths) = filtered_paths.clone() {
-                                    worker.send_job(crate::worker::Job::ClearMovedFiles(
-                                        paths.clone(),
-                                    ));
+                                    if let Ok(worker) = worker_mutex.try_lock() {
+                                        worker.send_job(crate::worker::Job::ClearMovedFiles(
+                                            paths.clone(),
+                                        ));
+                                    } else {
+                                        tracing::error!("Failure locking worker mutex to clear moved files");
+                                    }
 
                                     if group_raw_jpeg {
                                         filtered_paths =

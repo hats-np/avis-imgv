@@ -67,7 +67,7 @@ JPEG-XL is also supported through `libjpegxl`.
 
 ### Raw File Support
 
-There is some RAW file support. Preview images are extracted using exiftool. As long as your images contain an embedded preview image and exiftool can extract it, it should work.
+Raw files are supported. They are decoded using rawler. Formats which are not well supported by rawler have their built in preview thumbnails extracted using exiftool. For now only `RAF` have been configured as such. This behaviour can be changed by setting more extensions in `general.raw_exiftool_preview_ext` in the configuration json.
 
 ## Stance on AI Generated Code
 

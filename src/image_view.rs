@@ -1,4 +1,4 @@
-use eframe::egui::{Response, Sense};
+use eframe::egui::{Panel, Response, Sense, Ui};
 use eframe::{egui, epaint::Vec2};
 use std::cmp::min;
 use std::path::{Path, PathBuf};
@@ -428,26 +428,28 @@ impl ImageView {
 
     pub fn ui(
         &mut self,
-        ctx: &egui::Context,
+        ui: &mut Ui,
         flattened: bool,
         watcher_enabled: bool,
         image_store: &mut ImageStore,
     ) {
-        self.handle_input(ctx, image_store);
+        self.handle_input(ui, image_store);
 
         //In slideshow mode we only want to see the picture
         if self.slideshow.is_none() {
-            self.show_view_bottom_bar(ctx, flattened, watcher_enabled, image_store);
+            self.show_view_bottom_bar(ui, flattened, watcher_enabled, image_store);
         } else {
-            self.handle_slideshow(ctx, image_store);
+            self.handle_slideshow(ui, image_store);
         }
 
-        let show_image_response = self.show_image(ctx, image_store);
-        self.handle_image_scroll(ctx, &show_image_response, image_store);
+        let show_image_response = self.show_image(ui, image_store);
+        self.handle_image_scroll(ui, &show_image_response, image_store);
         self.handle_callbacks(&show_image_response);
     }
 
-    pub fn handle_input(&mut self, ctx: &egui::Context, image_store: &mut ImageStore) {
+    pub fn handle_input(&mut self, ui: &mut Ui, image_store: &mut ImageStore) {
+        let ctx = ui.ctx();
+
         if utils::are_inputs_muted(ctx) {
             return;
         }
@@ -516,10 +518,10 @@ impl ImageView {
         self.callback.take()
     }
 
-    pub fn show_image(&mut self, ctx: &egui::Context, image_store: &ImageStore) -> Response {
+    pub fn show_image(&mut self, ui: &mut Ui, image_store: &ImageStore) -> Response {
         egui::CentralPanel::default()
             .frame(self.get_image_frame())
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 if !self.imgs.is_empty() {
                     if self.imgs.len() == 1 {
                         ui.centered_and_justified(|ui| {
@@ -578,12 +580,12 @@ impl ImageView {
         //when advancing with the scroll wheel
         if response.contains_pointer() {
             if self.config.scroll_navigation {
-                if ctx.input(|i| i.raw_scroll_delta.y) > 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
+                if ctx.input(|i| i.smooth_scroll_delta.y) > 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
                 {
                     self.next_image(image_store);
                 }
 
-                if ctx.input(|i| i.raw_scroll_delta.y) < 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
+                if ctx.input(|i| i.smooth_scroll_delta.y) < 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
                 {
                     self.previous_image(image_store);
                 }
@@ -655,14 +657,14 @@ impl ImageView {
 
     pub fn show_view_bottom_bar(
         &mut self,
-        ctx: &egui::Context,
+        ui: &mut Ui,
         flattened: bool,
         watcher_enabled: bool,
         image_store: &mut ImageStore,
     ) {
-        egui::TopBottomPanel::bottom("image_view_bottom_bar")
+        Panel::bottom("image_view_bottom_bar")
             .show_separator_line(false)
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 ui.horizontal_centered(|ui| {
                     let response = ui.add_sized(
                         Vec2::new(65., ui.available_height()),

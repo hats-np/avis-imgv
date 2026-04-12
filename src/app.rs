@@ -1,4 +1,3 @@
-use crate::WORKER_MESSAGE_MEMORY_KEY;
 use crate::db::DbRepository;
 use crate::filters::Filters;
 use crate::image_store::ImageStore;
@@ -14,7 +13,9 @@ use crate::{
     perf_metrics::PerfMetrics,
     tree, utils,
 };
-use eframe::egui::{self, Id, KeyboardShortcut, RichText, ViewportCommand};
+use eframe::Frame;
+use eframe::egui::{self, KeyboardShortcut, Panel, RichText, Ui, ViewportCommand, Window, frame};
+use epaint::{Color32, Pos2};
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
 use notify::FsEventWatcher;
 #[cfg(any(target_os = "linux", target_os = "android"))]
@@ -49,7 +50,7 @@ pub struct App {
     watcher_events: Arc<Mutex<Vec<Event>>>,
     filters: Filters,
     side_panel_visible: bool,
-    worker: Arc<Worker>,
+    worker: Arc<Mutex<Worker>>,
     fullscreen: bool,
     image_store: ImageStore,
     thumbnail_store: ImageStore,
@@ -60,13 +61,13 @@ impl App {
         let cfg = Config::new();
 
         crate::theme::apply_theme(&cc.egui_ctx);
-        let mut style = (*cc.egui_ctx.style()).clone();
+        let mut style = (*cc.egui_ctx.global_style()).clone();
 
         for t_styles in style.text_styles.iter_mut() {
             t_styles.1.size *= cfg.general.text_scaling;
         }
 
-        cc.egui_ctx.set_style(style);
+        cc.egui_ctx.set_global_style(style);
 
         if fullscreen {
             cc.egui_ctx
@@ -105,7 +106,7 @@ impl App {
         let max_texture_size = render_state.adapter.limits().max_texture_dimension_2d;
 
         let base_path = Self::get_base_path(&img_paths, &opened_img_path);
-        let worker = Arc::new(worker);
+        let worker = Arc::new(Mutex::new(worker));
         let mut image_store = ImageStore::new(
             cfg.general.output_icc_profile.to_owned(),
             max_texture_size,
@@ -307,10 +308,13 @@ impl App {
     }
 
     fn set_images(&mut self, selected_img: &Option<PathBuf>, new_dir_opened: bool) {
-        self.worker
-            .send_job(crate::worker::Job::CacheMetadataForImages(
+        if let Ok(worker) = self.worker.try_lock() {
+            worker.send_job(crate::worker::Job::CacheMetadataForImages(
                 self.paths.clone(),
             ));
+        } else {
+            tracing::error!("Failure locking mutex for metadata cache job");
+        }
         self.load_images(selected_img, new_dir_opened);
     }
 
@@ -471,25 +475,57 @@ impl App {
         self.image_store.update();
         self.thumbnail_store.update();
     }
+
+    fn show_worker_msg(&mut self, ui: &mut Ui) {
+        let msg_to_display = if let Ok(mut worker) = self.worker.try_lock() {
+            worker.get_latest_msg().clone()
+        } else {
+            return
+        };
+
+        if let Some(msg) = msg_to_display {
+            let max_rect = ui.max_rect();
+
+            Window::new("Floating Control Panel")
+                .vscroll(false) // Enable vertical scrolling if content is large
+                .resizable(false) // Allow user to resize
+                .title_bar(false)
+                .movable(false)
+                .fixed_pos(Pos2::new(12., max_rect.height() - 70.))
+                .frame(
+                    frame::Frame::new()
+                        .fill(Color32::from_rgb(48, 48, 48))
+                        .multiply_with_opacity(1.)
+                        .corner_radius(4.)
+                        .inner_margin(5.),
+                )
+                .show(ui.ctx(), |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(msg);
+                    });
+                });
+        }
+    }
 }
 
 impl eframe::App for App {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut Frame) {
         self.perf_metrics.new_frame();
         self.execute_img_store_routines();
-        self.handle_input_muters(ctx);
-        self.handle_input(ctx);
+        self.handle_input_muters(ui.ctx());
+        self.handle_input(ui.ctx()); 
 
-        egui::TopBottomPanel::top("performance_metrics")
+        Panel::top("performance_metrics")
             .show_separator_line(false)
-            .show_animated(ctx, self.perf_metrics_visible, |ui| {
+            .show_animated_inside(ui, self.perf_metrics_visible, |ui| {
                 self.perf_metrics.display_metrics(ui);
-                ctx.texture_ui(ui);
+                ui.ctx().clone().texture_ui(ui);
             });
 
-        egui::TopBottomPanel::top("menu")
+        Panel::top("menu")
             .show_separator_line(false)
-            .show_animated(ctx, self.top_menu_visible, |ui| {
+            .show_animated_inside(ui, self.top_menu_visible, |ui| {
                 ui.menu_button("File", |ui| {
                     if ui.button("Open Folder").clicked() {
                         self.folder_picker();
@@ -503,11 +539,12 @@ impl eframe::App for App {
                 });
             });
 
-        egui::SidePanel::right("image_metadata")
+        Panel::right("image_metadata")
             .resizable(true)
             .show_separator_line(false)
-            .min_width(200.)
-            .show_animated(ctx, self.side_panel_visible, |ui| {
+            .default_size(200.)
+            .min_size(200.)
+            .show_animated_inside(ui, self.side_panel_visible, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     if let Some(filtered_paths) = self.filters.ui(ui) {
                         self.set_images_from_paths(filtered_paths);
@@ -521,46 +558,26 @@ impl eframe::App for App {
                         selected_img.metadata_ui(ui, &self.config.metadata_tags, &self.image_store);
                     }
                 });
-
-                ui.add_space(20.);
-                ui.separator();
-                ui.add_space(20.);
-
-                ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
-                    ui.add_space(20.);
-
-                    let msgs = ctx.memory_mut(|r| {
-                        r.data
-                            .get_temp::<Vec<Arc<String>>>(Id::new(WORKER_MESSAGE_MEMORY_KEY))
-                            .unwrap_or_default()
-                    });
-
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        for msg in msgs {
-                            ui.label(msg.as_str());
-                        }
-                    })
-                });
             });
 
-        if self.navigator_visible && navigator::ui(&mut self.navigator_search, ctx) {
+        if self.navigator_visible && navigator::ui(&mut self.navigator_search, ui.ctx()) {
             self.navigator_visible = false;
-            utils::set_mute_state(ctx, false);
+            utils::set_mute_state(ui.ctx(), false);
             self.set_images_from_path(&PathBuf::from(self.navigator_search.clone()), &None);
         }
 
         if self.dir_tree_visible
             && let Some(path) = self.gallery.get_active_img_path()
-            && let Some(path) = tree::ui(path.to_str().unwrap_or(""), ctx)
+            && let Some(path) = tree::ui(path.to_str().unwrap_or(""), ui.ctx())
         {
             self.dir_tree_visible = false;
-            utils::set_mute_state(ctx, false);
+            utils::set_mute_state(ui.ctx(), false);
             self.set_images_from_path(&path, &None);
         }
 
         if self.grid_view_visible {
             self.grid_view.ui(
-                ctx,
+                ui,
                 &mut self.gallery_selected_index,
                 &mut self.thumbnail_store,
             );
@@ -575,7 +592,7 @@ impl eframe::App for App {
             }
         } else {
             self.gallery.ui(
-                ctx,
+                ui,
                 self.dir_flattened,
                 self.watcher.is_some(),
                 &mut self.image_store,
@@ -586,12 +603,13 @@ impl eframe::App for App {
             }
         }
 
+        self.show_worker_msg(ui);
+
         if self.watcher.is_some() {
-            ctx.request_repaint();
+            ui.ctx().request_repaint();
         }
 
         self.process_file_watcher_events();
-
         self.perf_metrics.end_frame();
     }
 }

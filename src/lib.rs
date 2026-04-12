@@ -149,7 +149,6 @@ pub const VALID_EXTENSIONS: &[&str] = &[
     X3F_EXTENSION,
 ];
 pub const SKIP_ORIENT_EXTENSIONS: &[&str] = &[JXL_EXTENSION];
-pub const WORKER_MESSAGE_MEMORY_KEY: &str = "worker-message";
 pub const STARTER_STATE_ARGS: &[&str] = &["--slideshow", "--fullscreen"]; //arguments which change the initial state of the app
 
 pub fn no_icon(

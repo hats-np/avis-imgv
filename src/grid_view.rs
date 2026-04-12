@@ -55,13 +55,13 @@ impl GridView {
 
     pub fn ui(
         &mut self,
-        ctx: &egui::Context,
+        ui: &mut Ui,
         jump_to_index: &mut Option<usize>,
         image_store: &mut ImageStore,
     ) {
-        self.handle_input(ctx);
+        self.handle_input(ui);
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show_inside(ui, |ui| {
             ui.spacing_mut().item_spacing = Vec2::new(0., 0.);
             ui.set_min_width(ui.available_width());
 
@@ -168,12 +168,12 @@ impl GridView {
                             ui.add_space(remainder / 2.0);
 
                             for j in r * self.images_per_row..(r + 1) * self.images_per_row {
-                                self.show_image_at(ui, ctx, j, img_size, image_store);
+                                self.show_image_at(ui, j, img_size, image_store);
                             }
                         });
                     }
 
-                    if !utils::are_inputs_muted(ctx)
+                    if !utils::are_inputs_muted(ui)
                         && ui.input_mut(|i| i.consume_shortcut(&self.config.sc_scroll.kbd_shortcut))
                     {
                         ui.scroll_with_delta(Vec2::new(0., -(img_size * 0.5)));
@@ -217,7 +217,6 @@ impl GridView {
     fn show_image_at(
         &mut self,
         ui: &mut Ui,
-        ctx: &egui::Context,
         index: usize,
         max_size: f32,
         image_store: &mut ImageStore,
@@ -232,7 +231,7 @@ impl GridView {
                 self.selected_image_name = Some(image.name.clone());
             }
             if resp.hovered() {
-                ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
+                ui.set_cursor_icon(egui::CursorIcon::PointingHand);
             }
 
             let return_callback = show_context_menu(&self.config.context_menu, &resp, &image.path);
@@ -248,13 +247,15 @@ impl GridView {
         }
     }
 
-    pub fn handle_input(&mut self, ctx: &egui::Context) {
+    pub fn handle_input(&mut self, ui: &mut Ui) {
+        let ctx =ui.ctx();
+
         if utils::are_inputs_muted(ctx) {
             return;
         }
 
         if (ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_more_per_row.kbd_shortcut))
-            || (ctx.input(|i| i.raw_scroll_delta.y) < 0. && ctx.input(|i| i.zoom_delta() != 1.)))
+            || (ctx.input(|i| i.smooth_scroll_delta.y) < 0. && ctx.input(|i| i.zoom_delta() != 1.)))
             && self.images_per_row <= 15
         {
             self.images_per_row += 1;
@@ -262,7 +263,7 @@ impl GridView {
         }
 
         if (ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_less_per_row.kbd_shortcut))
-            || (ctx.input(|i| i.raw_scroll_delta.y) > 0. && ctx.input(|i| i.zoom_delta() != 1.)))
+            || (ctx.input(|i| i.smooth_scroll_delta.y) > 0. && ctx.input(|i| i.zoom_delta() != 1.)))
             && self.images_per_row != 1
         {
             self.images_per_row -= 1;
