@@ -305,7 +305,7 @@ impl Metadata {
     pub fn format_string_with_metadata(input: &str, metadata: &HashMap<String, String>) -> String {
         let mut output = String::from(input);
 
-        let tag_regex = Regex::new("(\\$\\(([^\\(\\)]*#([\\w \\s]*)#[^\\(\\)]*)\\))").unwrap();
+        let tag_regex = Regex::new("(\\$\\(([^\\(\\)]*#([\\w / \\s]*)#[^\\(\\)]*)\\))").unwrap();
 
         for cap_group in tag_regex.captures_iter(input) {
             //Whole string including  $()
@@ -385,49 +385,54 @@ impl Metadata {
     }
 
     pub fn group_raw_jpg_paths(paths: &[PathBuf]) -> Vec<PathBuf> {
-        paths
-            .iter()
-            .map(|x| {
-                (
-                    x.clone(),
-                    x.file_stem()
-                        .unwrap_or_default()
-                        .to_str()
-                        .unwrap_or_default(),
-                )
-            })
-            .sorted()
-            .chunk_by(|x| x.1)
-            .into_iter()
-            .map(|(_, chunk)| {
-                let chunk: Vec<(PathBuf, &str)> = chunk.collect();
+        let mut paths = paths.to_vec();
+        let mut non_raw: HashMap<String, bool> = HashMap::new();
 
-                if chunk.len() == 1 {
-                    chunk.first().unwrap().0.clone()
-                } else {
-                    let non_raw = chunk
-                        .iter()
-                        .filter(|x| {
-                            !RAW_EXTENSIONS.contains(
-                                &x.0.extension()
-                                    .unwrap_or_default()
-                                    .to_str()
-                                    .unwrap_or_default()
-                                    .to_lowercase()
-                                    .as_str(),
-                            )
-                        })
-                        .map(|x| x.0.clone())
-                        .next();
+        for path in &paths {
+            let stem = path
+                .file_stem()
+                .unwrap_or_default()
+                .to_str()
+                .unwrap_or_default()
+                .to_string();
+            let ext = path
+                .extension()
+                .unwrap_or_default()
+                .to_str()
+                .unwrap_or_default()
+                .to_lowercase();
 
-                    if let Some(non_raw) = non_raw {
-                        non_raw
-                    } else {
-                        chunk.first().unwrap().0.clone()
-                    }
+            if !RAW_EXTENSIONS.contains(&ext.as_str()) {
+                let _ = non_raw.insert(stem, true);
+            }
+        }
+
+        paths.retain(|path| {
+            let ext = path
+                .extension()
+                .unwrap_or_default()
+                .to_str()
+                .unwrap_or_default()
+                .to_lowercase();
+
+            if !RAW_EXTENSIONS.contains(&ext.as_str()) {
+                return true;
+            } else {
+                let stem = path
+                    .file_stem()
+                    .unwrap_or_default()
+                    .to_str()
+                    .unwrap_or_default()
+                    .to_string();
+
+                if non_raw.contains_key(&stem) {
+                    return false;
                 }
-            })
-            .collect()
+            }
+
+            return true;
+        });
+        paths
     }
 }
 

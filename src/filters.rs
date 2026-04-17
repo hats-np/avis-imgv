@@ -1,10 +1,10 @@
 use crate::config::FilterConfig;
 use crate::db::{DbRepository, SqlOperator, SqlOrder};
-use crate::dropdown::DropDownBox;
 use crate::metadata::{METADATA_DATE, METADATA_DIRECTORY, Metadata};
 use crate::worker::Worker;
 use eframe::egui;
 use eframe::egui::{Align, Id, Layout};
+use egui_dropdown::DropDownBox;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -138,8 +138,10 @@ impl Filters {
 
             for field in &mut self.filter_fields {
                 let default_values = field.get_default_values();
+                ui.take_available_width(); //must use this call so the panel doesn't grow infinitely
+                let width = ui.available_width();
                 ui.horizontal(|ui| {
-                    let desired_first_dd_width = ui.available_width() - 15.;
+                    ui.set_max_width(width);
                     if ui
                         .add(
                             DropDownBox::from_iter(
@@ -149,7 +151,7 @@ impl Filters {
                                 |ui, text| ui.selectable_label(false, text),
                             )
                             .max_height(600.)
-                            .desired_width(desired_first_dd_width)
+                            .desired_width(width - 60.)
                             .filter_by_input(true)
                             .select_on_focus(true),
                         )
@@ -164,7 +166,7 @@ impl Filters {
                     }
 
                     egui::ComboBox::from_id_salt(format!("{}_operator", &field.id.value()))
-                        .width(15.)
+                        .width(50.)
                         .selected_text(field.operator.to_string())
                         .show_ui(ui, |ui| {
                             for op in SqlOperator::list() {
@@ -175,23 +177,21 @@ impl Filters {
                                 );
                             }
                         });
-
                 });
 
-                ui.horizontal(|ui| {
-                    ui.add(
-                        DropDownBox::from_iter(
-                            &default_values,
-                            format!("{}_value", &field.id.value()),
-                            &mut field.value,
-                            |ui, text| ui.selectable_label(false, text),
-                        )
-                        .max_height(600.)
-                        .desired_width(f32::INFINITY)
-                        .filter_by_input(true)
-                        .select_on_focus(true),
-                    );
-                });
+                ui.add(
+                    DropDownBox::from_iter(
+                        &default_values,
+                        format!("{}_value", &field.id.value()),
+                        &mut field.value,
+                        |ui, text| ui.selectable_label(false, text),
+                    )
+                    .desired_width(width)
+                    .filter_by_input(true)
+                    .select_on_focus(true),
+                );
+
+                ui.add_space(5.);
             }
 
             ui.add_space(5.);
@@ -276,7 +276,9 @@ impl Filters {
                                             paths.clone(),
                                         ));
                                     } else {
-                                        tracing::error!("Failure locking worker mutex to clear moved files");
+                                        tracing::error!(
+                                            "Failure locking worker mutex to clear moved files"
+                                        );
                                     }
 
                                     if group_raw_jpeg {

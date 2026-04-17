@@ -535,6 +535,7 @@ version = "0.3.2"
 dependencies = [
  "directories",
  "eframe",
+ "egui-dropdown",
  "epaint",
  "fast_image_resize",
  "image",
@@ -1202,6 +1203,15 @@ dependencies = [
  "profiling",
  "smallvec",
  "unicode-segmentation",
+]
+
+[[package]]
+name = "egui-dropdown"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7af648582d7b50b9f2b94ae35f4d65894a6c21cb452cba41ba9d4424d62c6c7"
+dependencies = [
+ "egui",
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use eframe::egui::{self, Id, Response};
+use eframe::egui::{self, Event, Id, Response};
 
 use crate::VALID_EXTENSIONS;
 
@@ -81,4 +81,20 @@ pub fn capitalize_first_char(str: &str) -> String {
         None => String::new(),
         Some(f) => f.to_uppercase().collect::<String>() + chars.as_str(),
     }
+}
+
+pub fn get_raw_scroll(ctx: &egui::Context) -> f32 {
+    let mut delta = 0.0;
+    ctx.input(|r| {
+        for ev in &r.events {
+            match ev {
+                Event::MouseWheel { delta: egui::Vec2 { x: _, y }, .. } => {
+                    delta = *y; 
+                },
+                _ => continue
+            }
+        }
+    });
+
+    delta
 }

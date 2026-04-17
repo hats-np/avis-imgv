@@ -542,8 +542,6 @@ impl eframe::App for App {
         Panel::right("image_metadata")
             .resizable(true)
             .show_separator_line(false)
-            .default_size(200.)
-            .min_size(200.)
             .show_animated_inside(ui, self.side_panel_visible, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     if let Some(filtered_paths) = self.filters.ui(ui) {

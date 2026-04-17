@@ -1,6 +1,6 @@
 use crate::image_store::ImageStore;
 use eframe::egui::load::SizedTexture;
-use eframe::egui::{self, Color32, Response, UiBuilder, Vec2};
+use eframe::egui::{self, Color32, Response, RichText, UiBuilder, Vec2};
 use eframe::epaint::vec2;
 use std::path::PathBuf;
 
@@ -8,6 +8,7 @@ pub struct ThumbnailImage {
     pub path: PathBuf,
     pub name: String,
     pub registered: bool,
+    pub display_metadata: Option<Vec<(String, String)>>,
 }
 
 impl ThumbnailImage {
@@ -22,6 +23,7 @@ impl ThumbnailImage {
                     .to_string_lossy()
                     .to_string(),
                 registered: false,
+                display_metadata: None
             })
             .collect()
     }
@@ -31,6 +33,7 @@ impl ThumbnailImage {
         ui: &mut egui::Ui,
         mut size: [f32; 2],
         image_store: &mut ImageStore,
+        metadata_tags_to_show: &[String],
     ) -> Option<Response> {
         if !image_store.is_image_loaded(&self.path) {
             Self::display_empty_image_frame(ui, size[1]);
@@ -71,16 +74,18 @@ impl ThumbnailImage {
 
         ui.scope_builder(UiBuilder::new().max_rect(rect.1), |ui| {
             ui.centered_and_justified(|ui| {
-                let img_response = ui
-                    .add(
-                        egui::Image::new(SizedTexture::new(texture_id, image_size))
-                            .fit_to_exact_size(vec2(size[0], size[1]))
-                            .sense(egui::Sense::CLICK),
-                    )
-                    .on_hover_text_at_pointer(&self.name);
+                let img_response = ui.add(
+                    egui::Image::new(SizedTexture::new(texture_id, image_size))
+                        .fit_to_exact_size(vec2(size[0], size[1]))
+                        .sense(egui::Sense::CLICK),
+                );
 
                 response = Some(img_response)
             });
+        });
+
+        response.clone().unwrap().on_hover_ui(|ui| {
+            self.metadata_ui(ui, image_store, metadata_tags_to_show);
         });
 
         ui.painter().rect_stroke(
@@ -113,5 +118,34 @@ impl ThumbnailImage {
             egui::Stroke::new(1.0, Color32::from_rgb(48, 48, 48)),
             egui::StrokeKind::Outside, // Border thickness and color
         );
+    }
+
+    pub fn metadata_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        image_store: &mut ImageStore,
+        metadata_tags_to_show: &[String],
+    ) {
+        if self.display_metadata.is_none() {
+            let mut img_metadata: Vec<(String, String)> = vec![];
+            if let Some(metadata) = image_store.get_image_metadata(&self.path) {
+                for tag in metadata_tags_to_show {
+                    if metadata.contains_key(tag) {
+                        img_metadata.push((tag.to_string(), metadata[tag].to_string()));
+                    }
+                }
+            }
+            self.display_metadata = Some(img_metadata);
+        }
+
+        if let Some(metadata) = &self.display_metadata {
+            for md in metadata {
+                ui.horizontal(|ui| {
+                    let text = RichText::new(format!("{}:", md.0)).strong();
+                    ui.label(text);
+                    ui.label(&md.1);
+                });
+            }
+        }
     }
 }

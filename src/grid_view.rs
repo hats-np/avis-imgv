@@ -1,6 +1,10 @@
 use crate::{
-    callback::Callback, config::GridViewConfig, image_store::ImageStore,
-    thumbnail_image::ThumbnailImage, user_action::show_context_menu, utils,
+    callback::Callback,
+    config::GridViewConfig,
+    image_store::ImageStore,
+    thumbnail_image::ThumbnailImage,
+    user_action::show_context_menu,
+    utils::{self, get_raw_scroll},
 };
 use eframe::{
     egui::{self, Ui, scroll_area::ScrollSource},
@@ -226,7 +230,12 @@ impl GridView {
             None => return,
         };
 
-        if let Some(resp) = image.ui(ui, [max_size, max_size], image_store) {
+        if let Some(resp) = image.ui(
+            ui,
+            [max_size, max_size],
+            image_store,
+            &self.config.hover_exif_tags,
+        ) {
             if resp.clicked() {
                 self.selected_image_name = Some(image.name.clone());
             }
@@ -248,14 +257,14 @@ impl GridView {
     }
 
     pub fn handle_input(&mut self, ui: &mut Ui) {
-        let ctx =ui.ctx();
+        let ctx = ui.ctx();
 
         if utils::are_inputs_muted(ctx) {
             return;
         }
 
         if (ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_more_per_row.kbd_shortcut))
-            || (ctx.input(|i| i.smooth_scroll_delta.y) < 0. && ctx.input(|i| i.zoom_delta() != 1.)))
+            || (get_raw_scroll(ctx) > 0.0 && ctx.input(|i| i.zoom_delta() != 1.)))
             && self.images_per_row <= 15
         {
             self.images_per_row += 1;
@@ -263,7 +272,7 @@ impl GridView {
         }
 
         if (ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_less_per_row.kbd_shortcut))
-            || (ctx.input(|i| i.smooth_scroll_delta.y) > 0. && ctx.input(|i| i.zoom_delta() != 1.)))
+            || (get_raw_scroll(ctx) < 0.0 && ctx.input(|i| i.zoom_delta() != 1.)))
             && self.images_per_row != 1
         {
             self.images_per_row -= 1;

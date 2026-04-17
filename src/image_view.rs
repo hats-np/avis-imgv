@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use crate::config::SlideshowConfig;
 use crate::gallery_image::{GalleryImageFrame, GalleryImageSizing};
 use crate::image_store::ImageStore;
+use crate::utils::get_raw_scroll;
 use crate::{
     callback::Callback,
     config::ImageViewConfig,
@@ -580,12 +581,12 @@ impl ImageView {
         //when advancing with the scroll wheel
         if response.contains_pointer() {
             if self.config.scroll_navigation {
-                if ctx.input(|i| i.smooth_scroll_delta.y) > 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
+                if get_raw_scroll(ctx) > 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
                 {
                     self.next_image(image_store);
                 }
 
-                if ctx.input(|i| i.smooth_scroll_delta.y) < 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
+                if get_raw_scroll(ctx) < 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
                 {
                     self.previous_image(image_store);
                 }

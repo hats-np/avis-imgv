@@ -189,6 +189,8 @@ impl DbRepository {
             );
         }
 
+        tracing::info!("Fetching filtered imgs, final query: {}", query);
+
         let conn = self.get_sqlite_conn()?;
         let mut q = conn.prepare(&query)?;
         let paths = q

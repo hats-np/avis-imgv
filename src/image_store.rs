@@ -6,6 +6,10 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::thread::JoinHandle;
 
+//TODO: Currently we are too weager when loading images into the GPU
+//This might lead to OOM crashes in some cases, potentially only load to the GPU
+//When image needs to be displayed? Else keep it in memory until that point
+//Must be reviewed. It's only a problem in directories with many very large(26MP+ images)
 pub struct ImageStore {
     imgs: HashMap<PathBuf, StoredImage>,
     loading_imgs: HashMap<PathBuf, LoadingImage>,

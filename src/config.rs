@@ -102,6 +102,8 @@ pub struct GridViewConfig {
     pub images_per_row: usize,
     #[serde(default = "default_preloaded_rows")]
     pub preloaded_rows: usize,
+    #[serde(default = "default_grid_view_hover_exif_tags")]
+    pub hover_exif_tags: Vec<String>,
     #[serde(default = "default_ctx_menu")]
     pub context_menu: Vec<ContextMenuEntry>,
 
@@ -233,6 +235,7 @@ impl Default for GridViewConfig {
             images_per_row: default_images_per_row(),
             preloaded_rows: default_preloaded_rows(),
             context_menu: default_ctx_menu(),
+            hover_exif_tags: default_grid_view_hover_exif_tags(),
 
             sc_scroll: default_sc_scroll(),
             sc_more_per_row: default_sc_more_per_row(),
@@ -454,6 +457,17 @@ pub fn default_preloaded_rows() -> usize {
 }
 pub fn default_simultaneous_load() -> usize {
     8
+}
+pub fn default_grid_view_hover_exif_tags() -> Vec<String> {
+    vec![
+        "File Name".to_string(),
+        "Date/Time Original".to_string(),
+        "Camera Model Name".to_string(),
+        "Lens Model".to_string(),
+        "Aperture Value".to_string(),
+        "Exposure Time".to_string(),
+        "ISO".to_string()
+    ]
 }
 pub fn default_raw_exiftool_preview_ext() -> Vec<String> {
     vec!["raf".to_string()]

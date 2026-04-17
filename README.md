@@ -142,6 +142,7 @@ Configuration file should be: `~/.config/avis-imgv/config.json`. An example is p
 |-------------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------|
 | images_per_row    | How many images should be displayed per row                                      | 3                                                                       |
 | preloaded_rows    | How many off-screen rows in each direction should be loaded and remain in memory | 2                                                                       |
+| hover_exif_tags   | Exif tag values to be shown on hover | File Name, Date/Time Original, Camera Model Name, Lens Model, Aperture Value, Exposure Time, ISO
 
 ## Default Shortcuts
 

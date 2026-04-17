@@ -7,7 +7,6 @@ pub mod callback;
 pub mod config;
 pub mod crawler;
 pub mod db;
-pub mod dropdown;
 pub mod filters;
 pub mod gallery_image;
 pub mod grid_view;
