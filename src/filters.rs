@@ -94,7 +94,11 @@ impl Filters {
             .iter()
             .map(|x| FilterField::new(&x.name, "", db_repo))
             .collect();
-        ffs.push(FilterField::new(METADATA_DIRECTORY, &get_path_string_without_trailing_slash(opened_path), db_repo));
+        ffs.push(FilterField::new(
+            METADATA_DIRECTORY,
+            &get_path_string_without_trailing_slash(opened_path),
+            db_repo,
+        ));
 
         Filters {
             filter_fields: ffs,

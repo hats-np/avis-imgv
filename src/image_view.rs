@@ -132,7 +132,7 @@ impl ImageView {
         image_store: &mut ImageStore,
     ) {
         for img in &self.imgs {
-            image_store.deregister_img(&img.path);
+            image_store.deregister_instant(&img.path);
         }
 
         let imgs = GalleryImage::from_paths(image_paths);
@@ -581,13 +581,11 @@ impl ImageView {
         //when advancing with the scroll wheel
         if response.contains_pointer() {
             if self.config.scroll_navigation {
-                if get_raw_scroll(ctx) > 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
-                {
+                if get_raw_scroll(ctx) > 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0 {
                     self.next_image(image_store);
                 }
 
-                if get_raw_scroll(ctx) < 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0
-                {
+                if get_raw_scroll(ctx) < 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0 {
                     self.previous_image(image_store);
                 }
             }

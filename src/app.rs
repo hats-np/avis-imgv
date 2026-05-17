@@ -381,7 +381,9 @@ impl App {
                     continue;
                 }
 
-                if (event.kind.is_modify() || event.kind.is_access() || event.kind.is_create()) && !paths.contains(first) {
+                if (event.kind.is_modify() || event.kind.is_access() || event.kind.is_create())
+                    && !paths.contains(first)
+                {
                     paths.push(first.clone());
                 }
             }

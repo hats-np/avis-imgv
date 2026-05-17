@@ -1,7 +1,9 @@
 use avis_imgv::app::App;
 use avis_imgv::db::DbRepository;
 use eframe::egui_wgpu::{WgpuConfiguration, WgpuSetup, WgpuSetupCreateNew};
-use eframe::wgpu::{BackendOptions, Backends, InstanceDescriptor, InstanceFlags, MemoryBudgetThresholds};
+use eframe::wgpu::{
+    BackendOptions, Backends, InstanceDescriptor, InstanceFlags, MemoryBudgetThresholds,
+};
 use eframe::{
     NativeOptions,
     wgpu::{self},
@@ -52,7 +54,18 @@ fn main() {
             }
         }
 
-        avis_imgv::metadata::Metadata::cache_metadata_for_images(&mut repo, &image_paths);
+        avis_imgv::metadata::Metadata::cache_metadata_for_images(
+            &mut repo,
+            &image_paths,
+            |progress| tracing::info!(progress),
+        );
+        avis_imgv::metadata::Metadata::update_xmp_metadata_for_images(
+            &mut repo,
+            &image_paths,
+            |progress_msg| {
+                tracing::info!(progress_msg);
+            },
+        );
         avis_imgv::metadata::Metadata::clean_moved_files(&mut repo);
         tracing::info!("Metadata caching finished. Exiting.");
         return;
@@ -128,16 +141,18 @@ fn get_native_options() -> NativeOptions {
             wgpu_setup: WgpuSetup::CreateNew(WgpuSetupCreateNew {
                 device_descriptor: device_descriptor_fn,
                 power_preference: wgpu::PowerPreference::HighPerformance,
-                instance_descriptor: InstanceDescriptor 
-                { 
-                    backends: Backends::all(), 
+                instance_descriptor: InstanceDescriptor {
+                    backends: Backends::all(),
                     flags: InstanceFlags::empty(),
-                    memory_budget_thresholds: MemoryBudgetThresholds { for_device_loss: None, for_resource_creation: None}, 
-                    backend_options: BackendOptions::default(), 
-                    display:  None
+                    memory_budget_thresholds: MemoryBudgetThresholds {
+                        for_device_loss: None,
+                        for_resource_creation: None,
+                    },
+                    backend_options: BackendOptions::default(),
+                    display: None,
                 },
                 display_handle: None,
-                native_adapter_selector: None
+                native_adapter_selector: None,
             }),
             ..Default::default()
         },

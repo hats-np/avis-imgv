@@ -59,6 +59,33 @@ impl DbRepository {
         Ok(())
     }
 
+    pub fn update_files_xmp_metadata(
+        &mut self,
+        data: &[(String, u32, String)],
+    ) -> Result<(), Box<dyn Error>> {
+        let mut conn = self.get_sqlite_conn()?;
+        let now = Instant::now();
+        let tx = conn.transaction()?;
+
+        {
+            let mut stmt =
+                tx.prepare("update file set rating = ?, tags = jsonb(?) where path = ?")?;
+
+            for (path, rating, tags) in data {
+                stmt.execute(params![rating, tags, path])?;
+            }
+        }
+
+        tx.commit()?;
+        tracing::info!(
+            "Spent {}ms inserting {} metadata records into db",
+            now.elapsed().as_millis(),
+            data.len()
+        );
+
+        Ok(())
+    }
+
     pub fn get_cached_images_by_paths(
         &mut self,
         paths: &[String],
@@ -113,6 +140,8 @@ impl DbRepository {
             "create table if not exists file (
                 path text not null primary key,
                 metadata jsonb not null,
+                tags jsonb not null default '', 
+                rating int not null default 0,
                 ts TIMESTAMP not null DEFAULT CURRENT_TIMESTAMP);",
             "create index if not exists file_ts_IDX on file (ts DESC)",
         ];

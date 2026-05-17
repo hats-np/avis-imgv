@@ -23,7 +23,7 @@ impl ThumbnailImage {
                     .to_string_lossy()
                     .to_string(),
                 registered: false,
-                display_metadata: None
+                display_metadata: None,
             })
             .collect()
     }

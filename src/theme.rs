@@ -1,9 +1,9 @@
 use eframe::egui;
 
-use egui::{style, Color32};
+use egui::{Color32, style};
 use epaint::{
-    text::{FontData, FontDefinitions},
     FontFamily,
+    text::{FontData, FontDefinitions},
 };
 
 pub fn apply_theme(ctx: &egui::Context) {

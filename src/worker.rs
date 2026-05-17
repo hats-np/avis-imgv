@@ -1,9 +1,9 @@
+use crate::db::DbRepository;
+use crate::metadata::Metadata;
+use eframe::egui::Context;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread;
-use eframe::egui::Context;
-use crate::db::DbRepository;
-use crate::metadata::Metadata;
 
 #[derive(Debug)]
 pub enum Job {
@@ -20,7 +20,7 @@ pub struct Worker {
     job_tx: Sender<Job>,
     msg_rx: Receiver<WorkerMessage>,
     msgs: Vec<String>,
-    last_msg: Option<String>
+    last_msg: Option<String>,
 }
 
 impl Worker {
@@ -34,7 +34,12 @@ impl Worker {
             worker_loop(worker_ctx, job_rx, msg_tx, db_repo);
         });
 
-        Self { job_tx, msg_rx, msgs: vec![], last_msg: None }
+        Self {
+            job_tx,
+            msg_rx,
+            msgs: vec![],
+            last_msg: None,
+        }
     }
 
     pub fn send_job(&self, job: Job) {
@@ -42,10 +47,11 @@ impl Worker {
     }
 
     pub fn get_latest_msg(&mut self) -> &Option<String> {
-        self.msg_rx.try_iter().for_each(|x| {
-            match x {
-                WorkerMessage::Done => self.last_msg = None,
-                WorkerMessage::Log(msg) => {self.msgs.push(msg.clone()); self.last_msg = Some(msg) }
+        self.msg_rx.try_iter().for_each(|x| match x {
+            WorkerMessage::Done => self.last_msg = None,
+            WorkerMessage::Log(msg) => {
+                self.msgs.push(msg.clone());
+                self.last_msg = Some(msg)
             }
         });
 
@@ -53,26 +59,32 @@ impl Worker {
     }
 }
 
-fn worker_loop(ctx: Context, 
-        job_rx: Receiver<Job>, 
-        msg_tx: Sender<WorkerMessage>, 
-        db_repo: DbRepository
-    ) {
+fn worker_loop(
+    ctx: Context,
+    job_rx: Receiver<Job>,
+    msg_tx: Sender<WorkerMessage>,
+    db_repo: DbRepository,
+) {
     let mut db_repo = db_repo.clone();
     while let Ok(job) = job_rx.recv() {
         match job {
             Job::CacheMetadataForImages(paths) => {
-                let log = format!("Caching metadata for {} images", paths.len());
-                tracing::info!("{}", log);
-                worker_send_msg(&msg_tx, WorkerMessage::Log(log.to_string()));
+                Metadata::cache_metadata_for_images(&mut db_repo, &paths, |progress_msg| {
+                    worker_send_msg(&msg_tx, WorkerMessage::Log(progress_msg));
+                });
 
-                Metadata::cache_metadata_for_images(&mut db_repo, &paths);
+                Metadata::update_xmp_metadata_for_images(&mut db_repo, &paths, |progress_msg| {
+                    worker_send_msg(&msg_tx, WorkerMessage::Log(progress_msg));
+                });
 
                 worker_send_msg(&msg_tx, WorkerMessage::Done);
                 tracing::info!("Finished caching metadata for all images");
             }
             Job::ClearMovedFiles(paths) => {
-                worker_send_msg(&msg_tx, WorkerMessage::Log("Clearing moved files from the database".to_string()));
+                worker_send_msg(
+                    &msg_tx,
+                    WorkerMessage::Log("Clearing moved files from the database".to_string()),
+                );
                 let _ = Metadata::clear_moved_files(&mut db_repo, &paths);
                 worker_send_msg(&msg_tx, WorkerMessage::Done);
             }

@@ -14,6 +14,7 @@ use std::{
 
 //for exiftool, the bigger the chunk the better as the startup time is slow
 pub const CHUNK_SIZE: &usize = &500;
+pub const THREAD_COUNT: &usize = &4;
 pub const METADATA_PROFILE_DESCRIPTION: &str = "ProfileDescription";
 pub const METADATA_ORIENTATION: &str = "Orientation";
 pub const METADATA_DIRECTORY: &str = "Directory";
@@ -49,8 +50,16 @@ impl Orientation {
 pub struct Metadata {}
 
 impl Metadata {
-    pub fn cache_metadata_for_images(db_repo: &mut DbRepository, image_paths: &[PathBuf]) {
+    pub fn cache_metadata_for_images<F>(
+        db_repo: &mut DbRepository,
+        image_paths: &[PathBuf],
+        on_update: F,
+    ) where
+        F: Fn(String),
+    {
         let timer = Instant::now();
+
+        on_update(format!("Caching metadata for {} images", image_paths.len()));
 
         let mut image_paths = image_paths
             .iter()
@@ -93,9 +102,7 @@ impl Metadata {
 
             let (tx, rx) = mpsc::channel();
             let mut handles = vec![];
-            //4 threads, should be enough to max a HDD
-            //Make configurable to take advantage of SSD speeds
-            let chunks: Vec<&[String]> = chunk.chunks(*CHUNK_SIZE / 4).collect();
+            let chunks: Vec<&[String]> = chunk.chunks(*CHUNK_SIZE / THREAD_COUNT).collect();
             for chunk in chunks {
                 let tx = tx.clone();
                 let chunk = chunk.to_vec();
@@ -152,11 +159,133 @@ impl Metadata {
                 tracing::info!(
                     "Estimated time remaining: {estimated_remaining_minutes}m {estimated_remaining_seconds_remainder}s"
                 );
+
+                on_update(format!(
+                    "Caching metadata for {} images. Remaining {}m{}s",
+                    remaining_chunks * (*CHUNK_SIZE as u128),
+                    estimated_remaining_minutes,
+                    estimated_remaining_seconds_remainder
+                ));
             }
         }
 
         tracing::info!(
             "Finished caching metadata for all images in {}ms",
+            timer.elapsed().as_millis()
+        );
+    }
+
+    pub fn update_xmp_metadata_for_images<F>(
+        db_repo: &mut DbRepository,
+        image_paths: &[PathBuf],
+        on_update: F,
+    ) where
+        F: Fn(String),
+    {
+        let timer = Instant::now();
+
+        let image_paths = image_paths
+            .iter()
+            .map(|p| format!("{}.xmp", p.to_string_lossy()))
+            .collect::<Vec<String>>();
+
+        on_update(format!(
+            "Updating XMP metadata of {} imgs",
+            image_paths.len()
+        ));
+
+        let chunks: Vec<&[String]> = image_paths.chunks(*CHUNK_SIZE).collect();
+        let total_chunks = chunks.len();
+        let mut total_elapsed_time_ms = 0u128;
+
+        tracing::info!(
+            "Updating XMP metadata of {} imgs in {} chunks",
+            image_paths.len(),
+            total_chunks
+        );
+
+        for (i, chunk) in chunks.iter().enumerate() {
+            tracing::info!("Updating chunk {i} of {}", chunks.len());
+
+            let chunk_timer = Instant::now();
+
+            let (tx, rx) = mpsc::channel();
+            let mut handles = vec![];
+            let chunks: Vec<&[String]> = chunk.chunks(*CHUNK_SIZE / *THREAD_COUNT).collect();
+            for chunk in chunks {
+                let tx = tx.clone();
+                let chunk = chunk.to_vec();
+                let handle = thread::spawn(move || {
+                    let cmd = Command::new("exiftool")
+                        .arg("-json")
+                        .arg("-g")
+                        .arg("-ext")
+                        .arg("xmp")
+                        .arg("-XMP:Rating")
+                        .arg("-Keywords")
+                        .arg("-HierarchicalSubject")
+                        .args(chunk)
+                        .stdout(Stdio::piped())
+                        .spawn();
+
+                    match cmd {
+                        Ok(cmd) => match cmd.wait_with_output() {
+                            Ok(output) => {
+                                tx.send(output).unwrap();
+                            }
+                            Err(e) => tracing::error!("Error fetching xmp metadata -> {e}"),
+                        },
+                        Err(e) => tracing::error!("Error fetching xmp metadata -> {e}"),
+                    };
+                });
+
+                handles.push(handle);
+            }
+
+            for handle in handles {
+                handle.join().unwrap(); // Wait for each thread to complete
+            }
+
+            drop(tx);
+
+            for output in rx {
+                Self::parse_exiftool_xmp_output(db_repo, &output);
+            }
+
+            let chunk_elapsed_ms = chunk_timer.elapsed().as_millis();
+            total_elapsed_time_ms += chunk_elapsed_ms;
+            let processed_chunks_count = (i + 1) as u128;
+
+            tracing::info!(
+                "Updated XMP metadata chunk containing {} images in {}ms",
+                chunk.len(),
+                chunk_elapsed_ms
+            );
+
+            if processed_chunks_count < total_chunks as u128 {
+                let avg_time_per_chunk_ms = total_elapsed_time_ms / processed_chunks_count;
+                let remaining_chunks = (total_chunks as u128) - processed_chunks_count;
+                let estimated_remaining_ms = avg_time_per_chunk_ms * remaining_chunks;
+
+                let estimated_remaining_seconds = estimated_remaining_ms / 1000;
+                let estimated_remaining_minutes = estimated_remaining_seconds / 60;
+                let estimated_remaining_seconds_remainder = estimated_remaining_seconds % 60;
+
+                tracing::info!(
+                    "Estimated time remaining: {estimated_remaining_minutes}m {estimated_remaining_seconds_remainder}s"
+                );
+
+                on_update(format!(
+                    "Updating XMP metadata of {} imgs. Remaining {}m{}s",
+                    image_paths.len(),
+                    estimated_remaining_minutes,
+                    estimated_remaining_seconds_remainder
+                ));
+            }
+        }
+
+        tracing::info!(
+            "Finished updating xmp metadata for all images in {}ms",
             timer.elapsed().as_millis()
         );
     }
@@ -185,6 +314,38 @@ impl Metadata {
             Err(e) => {
                 let paths: Vec<String> =
                     metadata_to_insert.iter().map(|x| x.0.to_string()).collect();
+                tracing::error!("Failure inserting metadata into db -> {e} \n paths {paths:?}");
+            }
+        }
+    }
+
+    pub fn parse_exiftool_xmp_output(db_repo: &mut DbRepository, output: &Output) {
+        let string_output = String::from_utf8_lossy(&output.stdout);
+        let list: Vec<Value> = serde_json::from_str(&string_output).unwrap();
+
+        let metadata_to_update: Vec<(String, u32, String)> = list
+            .iter()
+            .filter_map(|x| {
+                let metadata: Map<String, Value> = serde_json::from_value(x.clone()).ok()?;
+
+                let source_file = metadata.get("SourceFile")?.as_str()?.strip_suffix(".xmp")?.to_string();
+
+                let xmp = metadata.get("XMP")?.as_object()?;
+
+                let rating = xmp.get("Rating")?.as_u64()? as u32;
+
+                let tags_value = xmp.get("HierarchicalSubject")?;
+                let tags_json_str = serde_json::to_string(tags_value).ok()?;
+
+                Some((source_file, rating, tags_json_str))
+            })
+            .collect();
+
+        match db_repo.update_files_xmp_metadata(&metadata_to_update) {
+            Ok(_) => {}
+            Err(e) => {
+                let paths: Vec<String> =
+                    metadata_to_update.iter().map(|x| x.0.to_string()).collect();
                 tracing::error!("Failure inserting metadata into db -> {e} \n paths {paths:?}");
             }
         }
@@ -254,7 +415,7 @@ impl Metadata {
 
         Some(
             metadata
-                .into_iter() 
+                .into_iter()
                 .map(|(k, v)| (k, serde_json_value_to_string(v)))
                 .collect::<HashMap<String, String>>(),
         )

@@ -466,7 +466,7 @@ pub fn default_grid_view_hover_exif_tags() -> Vec<String> {
         "LensModel".to_string(),
         "ApertureValue".to_string(),
         "ExposureTime".to_string(),
-        "ISO".to_string()
+        "ISO".to_string(),
     ]
 }
 pub fn default_raw_exiftool_preview_ext() -> Vec<String> {

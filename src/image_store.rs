@@ -141,6 +141,13 @@ impl ImageStore {
         }
     }
 
+    //Needs to be used with care on image stores which are shared by other views (currently not the case for any)
+    pub fn deregister_instant(&mut self, pathbuf: &PathBuf) {
+        if let Some(img) = self.imgs.remove(pathbuf) {
+            img.image.free_texture(&self.render_state);
+        }
+    }
+
     pub fn reload(&mut self, pathbuf: &PathBuf, desired_size: Option<u32>) {
         if let Some(img) = self.imgs.remove(pathbuf) {
             img.image.free_texture(&self.render_state);

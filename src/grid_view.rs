@@ -50,7 +50,7 @@ impl GridView {
 
     pub fn set_images(&mut self, img_paths: &[PathBuf], image_store: &mut ImageStore) {
         for img in self.imgs.iter().filter(|x| x.registered) {
-            image_store.deregister_img(&img.path);
+            image_store.deregister_instant(&img.path);
         }
         self.imgs = ThumbnailImage::from_paths(img_paths);
         self.reset_scroll = true;
@@ -192,7 +192,7 @@ impl GridView {
         });
     }
 
-    //TODO: 
+    //TODO:
     //This is not ideal if other views will use this image store, as any cursor movement will
     //trigger an unload and will rapidly exhaust all consumers of the image
     //Ideally we would keep track of this in this view, or perhaps implement a consumer ID in the store
