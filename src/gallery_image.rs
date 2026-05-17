@@ -1,5 +1,6 @@
 use crate::image_store::ImageStore;
 use crate::metadata;
+use crate::utils::pascal_case_format_space;
 use eframe::egui::load::SizedTexture;
 use eframe::egui::{self, Rect, RichText, Widget, vec2};
 use eframe::epaint::{Pos2, Vec2};
@@ -276,7 +277,7 @@ impl GalleryImage {
                 let mut display_metadata: Vec<(String, String)> = vec![];
                 for tag in tags_to_display {
                     if let Some(value) = metadata.get(tag) {
-                        display_metadata.push((tag.to_string(), value.to_string()));
+                        display_metadata.push((pascal_case_format_space(tag), value.to_string()));
                     };
                 }
                 self.display_metadata = Some(display_metadata);

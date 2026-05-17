@@ -109,7 +109,7 @@ pub fn get_path_string_without_trailing_slash(path: &Path) -> String {
         path = if let Some(path) = path.parent() {
             path
         } else {
-            return String::new()
+            return String::new();
         }
     }
     let mut s = path.to_string_lossy().to_string();
@@ -121,15 +121,16 @@ pub fn get_path_string_without_trailing_slash(path: &Path) -> String {
     s
 }
 
-
 pub fn serde_json_value_to_string(value: Value) -> String {
     match value {
         Value::String(s) => s,
         Value::Null => "".to_string(),
-        Value::Bool(b) => if b {
-            "True".to_string()
-        } else {
-            "False".to_string()
+        Value::Bool(b) => {
+            if b {
+                "True".to_string()
+            } else {
+                "False".to_string()
+            }
         }
         Value::Number(n) => n.to_string(),
         Value::Array(_) => "".to_string(),
@@ -137,15 +138,49 @@ pub fn serde_json_value_to_string(value: Value) -> String {
     }
 }
 
+pub fn pascal_case_format_space(str: &str) -> String {
+    let mut s = String::new();
+    let mut prev_upper = false;
 
+    for c in str.chars() {
+        if c.is_uppercase() && !s.is_empty() && !prev_upper {
+            s.push(' ');
+        }
+
+        s.push(c);
+        prev_upper = c.is_uppercase();
+    }
+
+    s
+}
+
+#[cfg(test)]
 mod tests {
-    
+    use std::path::Path;
+
+    use crate::utils::{get_path_string_without_trailing_slash, pascal_case_format_space};
 
     #[test]
     fn test_get_path_string_without_trailing_slash() {
-        assert_eq!("test/data", get_path_string_without_trailing_slash(Path::new("test/data/test.txt")));
-        assert_eq!("test/data", get_path_string_without_trailing_slash(Path::new("test/data/")));
-        assert_eq!("test/data", get_path_string_without_trailing_slash(Path::new("test/data")));
+        assert_eq!(
+            "test/data",
+            get_path_string_without_trailing_slash(Path::new("test/data/test.txt"))
+        );
+        assert_eq!(
+            "test/data",
+            get_path_string_without_trailing_slash(Path::new("test/data/"))
+        );
+        assert_eq!(
+            "test/data",
+            get_path_string_without_trailing_slash(Path::new("test/data"))
+        );
+    }
+
+    #[test]
+    fn test_pascal_case_format_space() {
+        assert_eq!("Pascal Case", pascal_case_format_space("PascalCase"));
+        assert_eq!("Pascal", pascal_case_format_space("Pascal"));
+        assert_eq!("pascal", pascal_case_format_space("pascal"));
+        assert_eq!("ISO", pascal_case_format_space("ISO"));
     }
 }
-

@@ -244,7 +244,7 @@ impl Metadata {
         let string_output = String::from_utf8_lossy(&output.stdout);
         let list: Vec<Value> = serde_json::from_str(&string_output).unwrap();
 
-        if list.len() <= 0 {
+        if list.is_empty() {
             return None;
         }
 

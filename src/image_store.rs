@@ -133,11 +133,11 @@ impl ImageStore {
 
     pub fn deregister_img(&mut self, pathbuf: &PathBuf) {
         if let Some(img) = self.imgs.get_mut(pathbuf) {
-            img.consumer_count -= 1;
+            img.consumer_count = img.consumer_count.saturating_sub(1);
         } else if let Some(img) = self.loading_imgs.get_mut(pathbuf) {
-            img.consumer_count -= 1;
+            img.consumer_count = img.consumer_count.saturating_sub(1);
         } else if let Some(img) = self.loading_queue.get_mut(pathbuf) {
-            img.consumer_count -= 1;
+            img.consumer_count = img.consumer_count.saturating_sub(1);
         }
     }
 
