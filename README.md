@@ -122,7 +122,7 @@ Configuration file should be: `~/.config/avis-imgv/config.json`. An example is p
 | limit_cached       | Maximum number of cached files metadata                            | 100000                                                                                                                                                |
 | output_icc_profile | Output icc profile                                                 | srgb                                                                                                                                                  |
 | text_scaling       | Text Scaling                                                       | 1.25                                                                                                                                                  |
-| metadata_tags      | Metadata visible in the Image Information side pannel(when opened) | Date/Time Original, Created Date, Camera Model Name, Lens Model, Focal Length, Aperture Value, Exposure Time, ISO, Image Size, Color Space, Directory |
+| metadata_tags      | Metadata visible in the Image Information side pannel(when opened) | DateTimeOriginal, CreatedDate, CameraModelName, LensModel, FocalLength, ApertureValue, ExposureTime, ISO, ImageSize, ColorSpace, Directory |
 | simultaneous_load | How many images should be allowed to load at the same time per store(full res, thumbnails)                       | 8 (Adjust according to core count or how much you want to work your PC) |
 | raw_exiftool_preview_ext | Extensions of raw files which should be previewed using the built in thumbnail instead of decoded with rawler |
 
@@ -142,7 +142,7 @@ Configuration file should be: `~/.config/avis-imgv/config.json`. An example is p
 |-------------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------|
 | images_per_row    | How many images should be displayed per row                                      | 3                                                                       |
 | preloaded_rows    | How many off-screen rows in each direction should be loaded and remain in memory | 2                                                                       |
-| hover_exif_tags   | Exif tag values to be shown on hover | File Name, Date/Time Original, Camera Model Name, Lens Model, Aperture Value, Exposure Time, ISO
+| hover_exif_tags   | Exif tag values to be shown on hover | FileName, DateTimeOriginal, CameraModelName, LensModel, ApertureValue, ExposureTime, ISO
 
 ## Default Shortcuts
 

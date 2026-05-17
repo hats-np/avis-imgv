@@ -122,7 +122,7 @@ fn get_native_options() -> NativeOptions {
     NativeOptions {
         wgpu_options: WgpuConfiguration {
             //Fix for slow window resize
-            present_mode: wgpu::PresentMode::Immediate,
+            present_mode: wgpu::PresentMode::AutoVsync,
             desired_maximum_frame_latency: Some(2),
             //End Fix
             wgpu_setup: WgpuSetup::CreateNew(WgpuSetupCreateNew {

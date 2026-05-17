@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use eframe::egui::{self, Event, Id, Response};
+use serde_json::Value;
 
 use crate::VALID_EXTENSIONS;
 
@@ -88,13 +89,63 @@ pub fn get_raw_scroll(ctx: &egui::Context) -> f32 {
     ctx.input(|r| {
         for ev in &r.events {
             match ev {
-                Event::MouseWheel { delta: egui::Vec2 { x: _, y }, .. } => {
-                    delta = *y; 
-                },
-                _ => continue
+                Event::MouseWheel {
+                    delta: egui::Vec2 { x: _, y },
+                    ..
+                } => {
+                    delta = *y;
+                }
+                _ => continue,
             }
         }
     });
 
     delta
 }
+
+pub fn get_path_string_without_trailing_slash(path: &Path) -> String {
+    let mut path = path;
+    if path.is_file() {
+        path = if let Some(path) = path.parent() {
+            path
+        } else {
+            return String::new()
+        }
+    }
+    let mut s = path.to_string_lossy().to_string();
+
+    if s.ends_with("/") || s.ends_with("\\") {
+        s.pop();
+    }
+
+    s
+}
+
+
+pub fn serde_json_value_to_string(value: Value) -> String {
+    match value {
+        Value::String(s) => s,
+        Value::Null => "".to_string(),
+        Value::Bool(b) => if b {
+            "True".to_string()
+        } else {
+            "False".to_string()
+        }
+        Value::Number(n) => n.to_string(),
+        Value::Array(_) => "".to_string(),
+        Value::Object(_) => "".to_string(),
+    }
+}
+
+
+mod tests {
+    
+
+    #[test]
+    fn test_get_path_string_without_trailing_slash() {
+        assert_eq!("test/data", get_path_string_without_trailing_slash(Path::new("test/data/test.txt")));
+        assert_eq!("test/data", get_path_string_without_trailing_slash(Path::new("test/data/")));
+        assert_eq!("test/data", get_path_string_without_trailing_slash(Path::new("test/data")));
+    }
+}
+

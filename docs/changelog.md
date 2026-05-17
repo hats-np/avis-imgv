@@ -1,5 +1,12 @@
 # Change Log
 
+## 2026-05-17
+
+- BREAKING: The database needs to be deleted and re-created.
+- BREAKING: Metadata tags in the configuration changed from the `Date/Time Original` format to `DateTimeOriginal`.
+- Multiple bugfixes and overall tuning and dustkeeping of the application
+- There is a semi random panic I am trying to figure out, bug reports are welcome.
+
 ## 2026-02-28
 
 - BREAKING: `simultaneous_load` config is now part of general_config and applies to both image stores(full_size, thumbnail) separately.

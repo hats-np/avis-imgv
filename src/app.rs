@@ -20,8 +20,9 @@ use epaint::{Color32, Pos2};
 use notify::FsEventWatcher;
 #[cfg(any(target_os = "linux", target_os = "android"))]
 use notify::INotifyWatcher;
-use notify::{Event, RecursiveMode, Watcher};
+use notify::{RecursiveMode, Watcher};
 use rfd::FileDialog;
+use std::sync::mpsc::{Receiver, channel};
 use std::{
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -47,7 +48,7 @@ pub struct App {
     watcher: Option<INotifyWatcher>,
     #[cfg(not(any(target_os = "linux", target_os = "android")))]
     watcher: Option<FsEventWatcher>,
-    watcher_events: Arc<Mutex<Vec<Event>>>,
+    watcher_events: Option<Receiver<notify::Event>>,
     filters: Filters,
     side_panel_visible: bool,
     worker: Arc<Mutex<Worker>>,
@@ -147,15 +148,10 @@ impl App {
             image_store,
             thumbnail_store,
             config: cfg.general,
-            filters: Filters::new(
-                cfg.filter,
-                base_path.to_str().unwrap_or(""),
-                worker.clone(),
-                &db_repo,
-            ),
+            filters: Filters::new(cfg.filter, &base_path, worker.clone(), &db_repo),
             paths: img_paths,
             watcher: None,
-            watcher_events: Arc::new(Mutex::new(vec![])),
+            watcher_events: None,
             worker,
             fullscreen,
         }
@@ -304,7 +300,7 @@ impl App {
 
     fn set_images_from_paths(&mut self, paths: Vec<PathBuf>) {
         self.paths = paths;
-        self.set_images(&None, true);
+        self.set_images(&None, false);
     }
 
     fn set_images(&mut self, selected_img: &Option<PathBuf>, new_dir_opened: bool) {
@@ -340,15 +336,12 @@ impl App {
 
         tracing::info!("Enabling watcher at {:?}", self.base_path);
 
-        let watcher_events = self.watcher_events.clone();
+        let (tx, rx) = channel();
+        self.watcher_events = Some(rx);
         let mut watcher = notify::recommended_watcher(
             move |res: Result<notify::Event, notify::Error>| match res {
                 Ok(event) => {
-                    if let Ok(mut lock) = watcher_events.try_lock() {
-                        lock.push(event.clone());
-                    } else {
-                        tracing::info!("Failure locking file watcher events queue");
-                    }
+                    let _ = tx.send(event);
                 }
                 Err(e) => tracing::info!("Error watching directory: {e:?}"),
             },
@@ -369,14 +362,15 @@ impl App {
 
     fn process_file_watcher_events(&mut self) {
         //Ignore when we can't lock the mutex, it'll try next frame anyway
-        if let Ok(mut events) = self.watcher_events.clone().try_lock() {
-            if events.is_empty() {
-                return;
-            }
+        if self.watcher_events.is_none() {
+            return;
+        }
 
+        let mut paths: Vec<PathBuf> = vec![];
+        if let Some(receiver) = &self.watcher_events {
             let mut should_reload = false;
             let mut selected_img_path = None;
-            for event in events.iter() {
+            while let Ok(event) = receiver.try_recv() {
                 let mut event_paths = event.paths.clone();
 
                 event_paths.reverse();
@@ -387,17 +381,17 @@ impl App {
                     continue;
                 }
 
-                if event.kind.is_modify() {
-                    if self.paths.contains(first) {
-                        self.reload_galleries_image(Some(first.clone()));
-                    } else {
-                        self.paths.push(first.clone());
-                        selected_img_path = Some(first.clone());
-                        should_reload = true;
-                    }
-                } else if event.kind.is_create() {
-                    self.paths.push(first.clone());
-                    selected_img_path = Some(first.clone());
+                if (event.kind.is_modify() || event.kind.is_access() || event.kind.is_create()) && !paths.contains(first) {
+                    paths.push(first.clone());
+                }
+            }
+
+            for p in paths {
+                if self.paths.contains(&p) {
+                    self.reload_galleries_image(Some(p));
+                } else {
+                    self.paths.push(p.clone());
+                    selected_img_path = Some(p);
                     should_reload = true;
                 }
             }
@@ -405,8 +399,6 @@ impl App {
             if should_reload {
                 self.set_images(&selected_img_path, false);
             }
-
-            events.clear();
         }
     }
 
@@ -480,7 +472,7 @@ impl App {
         let msg_to_display = if let Ok(mut worker) = self.worker.try_lock() {
             worker.get_latest_msg().clone()
         } else {
-            return
+            return;
         };
 
         if let Some(msg) = msg_to_display {
@@ -514,7 +506,7 @@ impl eframe::App for App {
         self.perf_metrics.new_frame();
         self.execute_img_store_routines();
         self.handle_input_muters(ui.ctx());
-        self.handle_input(ui.ctx()); 
+        self.handle_input(ui.ctx());
 
         Panel::top("performance_metrics")
             .show_separator_line(false)

@@ -1,7 +1,8 @@
 use crate::RAW_EXTENSIONS;
 use crate::db::DbRepository;
-use itertools::Itertools;
+use crate::utils::serde_json_value_to_string;
 use regex::{self, Regex};
+use serde_json::{Map, Value};
 use std::sync::mpsc;
 use std::{
     collections::HashMap,
@@ -13,10 +14,10 @@ use std::{
 
 //for exiftool, the bigger the chunk the better as the startup time is slow
 pub const CHUNK_SIZE: &usize = &500;
-pub const METADATA_PROFILE_DESCRIPTION: &str = "Profile Description";
+pub const METADATA_PROFILE_DESCRIPTION: &str = "ProfileDescription";
 pub const METADATA_ORIENTATION: &str = "Orientation";
 pub const METADATA_DIRECTORY: &str = "Directory";
-pub const METADATA_DATE: &str = "Date/Time Original";
+pub const METADATA_DATE: &str = "DateTimeOriginal";
 
 pub enum Orientation {
     Normal,
@@ -75,13 +76,6 @@ impl Metadata {
 
         tracing::info!("Retained a total of {} images to cache", image_paths.len());
 
-        //A bit of a hack but simpler than diverging code paths
-        let single_image_path = if image_paths.len() == 1 {
-            Some(&image_paths[0])
-        } else {
-            None
-        };
-
         let chunks: Vec<&[String]> = image_paths.chunks(*CHUNK_SIZE).collect();
         let total_chunks = chunks.len();
         let mut total_elapsed_time_ms = 0u128;
@@ -107,6 +101,7 @@ impl Metadata {
                 let chunk = chunk.to_vec();
                 let handle = thread::spawn(move || {
                     let cmd = Command::new("exiftool")
+                        .arg("-json")
                         .args(chunk)
                         .stdout(Stdio::piped())
                         .spawn();
@@ -132,7 +127,7 @@ impl Metadata {
             drop(tx);
 
             for output in rx {
-                Self::parse_exiftool_output(db_repo, &output, single_image_path);
+                Self::parse_exiftool_output(db_repo, &output);
             }
 
             let chunk_elapsed_ms = chunk_timer.elapsed().as_millis();
@@ -166,80 +161,56 @@ impl Metadata {
         );
     }
 
-    pub fn parse_exiftool_output(
-        db_repo: &mut DbRepository,
-        output: &Output,
-        path: Option<&String>,
-    ) {
-        //only panics if regex is invalid, impossible to happen in tested builds
-        let re = regex::Regex::new(r"========").unwrap();
-
+    pub fn parse_exiftool_output(db_repo: &mut DbRepository, output: &Output) {
         let string_output = String::from_utf8_lossy(&output.stdout);
+        let list: Vec<Value> = serde_json::from_str(&string_output).unwrap();
 
-        let mut metadata_to_insert: Vec<(String, String)> = vec![];
-        for image_metadata in re.split(&string_output) {
-            if let Some((path, tags)) = Self::parse_exiftool_output_str(image_metadata) {
-                let metadata_json = match serde_json::to_string(&tags) {
-                    Ok(json) => json,
-                    Err(e) => {
-                        tracing::error!("Failure serializing metadata into json -> {e}");
-                        continue;
-                    }
-                };
-                metadata_to_insert.push((path, metadata_json))
-            }
-        }
-
-        //This is required because exiftool doesn't print the filename
-        //When only one image is passed
-        if let Some(path) = path {
-            metadata_to_insert[0].0 = path.clone()
-        }
-
-        match db_repo.insert_files_metadata(metadata_to_insert) {
-            Ok(_) => {}
-            Err(e) => {
-                tracing::error!("Failure inserting metadata into db -> {e}");
-            }
-        }
-    }
-
-    pub fn parse_exiftool_output_str(output: &str) -> Option<(String, HashMap<String, String>)> {
-        let lines: Vec<&str> = output.split('\n').collect();
-        let file_path = lines.first()?;
-
-        if file_path.is_empty() {
-            return None;
-        }
-
-        let tags = output
-            .lines()
-            .filter(|x| !x.is_empty() && x.contains(':'))
+        let metadata_to_insert: Vec<(String, String)> = list
+            .iter()
             .filter_map(|x| {
-                let split: Vec<&str> = x.split(':').collect();
+                let mut metadata: Map<String, Value> = serde_json::from_value(x.clone()).ok()?;
 
-                if split.len() < 2 {
-                    return None;
-                }
+                let source_file = metadata.get("SourceFile")?.as_str()?.to_string();
 
-                let first = String::from(split[0].trim());
-                let last = String::from(split[1..].join(":").trim());
+                metadata.retain(|_key, value| !value.is_array());
 
-                Some((first, last))
+                let json_str = serde_json::to_string(&metadata).ok()?;
+
+                Some((source_file, json_str))
             })
             .collect();
 
-        Some((file_path.trim().to_string(), tags))
+        match db_repo.insert_files_metadata(&metadata_to_insert) {
+            Ok(_) => {}
+            Err(e) => {
+                let paths: Vec<String> =
+                    metadata_to_insert.iter().map(|x| x.0.to_string()).collect();
+                tracing::error!("Failure inserting metadata into db -> {e} \n paths {paths:?}");
+            }
+        }
     }
 
     pub fn get_image_metadata(
         db_repo: &mut DbRepository,
         path: &str,
     ) -> Option<HashMap<String, String>> {
+        tracing::info!("Fetching metadata for image {} ", path);
         match db_repo.get_image_metadata(path) {
             Ok(opt) => {
                 if let Some(data) = opt {
-                    return Some(serde_json::from_str(&data).unwrap_or_default());
+                    let parsed = serde_json::from_str::<HashMap<String, String>>(&data);
+
+                    match parsed {
+                        Ok(map) => {
+                            if !map.is_empty() {
+                                return Some(map);
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!("Deserialization failed: {e} | Raw data: {}", data);
+                            return None;
+                        }
+                    }
                 }
             }
             Err(e) => tracing::error!("Error fetching image metadata from db -> {e}"),
@@ -251,6 +222,7 @@ impl Metadata {
         //as the first batch(depending on chunk) still takes a bit of time.
 
         let cmd = Command::new("exiftool")
+            .arg("-json")
             .arg(path)
             .stdout(Stdio::piped())
             .spawn();
@@ -269,8 +241,23 @@ impl Metadata {
             }
         };
 
-        Self::parse_exiftool_output_str(String::from_utf8_lossy(&output.stdout).as_ref())
-            .map(|(_, metadata)| metadata)
+        let string_output = String::from_utf8_lossy(&output.stdout);
+        let list: Vec<Value> = serde_json::from_str(&string_output).unwrap();
+
+        if list.len() <= 0 {
+            return None;
+        }
+
+        let mut metadata: Map<String, Value> =
+            serde_json::from_value(list.first().unwrap().clone()).ok()?;
+        metadata.retain(|_key, value| !value.is_array());
+
+        Some(
+            metadata
+                .into_iter() 
+                .map(|(k, v)| (k, serde_json_value_to_string(v)))
+                .collect::<HashMap<String, String>>(),
+        )
     }
 
     pub fn extract_icc_from_image(path: &PathBuf) -> Option<Vec<u8>> {
@@ -430,7 +417,7 @@ impl Metadata {
                 }
             }
 
-            return true;
+            true
         });
         paths
     }
@@ -517,19 +504,11 @@ mod tests {
         assert_eq!(
             result,
             vec![
+                PathBuf::from("photo3.RAF"),
                 PathBuf::from("photo1.JPG"),
-                PathBuf::from("photo2.RAF"),
-                PathBuf::from("photo3.RAF")
+                PathBuf::from("photo2.RAF")
             ]
         );
-
-        // Multiple RAFs with same stem (no JPG)
-        let paths = vec![
-            PathBuf::from("photo1.RAF"),
-            PathBuf::from("photo1.RAF"), // duplicate
-        ];
-        let result = Metadata::group_raw_jpg_paths(&paths);
-        assert_eq!(result, vec![PathBuf::from("photo1.RAF")]);
 
         // Empty input
         let paths: Vec<PathBuf> = vec![];

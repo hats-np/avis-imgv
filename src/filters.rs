@@ -1,6 +1,7 @@
 use crate::config::FilterConfig;
 use crate::db::{DbRepository, SqlOperator, SqlOrder};
 use crate::metadata::{METADATA_DATE, METADATA_DIRECTORY, Metadata};
+use crate::utils::get_path_string_without_trailing_slash;
 use crate::worker::Worker;
 use eframe::egui;
 use eframe::egui::{Align, Id, Layout};
@@ -77,7 +78,7 @@ pub struct OrderField {
 impl Filters {
     pub fn new(
         filter_config: FilterConfig,
-        opened_path: &str,
+        opened_path: &Path,
         worker: Arc<Mutex<Worker>>,
         db_repo: &DbRepository,
     ) -> Filters {
@@ -93,7 +94,7 @@ impl Filters {
             .iter()
             .map(|x| FilterField::new(&x.name, "", db_repo))
             .collect();
-        ffs.push(FilterField::new(METADATA_DIRECTORY, opened_path, db_repo));
+        ffs.push(FilterField::new(METADATA_DIRECTORY, &get_path_string_without_trailing_slash(opened_path), db_repo));
 
         Filters {
             filter_fields: ffs,
@@ -119,7 +120,7 @@ impl Filters {
             .iter_mut()
             .find(|x| x.name == METADATA_DIRECTORY)
         {
-            f.value = path.to_string_lossy().to_string();
+            f.value = get_path_string_without_trailing_slash(path);
         }
     }
 

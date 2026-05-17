@@ -375,16 +375,16 @@ pub fn default_should_wait() -> bool {
 }
 pub fn default_metadata_tags() -> Vec<String> {
     vec![
-        "Date/Time Original".to_string(),
-        "Created Date".to_string(),
-        "Camera Model Name".to_string(),
-        "Lens Model".to_string(),
-        "Focal Length".to_string(),
-        "Aperture Value".to_string(),
-        "Exposure Time".to_string(),
+        "DateTimeOriginal".to_string(),
+        "CreatedDate".to_string(),
+        "CameraModelName".to_string(),
+        "LensModel".to_string(),
+        "FocalLength".to_string(),
+        "ApertureValue".to_string(),
+        "ExposureTime".to_string(),
         "ISO".to_string(),
-        "Image Size".to_string(),
-        "Color Space".to_string(),
+        "ImageSize".to_string(),
+        "ColorSpace".to_string(),
         "Directory".to_string(),
         "Software".to_string(),
     ]
@@ -460,12 +460,12 @@ pub fn default_simultaneous_load() -> usize {
 }
 pub fn default_grid_view_hover_exif_tags() -> Vec<String> {
     vec![
-        "File Name".to_string(),
-        "Date/Time Original".to_string(),
-        "Camera Model Name".to_string(),
-        "Lens Model".to_string(),
-        "Aperture Value".to_string(),
-        "Exposure Time".to_string(),
+        "FileName".to_string(),
+        "DateTimeOriginal".to_string(),
+        "CameraModelName".to_string(),
+        "LensModel".to_string(),
+        "ApertureValue".to_string(),
+        "ExposureTime".to_string(),
         "ISO".to_string()
     ]
 }

@@ -8,7 +8,7 @@ use std::{
 
 use r2d2::{Pool, PooledConnection};
 use r2d2_sqlite::SqliteConnectionManager;
-use rusqlite::Result;
+use rusqlite::{Result, params};
 
 use crate::{APPLICATION, ORGANIZATION, QUALIFIER};
 
@@ -35,24 +35,21 @@ impl DbRepository {
 
     pub fn insert_files_metadata(
         &mut self,
-        data: Vec<(String, String)>,
+        data: &[(String, String)],
     ) -> Result<(), Box<dyn Error>> {
-        let conn = self.get_sqlite_conn()?;
+        let mut conn = self.get_sqlite_conn()?;
         let now = Instant::now();
-        conn.execute("begin immediate transaction;", ())?;
+        let tx = conn.transaction()?;
 
-        let mut q = String::from("insert into file (path, metadata) values ");
+        {
+            let mut stmt = tx.prepare("insert into file (path, metadata) values (?, jsonb(?))")?;
 
-        q.push_str(
-            &data
-                .iter()
-                .map(|(path, data)| format!("('{}', jsonb('{}'))", path, data.replace('\'', "")))
-                .collect::<Vec<String>>()
-                .join(","),
-        );
+            for (path, data) in data {
+                stmt.execute(params![path, data])?;
+            }
+        }
 
-        conn.execute(&q, ())?;
-        conn.execute("commit transaction;", ())?;
+        tx.commit()?;
         tracing::info!(
             "Spent {}ms inserting {} metadata records into db",
             now.elapsed().as_millis(),
@@ -90,7 +87,15 @@ impl DbRepository {
 
     pub fn get_image_metadata(&mut self, path: &str) -> Result<Option<String>, Box<dyn Error>> {
         let conn = self.get_sqlite_conn()?;
-        let mut q = conn.prepare("select json(metadata) from file where path = ?1")?;
+        let mut q = conn.prepare(
+            "SELECT json_group_object(
+                key, 
+                CAST(value AS TEXT)
+            ) 
+            FROM json_each(
+                (SELECT metadata FROM file WHERE path = ?1)
+            );",
+        )?;
         match q.query_row([path], |row| {
             let value: String = row.get(0)?;
             Ok(value)
