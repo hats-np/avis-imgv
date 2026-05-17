@@ -192,6 +192,11 @@ impl GridView {
         });
     }
 
+    //TODO: 
+    //This is not ideal if other views will use this image store, as any cursor movement will
+    //trigger an unload and will rapidly exhaust all consumers of the image
+    //Ideally we would keep track of this in this view, or perhaps implement a consumer ID in the store
+    //So each consumer can only remove its own registrations
     fn load_unload_image(
         &mut self,
         i: usize,
