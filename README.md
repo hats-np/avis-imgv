@@ -117,32 +117,32 @@ Configuration file should be: `~/.config/avis-imgv/config.json`. An example is p
 
 ### General
 
-| Keys               | Values                                                             | Default                                                                                                                                               |
-|--------------------|--------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| limit_cached       | Maximum number of cached files metadata                            | 100000                                                                                                                                                |
-| output_icc_profile | Output icc profile                                                 | srgb                                                                                                                                                  |
-| text_scaling       | Text Scaling                                                       | 1.25                                                                                                                                                  |
-| metadata_tags      | Metadata visible in the Image Information side pannel(when opened) | DateTimeOriginal, CreatedDate, CameraModelName, LensModel, FocalLength, ApertureValue, ExposureTime, ISO, ImageSize, ColorSpace, Directory |
-| simultaneous_load | How many images should be allowed to load at the same time per store(full res, thumbnails)                       | 8 (Adjust according to core count or how much you want to work your PC) |
+| Keys                     | Values                                                                                                        | Default                                                                                                                                    |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| limit_cached             | Maximum number of cached files metadata                                                                       | 100000                                                                                                                                     |
+| output_icc_profile       | Output icc profile                                                                                            | srgb                                                                                                                                       |
+| text_scaling             | Text Scaling                                                                                                  | 1.25                                                                                                                                       |
+| metadata_tags            | Metadata visible in the Image Information side pannel(when opened)                                            | DateTimeOriginal, CreatedDate, CameraModelName, LensModel, FocalLength, ApertureValue, ExposureTime, ISO, ImageSize, ColorSpace, Directory |
+| simultaneous_load        | How many images should be allowed to load at the same time per store(full res, thumbnails)                    | 8 (Adjust according to core count or how much you want to work your PC)                                                                    |
 | raw_exiftool_preview_ext | Extensions of raw files which should be previewed using the built in thumbnail instead of decoded with rawler |
 
 ### Image View
 
-| Keys                         | Values                                                                                                                                                                                                                                                     | Default |
-|------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| loaded_images                | Number of loaded images in each direction. Adjust based on how much RAM you want to use. Having more preloaded images increases application speed, to a certain point, when scrolling.                                                                     | 5       |
-| should_wait                  | Should wait for image to finish loading before advancing to it                                                                                                                                                                                             | true    |
-| frame_size_relative_to_image | White frame size relative to smallest image side                                                                                                                                                                                                           | 0.2     |
-| scroll_navigation            | Should scroll be used for navigation                                                                                                                                                                                                                       | true    |
-| name_format                  | Format for file name in bottom bar. Uses `$(#exif_tag#)` expressions. If exif tag is not found the entire expression will be ignored. Ex: `$(#File Name#)$( • ƒ#Aperture#)$( • #Shutter Speed#)$( • #ISO# ISO)` -> `DSCF6114.JPG • ƒ5.6 • 1/500 • 200 ISO` |         |
+| Keys                         | Values                                                                                                                                                                                                                                                                                                                                        | Default |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| loaded_images                | Number of loaded images in each direction. Adjust based on how much RAM you want to use. Having more preloaded images increases application speed, to a certain point, when scrolling.                                                                                                                                                        | 5       |
+| should_wait                  | Should wait for image to finish loading before advancing to it                                                                                                                                                                                                                                                                                | true    |
+| frame_size_relative_to_image | White frame size relative to smallest image side                                                                                                                                                                                                                                                                                              | 0.2     |
+| scroll_navigation            | Should scroll be used for navigation                                                                                                                                                                                                                                                                                                          | true    |
+| name_format                  | Format for file name in bottom bar. Uses `$(#exif_tag#)` expressions. If exif tag is not found the entire expression will be ignored. `Rating` is a bonus special XMP tag, represented as stars or '× Rejected'. Ex: `$(#Rating#) $(#File Name#)$( • ƒ#Aperture#)$( • #Shutter Speed#)$( • #ISO# ISO)` -> `DSCF6114.JPG • ƒ5.6 • 1/500 • 200 ISO` |         |
 
 ### Grid View
 
-| Keys              | Values                                                                           | Default                                                                 |
-|-------------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------|
-| images_per_row    | How many images should be displayed per row                                      | 3                                                                       |
-| preloaded_rows    | How many off-screen rows in each direction should be loaded and remain in memory | 2                                                                       |
-| hover_exif_tags   | Exif tag values to be shown on hover | FileName, DateTimeOriginal, CameraModelName, LensModel, ApertureValue, ExposureTime, ISO
+| Keys            | Values                                                                           | Default                                                                                  |
+| --------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| images_per_row  | How many images should be displayed per row                                      | 3                                                                                        |
+| preloaded_rows  | How many off-screen rows in each direction should be loaded and remain in memory | 2                                                                                        |
+| hover_exif_tags | Exif tag values to be shown on hover                                             | FileName, DateTimeOriginal, CameraModelName, LensModel, ApertureValue, ExposureTime, ISO |
 
 ## Default Shortcuts
 
@@ -151,21 +151,31 @@ modifiers.
 
 ### General
 
-| Key       | Action                                              |
-|-----------|-----------------------------------------------------|
-| Backspace | Toggle between Image View and Grid View             |
-| Q         | Exit                                                |
-| F1        | Toggles the menu                                    |
-| Ctrl + L  | Shows navigation bar                                |
-| T         | Show Directory Tree                                 |
-| Ctrl + F  | Flatten (read files from all sub dirs)              |
-| Ctrl + W  | Watch a directory for file changes (create, update) |
-| I         | Toggle: Display side tab with image metadata        |
+| Key         | Action                                              |
+| ----------- | --------------------------------------------------- |
+| Backspace   | Toggle between Image View and Grid View             |
+| Alt + Q     | Exit                                                |
+| F1          | Toggles the menu                                    |
+| Ctrl + L    | Shows navigation bar                                |
+| T           | Show Directory Tree                                 |
+| Ctrl + F    | Flatten (read files from all sub dirs)              |
+| Ctrl + W    | Watch a directory for file changes (create, update) |
+| I           | Toggle: Display side tab with image metadata        |
+| R           | Rate image as -1                                    |
+| 0           | Rate image 0                                        |
+| 1           | Rate image 1                                        |
+| 2           | Rate image 2                                        |
+| 3           | Rate image 3                                        |
+| 4           | Rate image 4                                        |
+| 5           | Rate image 5                                        |
+| Escape      | Reset selection                                     |
+| Shift+Space | Select / deselect current image                     |
+| Ctrl+A      | Select all images                                   |
 
 ### Image View
 
 | Key         | Action                                        |
-|-------------|-----------------------------------------------|
+| ----------- | --------------------------------------------- |
 | F           | Fit image to screen                           |
 | G           | Toggle: White frame around the image          |
 | Spacebar    | Zoom                                          |
@@ -178,12 +188,12 @@ modifiers.
 | M           | Maximize (Center image)                       |
 | Ctrl+M      | Toggle: Maximize automatically when scrolling |
 | \+          | Increase the number of images shown           |
-| \-          | Decrease the number of images shown |
+| \-          | Decrease the number of images shown           |
 
 ### Grid View
 
 | Key          | Action                                 |
-|--------------|----------------------------------------|
+| ------------ | -------------------------------------- |
 | Spacebar     | Scroll down                            |
 | Double Click | Open Image View on selected image      |
 | Ctrl+Scroll  | Increase/Decrease nr of images per row |

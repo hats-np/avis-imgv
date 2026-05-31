@@ -6,11 +6,12 @@ use std::{
     vec,
 };
 
+use itertools::Itertools;
 use r2d2::{Pool, PooledConnection};
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{Result, params};
 
-use crate::{APPLICATION, ORGANIZATION, QUALIFIER};
+use crate::{APPLICATION, ORGANIZATION, QUALIFIER, metadata::ImageMetadata};
 
 pub const IN_CHUNKS: &usize = &500;
 
@@ -61,7 +62,7 @@ impl DbRepository {
 
     pub fn update_files_xmp_metadata(
         &mut self,
-        data: &[(String, u32, String)],
+        data: &[(String, i32, String)],
     ) -> Result<(), Box<dyn Error>> {
         let mut conn = self.get_sqlite_conn()?;
         let now = Instant::now();
@@ -81,6 +82,33 @@ impl DbRepository {
             "Spent {}ms inserting {} metadata records into db",
             now.elapsed().as_millis(),
             data.len()
+        );
+
+        Ok(())
+    }
+
+    pub fn update_files_xmp_rating(
+        &mut self,
+        paths: &[PathBuf],
+        rating: i32,
+    ) -> Result<(), Box<dyn Error>> {
+        let mut conn = self.get_sqlite_conn()?;
+        let now = Instant::now();
+        let tx = conn.transaction()?;
+
+        {
+            let mut stmt = tx.prepare("update file set rating = ? where path = ?")?;
+
+            for path in paths {
+                stmt.execute(params![rating, path.to_str()])?;
+            }
+        }
+
+        tx.commit()?;
+        tracing::info!(
+            "Spent {}ms updating {} metadata records into db",
+            now.elapsed().as_millis(),
+            paths.len()
         );
 
         Ok(())
@@ -112,20 +140,32 @@ impl DbRepository {
         Ok(existing_files)
     }
 
-    pub fn get_image_metadata(&mut self, path: &str) -> Result<Option<String>, Box<dyn Error>> {
+    pub fn get_image_metadata(
+        &mut self,
+        path: &str,
+    ) -> Result<Option<ImageMetadata>, Box<dyn Error>> {
         let conn = self.get_sqlite_conn()?;
         let mut q = conn.prepare(
-            "SELECT json_group_object(
-                key, 
-                CAST(value AS TEXT)
-            ) 
-            FROM json_each(
-                (SELECT metadata FROM file WHERE path = ?1)
-            );",
+            "
+           SELECT
+                (
+                    SELECT json_group_object(key, CAST(value AS TEXT))
+                    FROM json_each(f.metadata)
+                ) as exif,
+                f.rating,
+                (
+                    SELECT json_group_array(j.value)
+                    FROM json_each(f.tags) j
+                ) as tags
+            FROM file f
+            WHERE f.path = ?1;
+            ",
         )?;
         match q.query_row([path], |row| {
-            let value: String = row.get(0)?;
-            Ok(value)
+            let exif: String = row.get(0)?;
+            let rating: Option<i32> = row.get(1)?;
+            let tags: Option<String> = row.get(2)?;
+            Ok(ImageMetadata::from(&exif, rating, tags))
         }) {
             Ok(metadata) => Ok(Some(metadata)),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -140,8 +180,8 @@ impl DbRepository {
             "create table if not exists file (
                 path text not null primary key,
                 metadata jsonb not null,
-                tags jsonb not null default '', 
-                rating int not null default 0,
+                tags jsonb null,
+                rating int null,
                 ts TIMESTAMP not null DEFAULT CURRENT_TIMESTAMP);",
             "create index if not exists file_ts_IDX on file (ts DESC)",
         ];
@@ -199,21 +239,51 @@ impl DbRepository {
         exif_tags: &[(String, String, SqlOperator)],
         order_tag: &str,
         order_direction: &SqlOrder,
+        rating_one: &(SqlOperator, String),
+        rating_two: &(SqlOperator, String),
+        xmp_tags: &[String],
     ) -> Result<Vec<PathBuf>, Box<dyn Error>> {
-        let mut query = String::from("SELECT distinct(path) FROM file WHERE ");
+        let mut query = String::from("SELECT distinct(path) FROM file WHERE 1 = 1 ");
 
         query += &exif_tags
             .iter()
             .filter(|x| !x.1.is_empty())
             .map(|x| {
                 format!(
-                    "json_extract(metadata,'$.{}') {}",
+                    "AND json_extract(metadata,'$.{}') {}",
                     x.0,
                     DbUtilities::where_clause_from_str_and_operator(&x.1, &x.2)
                 )
             })
             .collect::<Vec<String>>()
-            .join(" AND ");
+            .join(" ");
+
+        if rating_one.0 != SqlOperator::None && !rating_one.1.is_empty() {
+            query += &format!(
+                " AND rating {}",
+                DbUtilities::where_clause_from_str_and_operator(&rating_one.1, &rating_one.0)
+            );
+        }
+
+        if rating_two.0 != SqlOperator::None && !rating_two.1.is_empty() {
+            query += &format!(
+                " AND rating {}",
+                DbUtilities::where_clause_from_str_and_operator(&rating_two.1, &rating_two.0)
+            );
+        }
+
+        if !xmp_tags.is_empty() {
+            for tag in xmp_tags {
+                query += &format!(
+                    " AND EXISTS (
+                    SELECT 1 
+                    FROM json_each(file.tags) 
+                    WHERE json_each.value like '%{}%'
+                ) ",
+                    tag
+                );
+            }
+        }
 
         if !order_tag.is_empty() {
             query += &format!(
@@ -265,6 +335,30 @@ impl DbRepository {
             .query_map([], |row| row.get::<_, String>(0))?
             .filter_map(|x| x.ok())
             .collect();
+
+        Ok(unique_tags)
+    }
+
+    pub fn get_unique_xmp_tags(&mut self) -> Result<Vec<String>, Box<dyn Error>> {
+        let query = "SELECT DISTINCT value FROM file, json_each(tags) ORDER BY value ASC";
+
+        let conn = self.get_sqlite_conn()?;
+        let mut q = conn.prepare(query)?;
+
+        let mut unique_tags = q
+            .query_map([], |row| row.get::<_, String>(0))?
+            .filter_map(|x| x.ok())
+            .collect::<Vec<String>>();
+
+        let mut split_tags = unique_tags
+            .iter()
+            .flat_map(|m| m.split("|"))
+            .map(|m| m.to_string())
+            .sorted()
+            .dedup()
+            .collect::<Vec<String>>();
+
+        unique_tags.append(&mut split_tags);
 
         Ok(unique_tags)
     }
@@ -376,6 +470,7 @@ impl DbUtilities {
                     format!("<> '{val}'")
                 }
             }
+            SqlOperator::None => "1=1".to_string(),
         }
     }
 }
@@ -389,6 +484,7 @@ pub enum SqlOperator {
     EqBiggerThan,
     EqSmallerThan,
     Different,
+    None,
 }
 impl SqlOperator {
     pub fn list() -> Vec<SqlOperator> {
@@ -414,6 +510,7 @@ impl fmt::Display for SqlOperator {
             SqlOperator::EqBiggerThan => write!(f, ">="),
             SqlOperator::EqSmallerThan => write!(f, "<="),
             SqlOperator::Different => write!(f, "<>"),
+            SqlOperator::None => write!(f, ""),
         }
     }
 }

@@ -1,6 +1,6 @@
 use crate::image_store::ImageStore;
 use crate::metadata;
-use crate::utils::pascal_case_format_space;
+use crate::utils::{format_stars_from_rating, pascal_case_format_space};
 use eframe::egui::load::SizedTexture;
 use eframe::egui::{self, Rect, RichText, Widget, vec2};
 use eframe::epaint::{Pos2, Vec2};
@@ -273,10 +273,22 @@ impl GalleryImage {
         image_store: &ImageStore,
     ) {
         if let Some(metadata) = image_store.get_image_metadata(&self.path) {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Rating: ").strong());
+                ui.label(format_stars_from_rating(metadata.rating));
+            });
+
+            ui.horizontal_wrapped(|ui| {
+                ui.label(RichText::new("Tags: ").strong());
+                if let Some(tags) = &metadata.tags {
+                    ui.label(tags.join(" • "));
+                }
+            });
+
             if self.display_metadata.is_none() {
                 let mut display_metadata: Vec<(String, String)> = vec![];
                 for tag in tags_to_display {
-                    if let Some(value) = metadata.get(tag) {
+                    if let Some(value) = metadata.exif_tags.get(tag) {
                         display_metadata.push((pascal_case_format_space(tag), value.to_string()));
                     };
                 }
@@ -292,6 +304,8 @@ impl GalleryImage {
                     });
                 }
             }
+        } else {
+            ui.spinner();
         }
     }
 
@@ -337,6 +351,10 @@ impl GalleryImage {
             Some(dn) => dn.clone(),
             None => self.set_display_name(&format, image_store),
         }
+    }
+
+    pub fn clear_display_name(&mut self) {
+        self.display_name = None;
     }
 
     pub fn is_loaded(&self) -> bool {

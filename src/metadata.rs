@@ -1,8 +1,11 @@
 use crate::RAW_EXTENSIONS;
 use crate::db::DbRepository;
-use crate::utils::serde_json_value_to_string;
+use crate::utils::{format_stars_from_rating, serde_json_value_to_string};
+use core::fmt;
 use regex::{self, Regex};
 use serde_json::{Map, Value};
+use std::error::Error;
+use std::path::Path;
 use std::sync::mpsc;
 use std::{
     collections::HashMap,
@@ -43,6 +46,94 @@ impl Orientation {
             "Mirror horizontal and rotate 90 CW" => Orientation::MirrorHorizontalRotate90CW,
             "Rotate 270 CW" => Orientation::Rotate270CW,
             _ => Orientation::Normal,
+        }
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum XMPRating {
+    Minus1,
+    Zero,
+    One,
+    Two,
+    Three,
+    Four,
+    Five,
+}
+impl XMPRating {
+    pub fn from_rating(rating: i32) -> XMPRating {
+        match rating {
+            -1 => XMPRating::Minus1,
+            0 => XMPRating::Zero,
+            1 => XMPRating::One,
+            2 => XMPRating::Two,
+            3 => XMPRating::Three,
+            4 => XMPRating::Four,
+            5 => XMPRating::Five,
+            _ => XMPRating::Zero,
+        }
+    }
+
+    pub fn list() -> Vec<XMPRating> {
+        vec![
+            XMPRating::Minus1,
+            XMPRating::Zero,
+            XMPRating::One,
+            XMPRating::Two,
+            XMPRating::Three,
+            XMPRating::Four,
+            XMPRating::Five,
+        ]
+    }
+}
+
+impl fmt::Display for XMPRating {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let rating_str = match self {
+            XMPRating::Minus1 => "-1",
+            XMPRating::Zero => "0",
+            XMPRating::One => "1",
+            XMPRating::Two => "2",
+            XMPRating::Three => "3",
+            XMPRating::Four => "4",
+            XMPRating::Five => "5",
+        };
+        write!(f, "{}", rating_str)
+    }
+}
+
+#[derive(Default, Clone)]
+pub struct ImageMetadata {
+    pub exif_tags: HashMap<String, String>,
+    pub rating: Option<i32>,
+    pub tags: Option<Vec<String>>,
+}
+
+impl ImageMetadata {
+    pub fn from(raw_exif: &str, rating: Option<i32>, raw_tags: Option<String>) -> ImageMetadata {
+        let mut exif: HashMap<String, String> = HashMap::new();
+        let mut tags: Option<Vec<String>> = None;
+
+        match serde_json::from_str::<HashMap<String, String>>(raw_exif) {
+            Ok(parsed_exif) => {
+                exif = parsed_exif;
+            }
+            Err(e) => tracing::error!("Deserialization failed: {e} | Raw data: {}", raw_exif),
+        };
+
+        if let Some(raw_tags) = raw_tags {
+            match serde_json::from_str::<Vec<String>>(&raw_tags) {
+                Ok(parsed_tags) => {
+                    tags = Some(parsed_tags);
+                }
+                Err(e) => tracing::error!("Deserialization failed: {e} | Raw data: {}", raw_tags),
+            };
+        }
+
+        ImageMetadata {
+            exif_tags: exif,
+            rating,
+            tags,
         }
     }
 }
@@ -108,6 +199,7 @@ impl Metadata {
                 let chunk = chunk.to_vec();
                 let handle = thread::spawn(move || {
                     let cmd = Command::new("exiftool")
+                        .arg("-fast2")
                         .arg("-json")
                         .args(chunk)
                         .stdout(Stdio::piped())
@@ -187,6 +279,7 @@ impl Metadata {
         let image_paths = image_paths
             .iter()
             .map(|p| format!("{}.xmp", p.to_string_lossy()))
+            .filter(|p| Path::new(p).exists())
             .collect::<Vec<String>>();
 
         on_update(format!(
@@ -321,18 +414,27 @@ impl Metadata {
 
     pub fn parse_exiftool_xmp_output(db_repo: &mut DbRepository, output: &Output) {
         let string_output = String::from_utf8_lossy(&output.stdout);
-        let list: Vec<Value> = serde_json::from_str(&string_output).unwrap();
+        let list: Vec<Value> = if let Ok(json) = serde_json::from_str(&string_output) {
+            json
+        } else {
+            tracing::warn!("Failure deserializing XMP json, likely no XMP sidecar files found");
+            return;
+        };
 
-        let metadata_to_update: Vec<(String, u32, String)> = list
+        let metadata_to_update: Vec<(String, i32, String)> = list
             .iter()
             .filter_map(|x| {
                 let metadata: Map<String, Value> = serde_json::from_value(x.clone()).ok()?;
 
-                let source_file = metadata.get("SourceFile")?.as_str()?.strip_suffix(".xmp")?.to_string();
+                let source_file = metadata
+                    .get("SourceFile")?
+                    .as_str()?
+                    .strip_suffix(".xmp")?
+                    .to_string();
 
                 let xmp = metadata.get("XMP")?.as_object()?;
 
-                let rating = xmp.get("Rating")?.as_u64()? as u32;
+                let rating = xmp.get("Rating")?.as_i64()? as i32;
 
                 let tags_value = xmp.get("HierarchicalSubject")?;
                 let tags_json_str = serde_json::to_string(tags_value).ok()?;
@@ -351,27 +453,12 @@ impl Metadata {
         }
     }
 
-    pub fn get_image_metadata(
-        db_repo: &mut DbRepository,
-        path: &str,
-    ) -> Option<HashMap<String, String>> {
+    pub fn get_image_metadata(db_repo: &mut DbRepository, path: &str) -> Option<ImageMetadata> {
         tracing::info!("Fetching metadata for image {} ", path);
         match db_repo.get_image_metadata(path) {
             Ok(opt) => {
                 if let Some(data) = opt {
-                    let parsed = serde_json::from_str::<HashMap<String, String>>(&data);
-
-                    match parsed {
-                        Ok(map) => {
-                            if !map.is_empty() {
-                                return Some(map);
-                            }
-                        }
-                        Err(e) => {
-                            tracing::error!("Deserialization failed: {e} | Raw data: {}", data);
-                            return None;
-                        }
-                    }
+                    return Some(data);
                 }
             }
             Err(e) => tracing::error!("Error fetching image metadata from db -> {e}"),
@@ -383,6 +470,7 @@ impl Metadata {
         //as the first batch(depending on chunk) still takes a bit of time.
 
         let cmd = Command::new("exiftool")
+            .arg("-fast2")
             .arg("-json")
             .arg(path)
             .stdout(Stdio::piped())
@@ -413,12 +501,19 @@ impl Metadata {
             serde_json::from_value(list.first().unwrap().clone()).ok()?;
         metadata.retain(|_key, value| !value.is_array());
 
-        Some(
-            metadata
-                .into_iter()
-                .map(|(k, v)| (k, serde_json_value_to_string(v)))
-                .collect::<HashMap<String, String>>(),
-        )
+        let exif_tags = metadata
+            .into_iter()
+            .map(|(k, v)| (k, serde_json_value_to_string(v)))
+            .collect::<HashMap<String, String>>();
+
+        //While we fetch the exif on demand if it is not yet in the database due to
+        //image decoding needing some values(icc, rotation) we can defer the xmp
+        //metadata to be fetched only from the database
+        Some(ImageMetadata {
+            exif_tags,
+            rating: None,
+            tags: None,
+        })
     }
 
     pub fn extract_icc_from_image(path: &PathBuf) -> Option<Vec<u8>> {
@@ -450,7 +545,7 @@ impl Metadata {
         }
     }
 
-    pub fn format_string_with_metadata(input: &str, metadata: &HashMap<String, String>) -> String {
+    pub fn format_string_with_metadata(input: &str, metadata: &ImageMetadata) -> String {
         let mut output = String::from(input);
 
         let tag_regex = Regex::new("(\\$\\(([^\\(\\)]*#([\\w / \\s]*)#[^\\(\\)]*)\\))").unwrap();
@@ -474,10 +569,21 @@ impl Metadata {
                 None => continue,
             };
 
-            let to_replace = if let Some(metadata_value) = metadata.get(metadata_tag) {
-                string_to_format.replace(&format!("#{metadata_tag}#"), metadata_value)
+            let to_replace = if metadata_tag == "Rating" {
+                if metadata.rating.is_some() {
+                    string_to_format.replace(
+                        &format!("#{metadata_tag}#"),
+                        &format_stars_from_rating(metadata.rating),
+                    )
+                } else {
+                    "".to_string()
+                }
             } else {
-                "".to_string()
+                if let Some(metadata_value) = metadata.exif_tags.get(metadata_tag) {
+                    string_to_format.replace(&format!("#{metadata_tag}#"), metadata_value)
+                } else {
+                    "".to_string()
+                }
             };
 
             output = output.replace(expression, &to_replace);
@@ -532,9 +638,13 @@ impl Metadata {
         paths_to_remove.len()
     }
 
-    pub fn group_raw_jpg_paths(paths: &[PathBuf]) -> Vec<PathBuf> {
+    pub fn group_raw_pairs(
+        paths: &[PathBuf],
+        lookup: &mut HashMap<String, Vec<PathBuf>>,
+    ) -> Vec<PathBuf> {
         let mut paths = paths.to_vec();
         let mut non_raw: HashMap<String, bool> = HashMap::new();
+        lookup.clear();
 
         for path in &paths {
             let stem = path
@@ -574,6 +684,11 @@ impl Metadata {
                     .to_string();
 
                 if non_raw.contains_key(&stem) {
+                    if let Some(l) = lookup.get_mut(&stem) {
+                        l.push(path.clone());
+                    } else {
+                        lookup.insert(stem, vec![path.clone()]);
+                    }
                     return false;
                 }
             }
@@ -581,6 +696,31 @@ impl Metadata {
             true
         });
         paths
+    }
+
+    pub fn exiftool_rate_images_xmp(paths: &[PathBuf], rating: i32) -> Result<(), Box<dyn Error>> {
+        if paths.is_empty() {
+            return Ok(());
+        }
+
+        let mut cmd = Command::new("exiftool");
+        cmd.arg(format!("-XMP:Rating={}", rating))
+            .arg("-efile")
+            .arg("-srcfile");
+
+        for path in paths {
+            let path = path.to_string_lossy().to_string() + ".xmp";
+            cmd.arg(path);
+        }
+
+        let mut child = cmd.stdout(Stdio::piped()).spawn()?;
+        let result = child.wait()?;
+        if result.success() {
+            tracing::info!("Successfully applied xmp rating {} to {:?}", rating, paths);
+            Ok(())
+        } else {
+            Err(From::from("Exiftool exited with a non zero status"))
+        }
     }
 }
 
@@ -590,61 +730,98 @@ mod tests {
 
     #[test]
     fn test_format_string_with_metadata() {
-        let input = "$(#File Name#)$( • ƒ#Aperture#)$( • #Shutter Speed#)$( • #ISO# ISO)";
+        let input =
+            "$(#Rating# • )$(#File Name#)$( • ƒ#Aperture#)$( • #Shutter Speed#)$( • #ISO# ISO)";
         let mut metadata: HashMap<String, String> = HashMap::new();
         metadata.insert("File Name".to_string(), "test.jpg".to_string());
         metadata.insert("Aperture".to_string(), "5.0".to_string());
         metadata.insert("ISO".to_string(), "500".to_string());
 
         assert_eq!(
-            Metadata::format_string_with_metadata(input, &metadata),
+            Metadata::format_string_with_metadata(
+                input,
+                &ImageMetadata {
+                    exif_tags: metadata.clone(),
+                    rating: Some(2),
+                    tags: None
+                }
+            ),
+            "★★☆☆☆ • test.jpg • ƒ5.0 • 500 ISO".to_string()
+        );
+
+        assert_eq!(
+            Metadata::format_string_with_metadata(
+                input,
+                &ImageMetadata {
+                    exif_tags: metadata,
+                    rating: None,
+                    tags: None
+                }
+            ),
             "test.jpg • ƒ5.0 • 500 ISO".to_string()
         );
     }
 
     #[test]
-    fn test_group_raw_jpg_paths() {
-        // Single JPG file
+    fn test_group_raw_pairs() {
+        let mut lookup: HashMap<String, Vec<PathBuf>> = HashMap::new();
+
         let paths = vec![PathBuf::from("photo1.JPG")];
-        let result = Metadata::group_raw_jpg_paths(&paths);
+        let result = Metadata::group_raw_pairs(&paths, &mut lookup);
         assert_eq!(result, vec![PathBuf::from("photo1.JPG")]);
+        assert!(lookup.is_empty());
 
-        // Single RAF file
         let paths = vec![PathBuf::from("photo1.RAF")];
-        let result = Metadata::group_raw_jpg_paths(&paths);
+        let result = Metadata::group_raw_pairs(&paths, &mut lookup);
         assert_eq!(result, vec![PathBuf::from("photo1.RAF")]);
+        assert!(lookup.is_empty());
 
-        // RAF and JPG with same stem, should prefer JPG
         let paths = vec![PathBuf::from("photo1.RAF"), PathBuf::from("photo1.JPG")];
-        let result = Metadata::group_raw_jpg_paths(&paths);
+        let result = Metadata::group_raw_pairs(&paths, &mut lookup);
         assert_eq!(result, vec![PathBuf::from("photo1.JPG")]);
+        assert_eq!(
+            lookup.get("photo1"),
+            Some(&vec![PathBuf::from("photo1.RAF")])
+        );
 
-        // JPG and RAF with same stem (reversed order), should prefer JPG
+        lookup.clear();
         let paths = vec![PathBuf::from("photo1.JPG"), PathBuf::from("photo1.RAF")];
-        let result = Metadata::group_raw_jpg_paths(&paths);
+        let result = Metadata::group_raw_pairs(&paths, &mut lookup);
         assert_eq!(result, vec![PathBuf::from("photo1.JPG")]);
+        assert_eq!(
+            lookup.get("photo1"),
+            Some(&vec![PathBuf::from("photo1.RAF")])
+        );
 
-        // Multiple pairs
+        lookup.clear();
         let paths = vec![
             PathBuf::from("photo1.RAF"),
             PathBuf::from("photo1.JPG"),
             PathBuf::from("photo2.RAF"),
             PathBuf::from("photo2.JPG"),
         ];
-        let result = Metadata::group_raw_jpg_paths(&paths);
+        let result = Metadata::group_raw_pairs(&paths, &mut lookup);
         assert_eq!(
             result,
             vec![PathBuf::from("photo1.JPG"), PathBuf::from("photo2.JPG")]
         );
+        assert_eq!(
+            lookup.get("photo1"),
+            Some(&vec![PathBuf::from("photo1.RAF")])
+        );
+        assert_eq!(
+            lookup.get("photo2"),
+            Some(&vec![PathBuf::from("photo2.RAF")])
+        );
 
-        // Mixed, some with pairs, some without
+        lookup.clear();
         let paths = vec![
             PathBuf::from("photo1.RAF"),
             PathBuf::from("photo1.JPG"),
             PathBuf::from("photo2.JPG"),
             PathBuf::from("photo3.RAF"),
         ];
-        let result = Metadata::group_raw_jpg_paths(&paths);
+        let result = Metadata::group_raw_pairs(&paths, &mut lookup);
         assert_eq!(
             result,
             vec![
@@ -653,15 +830,20 @@ mod tests {
                 PathBuf::from("photo3.RAF")
             ]
         );
+        assert_eq!(
+            lookup.get("photo1"),
+            Some(&vec![PathBuf::from("photo1.RAF")])
+        );
+        assert_eq!(lookup.len(), 1);
 
-        // Unsorted input
+        lookup.clear();
         let paths = vec![
             PathBuf::from("photo3.RAF"),
             PathBuf::from("photo1.JPG"),
             PathBuf::from("photo2.RAF"),
             PathBuf::from("photo1.RAF"),
         ];
-        let result = Metadata::group_raw_jpg_paths(&paths);
+        let result = Metadata::group_raw_pairs(&paths, &mut lookup);
         assert_eq!(
             result,
             vec![
@@ -670,10 +852,16 @@ mod tests {
                 PathBuf::from("photo2.RAF")
             ]
         );
+        assert_eq!(
+            lookup.get("photo1"),
+            Some(&vec![PathBuf::from("photo1.RAF")])
+        );
+        assert_eq!(lookup.len(), 1);
 
-        // Empty input
+        lookup.clear();
         let paths: Vec<PathBuf> = vec![];
-        let result = Metadata::group_raw_jpg_paths(&paths);
+        let result = Metadata::group_raw_pairs(&paths, &mut lookup);
         assert_eq!(result, Vec::<PathBuf>::new());
+        assert!(lookup.is_empty());
     }
 }

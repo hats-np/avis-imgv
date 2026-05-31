@@ -4,14 +4,14 @@ description = "Image viewer based on egui. Makes use of modern RAM amounts by lo
 license = "GPL-3.0"
 homepage = "https://github.com/hats-np/avis-imgv"
 repository = "https://github.com/hats-np/avis-imgv"
-version = "0.3.2"
+version = "0.4.0"
 edition = "2024"
 readme = "README.md"
 keywords = ["image_viewer", "image"]
 
 [dependencies]
 eframe = { version = "0.34.1", features = ["wgpu"] }
-epaint = { version = "0.34.1" }
+epaint = { version = "0.34.1", features = ["serde"] }
 image = { version = "0.25.10", default-features = true }
 serde = { version = "1.0.228" }
 serde_json = { version = "1.0.149", features = ["raw_value"] }
@@ -31,7 +31,6 @@ itertools = "0.14.0"
 r2d2_sqlite = "0.33.0"
 r2d2 = "0.8.10"
 rawler = "0.7.2"
-egui-dropdown = "0.15"
 
 [profile.dev.package.image]
 opt-level = 3

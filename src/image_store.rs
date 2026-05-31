@@ -1,5 +1,6 @@
 use crate::db::DbRepository;
 use crate::image::Image;
+use crate::metadata::ImageMetadata;
 use eframe::egui_wgpu::RenderState;
 use epaint::{TextureId, Vec2};
 use std::collections::HashMap;
@@ -16,7 +17,7 @@ pub struct ImageStore {
     loading_queue: HashMap<PathBuf, QueuedImage>,
     output_icc_profile_name: String,
     max_texture_size: u32,
-    error_img: Image, //TODO: Make it so error image texture is never freed
+    error_img: Image,
     load_budget_per_frame: usize,
     simultaneous_load: usize,
     db_repo: DbRepository,
@@ -84,9 +85,17 @@ impl ImageStore {
         }
     }
 
-    pub fn get_image_metadata(&self, pathbuf: &PathBuf) -> Option<&HashMap<String, String>> {
+    pub fn get_image_metadata(&self, pathbuf: &PathBuf) -> Option<&ImageMetadata> {
         if let Some(stored_image) = self.imgs.get_key_value(pathbuf) {
             Some(&stored_image.1.image.metadata)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_image_name(&self, pathbuf: &PathBuf) -> Option<&String> {
+        if let Some(stored_image) = self.imgs.get_key_value(pathbuf) {
+            Some(&stored_image.1.image.file_name)
         } else {
             None
         }
@@ -199,6 +208,10 @@ impl ImageStore {
         }
     }
 
+    pub fn has_any_imgs_loading(&self) -> bool {
+        !self.loading_imgs.is_empty() || !self.loading_queue.is_empty()
+    }
+
     pub fn finish_loading_images(&mut self) {
         let mut imgs_to_finish_loading: Vec<PathBuf> = vec![];
         let mut imgs_to_drop: Vec<PathBuf> = vec![];
@@ -263,5 +276,13 @@ impl ImageStore {
         self.dequeue_all_images_awaiting_load();
         self.finish_loading_images();
         self.unload_images_with_no_consumers();
+    }
+
+    pub fn refresh_imgs_xmp_rating(&mut self, paths: &[PathBuf], rating: i32) {
+        for p in paths {
+            if let Some(img) = self.imgs.get_mut(p) {
+                img.image.metadata.rating = Some(rating);
+            }
+        }
     }
 }

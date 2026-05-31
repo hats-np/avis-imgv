@@ -1,11 +1,12 @@
+use crate::app::AppState;
+use crate::components::dropdown::DropDownBox;
 use crate::config::FilterConfig;
 use crate::db::{DbRepository, SqlOperator, SqlOrder};
-use crate::metadata::{METADATA_DATE, METADATA_DIRECTORY, Metadata};
+use crate::metadata::{METADATA_DATE, METADATA_DIRECTORY, Metadata, XMPRating};
 use crate::utils::get_path_string_without_trailing_slash;
 use crate::worker::Worker;
-use eframe::egui;
+use eframe::egui::{self};
 use eframe::egui::{Align, Id, Layout};
-use egui_dropdown::DropDownBox;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -14,12 +15,16 @@ use uuid::Uuid;
 pub struct Filters {
     filter_fields: Vec<FilterField>,
     order_field: OrderField,
+    rating_field: RatingField,
+    tag_field: Vec<String>,
     imgs_in_db: u32,
     imgs_in_db_job: Option<JoinHandle<Option<u32>>>,
     last_query_count: Option<u32>,
     query_handle: Option<JoinHandle<Option<Vec<PathBuf>>>>,
     unique_exif_tags: Vec<String>,
     unique_exif_tags_job: Option<JoinHandle<Option<Vec<String>>>>,
+    unique_xmp_tags: Vec<String>,
+    unique_xmp_tags_job: Option<JoinHandle<Option<Vec<String>>>>,
     worker: Arc<Mutex<Worker>>,
     group_raw_jpeg: bool,
     db_repo: DbRepository,
@@ -41,7 +46,7 @@ impl FilterField {
             name: name.to_string(),
             value: String::from(default_value),
             operator: SqlOperator::Like,
-            default_values: vec![],
+            default_values: vec![String::new()],
             default_values_job: None,
         };
 
@@ -75,6 +80,13 @@ pub struct OrderField {
     order: SqlOrder,
 }
 
+pub struct RatingField {
+    first_operator: SqlOperator,
+    first_rating: String,
+    second_operator: SqlOperator,
+    second_rating: String,
+}
+
 impl Filters {
     pub fn new(
         filter_config: FilterConfig,
@@ -88,6 +100,9 @@ impl Filters {
         job_repo = db_repo.clone();
         let unique_exif_tags_job =
             Some(thread::spawn(move || job_repo.get_unique_exif_tags().ok()));
+
+        job_repo = db_repo.clone();
+        let unique_xmp_tags_job = Some(thread::spawn(move || job_repo.get_unique_xmp_tags().ok()));
 
         let mut ffs: Vec<FilterField> = filter_config
             .exif_tags
@@ -104,12 +119,21 @@ impl Filters {
             filter_fields: ffs,
             order_field: OrderField {
                 tag: String::from(METADATA_DATE),
-                order: SqlOrder::Desc,
+                order: SqlOrder::Asc,
             },
+            rating_field: RatingField {
+                first_operator: SqlOperator::None,
+                first_rating: String::new(),
+                second_operator: SqlOperator::None,
+                second_rating: String::new(),
+            },
+            tag_field: vec![],
             imgs_in_db: 0,
             imgs_in_db_job,
             unique_exif_tags_job,
             unique_exif_tags: vec![],
+            unique_xmp_tags_job,
+            unique_xmp_tags: vec![],
             last_query_count: None,
             query_handle: None,
             worker,
@@ -128,11 +152,10 @@ impl Filters {
         }
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui) -> Option<Vec<PathBuf>> {
+    pub fn ui(&mut self, ui: &mut egui::Ui, state: &mut AppState) -> Option<Vec<PathBuf>> {
         let mut return_paths: Option<Vec<PathBuf>> = None;
 
-        self.finish_imgs_in_db_job();
-        self.finish_unique_filter_tags_job();
+        self.finish_jobs();
 
         ui.vertical(|ui| {
             ui.add_space(5.);
@@ -187,13 +210,14 @@ impl Filters {
                 ui.add(
                     DropDownBox::from_iter(
                         &default_values,
-                        format!("{}_value", &field.id.value()),
+                        format!("{}_{}_value", &field.id.value(), &field.name),
                         &mut field.value,
                         |ui, text| ui.selectable_label(false, text),
                     )
                     .desired_width(width)
                     .filter_by_input(true)
-                    .select_on_focus(true),
+                    .select_on_focus(true)
+                    .max_height(500.),
                 );
 
                 ui.add_space(5.);
@@ -208,7 +232,7 @@ impl Filters {
                 }
 
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if ui.button("Clear").clicked() {
+                    if ui.button("🔄").clicked() {
                         self.filter_fields
                             .iter_mut()
                             .for_each(|f| f.value = String::new());
@@ -247,6 +271,110 @@ impl Filters {
 
             ui.add_space(10.);
 
+            ui.strong("XMP Rating & Tags");
+
+            ui.label("Rating");
+            ui.horizontal(|ui| {
+                egui::ComboBox::from_id_salt("rating_first_operator")
+                    .width(50.)
+                    .selected_text(self.rating_field.first_operator.to_string())
+                    .show_ui(ui, |ui| {
+                        for op in SqlOperator::list() {
+                            ui.selectable_value(
+                                &mut self.rating_field.first_operator,
+                                op.clone(),
+                                op.to_string(),
+                            );
+                        }
+                    });
+                egui::ComboBox::from_id_salt("rating_first_rating")
+                    .width(50.)
+                    .selected_text(self.rating_field.first_rating.to_string())
+                    .show_ui(ui, |ui| {
+                        for op in XMPRating::list() {
+                            ui.selectable_value(
+                                &mut self.rating_field.first_rating,
+                                op.to_string(),
+                                op.to_string(),
+                            );
+                        }
+                    });
+                ui.add_space(10.);
+                ui.label("&");
+                ui.add_space(10.);
+                egui::ComboBox::from_id_salt("rating_second_operator")
+                    .width(50.)
+                    .selected_text(self.rating_field.second_operator.to_string())
+                    .show_ui(ui, |ui| {
+                        for op in SqlOperator::list() {
+                            ui.selectable_value(
+                                &mut self.rating_field.second_operator,
+                                op.clone(),
+                                op.to_string(),
+                            );
+                        }
+                    });
+                egui::ComboBox::from_id_salt("rating_second_rating")
+                    .width(50.)
+                    .selected_text(self.rating_field.second_rating.to_string())
+                    .show_ui(ui, |ui| {
+                        for op in XMPRating::list() {
+                            ui.selectable_value(
+                                &mut self.rating_field.second_rating,
+                                op.to_string(),
+                                op.to_string(),
+                            );
+                        }
+                    });
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if ui.button("🔄").clicked() {
+                        self.rating_field.first_operator = SqlOperator::None;
+                        self.rating_field.first_rating = String::new();
+                        self.rating_field.second_operator = SqlOperator::None;
+                        self.rating_field.second_rating = String::new();
+                    }
+                });
+            });
+
+            ui.label("Tags");
+
+            let mut remove_idx: Option<usize> = None;
+            for (i, tag) in self.tag_field.iter_mut().enumerate() {
+                ui.horizontal(|ui| {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                        if ui.button("🗑").clicked() {
+                            remove_idx = Some(i);
+                        }
+
+                        ui.add(
+                            DropDownBox::from_iter(&self.unique_xmp_tags, i, tag, |ui, text| {
+                                ui.selectable_label(false, text)
+                            })
+                            .max_height(600.)
+                            .filter_by_input(true)
+                            .select_on_focus(true)
+                            .desired_width(ui.available_width()),
+                        );
+                    });
+                });
+            }
+            if let Some(idx) = remove_idx {
+                self.tag_field.remove(idx);
+            }
+
+            ui.horizontal(|ui| {
+                if ui.button("+").clicked() {
+                    self.tag_field.push(String::new());
+                }
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if ui.button("🔄").clicked() {
+                        self.tag_field.clear();
+                    }
+                });
+            });
+
+            ui.add_space(10.);
+
             ui.checkbox(&mut self.group_raw_jpeg, "Group RAW + JPEG");
 
             ui.add_space(10.);
@@ -260,41 +388,47 @@ impl Filters {
                             .filter(|x| !x.value.is_empty() && !x.name.is_empty())
                             .map(|x| (x.name.clone(), x.value.clone(), x.operator.clone()))
                             .collect();
-                        if !fields.is_empty() {
-                            let order_tag = self.order_field.tag.clone();
-                            let order_direction = self.order_field.order.clone();
-                            let group_raw_jpeg = self.group_raw_jpeg;
-                            let mut repo = self.db_repo.clone();
-                            let worker_mutex = self.worker.clone();
-                            self.query_handle = Some(thread::spawn(move || {
-                                let mut filtered_paths = repo
-                                    .get_paths_filtered_by_metadata(
-                                        &fields,
-                                        &order_tag,
-                                        &order_direction,
-                                    )
-                                    .ok();
 
-                                if let Some(paths) = filtered_paths.clone() {
-                                    if let Ok(worker) = worker_mutex.try_lock() {
-                                        worker.send_job(crate::worker::Job::ClearMovedFiles(
-                                            paths.clone(),
-                                        ));
-                                    } else {
-                                        tracing::error!(
-                                            "Failure locking worker mutex to clear moved files"
-                                        );
-                                    }
+                        let order_tag = self.order_field.tag.clone();
+                        let order_direction = self.order_field.order.clone();
+                        let mut repo = self.db_repo.clone();
+                        let worker_mutex = self.worker.clone();
+                        state.grouping.enabled = self.group_raw_jpeg;
+                        let rating_one_f = (
+                            self.rating_field.first_operator.clone(),
+                            self.rating_field.first_rating.clone(),
+                        );
+                        let rating_two_f = (
+                            self.rating_field.second_operator.clone(),
+                            self.rating_field.second_rating.clone(),
+                        );
+                        let xmp_tags = self.tag_field.clone();
+                        self.query_handle = Some(thread::spawn(move || {
+                            let filtered_paths = repo
+                                .get_paths_filtered_by_metadata(
+                                    &fields,
+                                    &order_tag,
+                                    &order_direction,
+                                    &rating_one_f,
+                                    &rating_two_f,
+                                    &xmp_tags,
+                                )
+                                .ok();
 
-                                    if group_raw_jpeg {
-                                        filtered_paths =
-                                            Some(Metadata::group_raw_jpg_paths(&paths));
-                                    }
+                            if let Some(paths) = filtered_paths.clone() {
+                                if let Ok(worker) = worker_mutex.try_lock() {
+                                    worker.send_job(crate::worker::Job::ClearMovedFiles(
+                                        paths.clone(),
+                                    ));
+                                } else {
+                                    tracing::error!(
+                                        "Failure locking worker mutex to clear moved files"
+                                    );
                                 }
+                            }
 
-                                filtered_paths
-                            }));
-                        }
+                            filtered_paths
+                        }));
                     }
 
                     if self.query_handle.is_some() {
@@ -303,6 +437,16 @@ impl Filters {
                             if let Ok(Some(paths)) = qh.join() {
                                 self.last_query_count = Some(paths.len() as u32);
                                 return_paths = Some(paths.clone());
+
+                                if state.grouping.enabled {
+                                    state.grouping.enabled = true;
+                                    return_paths = Some(Metadata::group_raw_pairs(
+                                        &paths,
+                                        &mut state.grouping.lookup,
+                                    ));
+                                } else {
+                                    state.grouping.enabled = false;
+                                }
                             }
                         } else {
                             self.query_handle = Some(qh);
@@ -324,7 +468,7 @@ impl Filters {
         return_paths
     }
 
-    pub fn finish_imgs_in_db_job(&mut self) {
+    pub fn finish_jobs(&mut self) {
         if self.imgs_in_db_job.is_some() {
             let qh = self.imgs_in_db_job.take().unwrap();
             if qh.is_finished() {
@@ -335,9 +479,7 @@ impl Filters {
                 self.imgs_in_db_job = Some(qh);
             }
         }
-    }
 
-    pub fn finish_unique_filter_tags_job(&mut self) {
         if self.unique_exif_tags_job.is_some() {
             let qh = self.unique_exif_tags_job.take().unwrap();
             if qh.is_finished() {
@@ -346,6 +488,17 @@ impl Filters {
                 }
             } else {
                 self.unique_exif_tags_job = Some(qh);
+            }
+        }
+
+        if self.unique_xmp_tags_job.is_some() {
+            let qh = self.unique_xmp_tags_job.take().unwrap();
+            if qh.is_finished() {
+                if let Ok(Some(values)) = qh.join() {
+                    self.unique_xmp_tags = values;
+                }
+            } else {
+                self.unique_xmp_tags_job = Some(qh);
             }
         }
     }

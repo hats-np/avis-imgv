@@ -141,6 +141,7 @@ dependencies = [
  "cfg-if",
  "getrandom 0.3.4",
  "once_cell",
+ "serde",
  "version_check",
  "zerocopy",
 ]
@@ -531,11 +532,10 @@ dependencies = [
 
 [[package]]
 name = "avis-imgv"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "directories",
  "eframe",
- "egui-dropdown",
  "epaint",
  "fast_image_resize",
  "image",
@@ -1140,6 +1140,7 @@ checksum = "137c0ce4ce4152ff7e223a7ce22ee1057cdff61fce0a45c32459c3ccec64868d"
 dependencies = [
  "bytemuck",
  "emath",
+ "serde",
 ]
 
 [[package]]
@@ -1194,15 +1195,6 @@ dependencies = [
  "profiling",
  "smallvec",
  "unicode-segmentation",
-]
-
-[[package]]
-name = "egui-dropdown"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7af648582d7b50b9f2b94ae35f4d65894a6c21cb452cba41ba9d4424d62c6c7"
-dependencies = [
- "egui",
 ]
 
 [[package]]
@@ -1277,6 +1269,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0a05cd8bdf3b598488c627ca97c7fe8909448ffa26278dd3c7e535cdb554d721"
 dependencies = [
  "bytemuck",
+ "serde",
 ]
 
 [[package]]
@@ -1334,6 +1327,7 @@ dependencies = [
  "parking_lot",
  "profiling",
  "self_cell",
+ "serde",
  "skrifa",
  "smallvec",
  "vello_cpu",
@@ -1521,6 +1515,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b38ad915f6dadd993ced50848a8291a543bd41ca62bc10740d5e64e2ab4cfd7"
 dependencies = [
  "bytemuck",
+ "serde",
 ]
 
 [[package]]
@@ -4269,6 +4264,9 @@ name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "smithay-client-toolkit"

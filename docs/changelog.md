@@ -1,5 +1,14 @@
 # Change Log
 
+## 2026-05-31
+
+- BREAKING: The database needs to be deleted and re-created.
+- We now import XMP sidecar metadata for rating and tags.
+- Ability to rate images using XMP sidecars. This action is done through exiftool
+- Added the ability to select multiple files at once to apply XMP rating. In the future this selection will also be used to execute user commands on multiple images simultaneously
+- Architectural improvements
+- Improved import speed
+
 ## 2026-05-17
 
 - BREAKING: The database needs to be deleted and re-created.

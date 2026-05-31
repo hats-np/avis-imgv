@@ -1,5 +1,6 @@
 use crate::{APPLICATION, ORGANIZATION, QUALIFIER, callback::Callback, utils};
 use eframe::egui::{Key, KeyboardShortcut, Modifiers};
+use epaint::Color32;
 use serde::{Deserialize, Serialize};
 use std::{fs, io::ErrorKind, path::PathBuf, vec};
 
@@ -32,6 +33,10 @@ pub struct GeneralConfig {
     pub simultaneous_load: usize,
     #[serde(default = "default_raw_exiftool_preview_ext")]
     pub raw_exiftool_preview_ext: Vec<String>,
+    #[serde(default = "default_accent_color")]
+    pub accent_color: Color32,
+    #[serde(default = "default_group_raw_pairs")]
+    pub group_raw_pairs: bool,
 
     #[serde(default = "default_sc_toggle_gallery")]
     pub sc_toggle_gallery: Shortcut,
@@ -47,6 +52,26 @@ pub struct GeneralConfig {
     pub sc_flatten_dir: Shortcut,
     #[serde(default = "default_sc_watch_directory")]
     pub sc_watch_directory: Shortcut,
+    #[serde(default = "default_sc_rate_0")]
+    pub sc_rate_0: Shortcut,
+    #[serde(default = "default_sc_rate_reject")]
+    pub sc_rate_reject: Shortcut,
+    #[serde(default = "default_sc_rate_1")]
+    pub sc_rate_1: Shortcut,
+    #[serde(default = "default_sc_rate_2")]
+    pub sc_rate_2: Shortcut,
+    #[serde(default = "default_sc_rate_3")]
+    pub sc_rate_3: Shortcut,
+    #[serde(default = "default_sc_rate_4")]
+    pub sc_rate_4: Shortcut,
+    #[serde(default = "default_sc_rate_5")]
+    pub sc_rate_5: Shortcut,
+    #[serde(default = "default_sc_reset_selection")]
+    pub sc_reset_selection: Shortcut,
+    #[serde(default = "default_sc_select_current_img")]
+    pub sc_select_current_img: Shortcut,
+    #[serde(default = "default_sc_select_all")]
+    pub sc_select_all: Shortcut,
     #[serde(default = "default_sc_toggle_side_panel")]
     pub sc_toggle_side_panel: Shortcut,
 }
@@ -189,6 +214,8 @@ impl Default for GeneralConfig {
             metadata_tags: default_metadata_tags(),
             simultaneous_load: default_simultaneous_load(),
             raw_exiftool_preview_ext: default_raw_exiftool_preview_ext(),
+            accent_color: default_accent_color(),
+            group_raw_pairs: default_group_raw_pairs(),
             sc_toggle_gallery: default_sc_toggle_gallery(),
             sc_toggle_side_panel: default_sc_toggle_side_panel(),
             sc_exit: default_sc_exit(),
@@ -197,6 +224,16 @@ impl Default for GeneralConfig {
             sc_dir_tree: default_sc_dir_tree(),
             sc_flatten_dir: default_sc_flatten_dir(),
             sc_watch_directory: default_sc_watch_directory(),
+            sc_rate_0: default_sc_rate_0(),
+            sc_rate_reject: default_sc_rate_reject(),
+            sc_rate_1: default_sc_rate_1(),
+            sc_rate_2: default_sc_rate_2(),
+            sc_rate_3: default_sc_rate_3(),
+            sc_rate_4: default_sc_rate_4(),
+            sc_rate_5: default_sc_rate_5(),
+            sc_reset_selection: default_sc_reset_selection(),
+            sc_select_current_img: default_sc_select_current_img(),
+            sc_select_all: default_sc_select_all(),
         }
     }
 }
@@ -338,6 +375,10 @@ pub fn default_text_scaling() -> f32 {
     1.25
 }
 
+pub fn default_group_raw_pairs() -> bool {
+    false
+}
+
 pub fn default_sc_toggle_gallery() -> Shortcut {
     Shortcut::from("Backspace", &[])
 }
@@ -364,6 +405,46 @@ pub fn default_sc_flatten_dir() -> Shortcut {
 
 pub fn default_sc_watch_directory() -> Shortcut {
     Shortcut::from("w", &[MOD_CTRL])
+}
+
+pub fn default_sc_rate_0() -> Shortcut {
+    Shortcut::from("0", &[])
+}
+
+pub fn default_sc_rate_reject() -> Shortcut {
+    Shortcut::from("r", &[])
+}
+
+pub fn default_sc_rate_1() -> Shortcut {
+    Shortcut::from("1", &[])
+}
+
+pub fn default_sc_rate_2() -> Shortcut {
+    Shortcut::from("2", &[])
+}
+
+pub fn default_sc_rate_3() -> Shortcut {
+    Shortcut::from("3", &[])
+}
+
+pub fn default_sc_rate_4() -> Shortcut {
+    Shortcut::from("4", &[])
+}
+
+pub fn default_sc_rate_5() -> Shortcut {
+    Shortcut::from("5", &[])
+}
+
+pub fn default_sc_reset_selection() -> Shortcut {
+    Shortcut::from("Escape", &[])
+}
+
+pub fn default_sc_select_current_img() -> Shortcut {
+    Shortcut::from("Space", &[MOD_SHIFT])
+}
+
+pub fn default_sc_select_all() -> Shortcut {
+    Shortcut::from("a", &[MOD_CTRL])
 }
 
 //Gallery
@@ -396,7 +477,7 @@ pub fn default_scroll_navigation() -> bool {
     true
 }
 pub fn default_name_format() -> String {
-    "$(#File Name#)$( • ƒ#Aperture#)$( • #Shutter Speed#)$( • #ISO# ISO)".to_string()
+    "$(#Rating# • )$(#File Name#)$( • ƒ#Aperture#)$( • #Shutter Speed#)$( • #ISO# ISO)".to_string()
 }
 pub fn default_user_actions() -> Vec<UserAction> {
     vec![]
@@ -471,6 +552,9 @@ pub fn default_grid_view_hover_exif_tags() -> Vec<String> {
 }
 pub fn default_raw_exiftool_preview_ext() -> Vec<String> {
     vec!["raf".to_string()]
+}
+pub fn default_accent_color() -> Color32 {
+    Color32::from_rgb(91, 136, 164) //Inspired by the blue tit
 }
 pub fn default_sc_scroll() -> Shortcut {
     Shortcut::from("Space", &[])

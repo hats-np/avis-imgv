@@ -6,14 +6,17 @@ use epaint::{
     text::{FontData, FontDefinitions},
 };
 
+use crate::COLOR_GREY_DARK_BG;
+
 pub fn apply_theme(ctx: &egui::Context) {
     #[cfg(feature = "custom_font")]
     apply_fonts(ctx);
 
     let previous_theme = ctx.global_style().visuals.clone();
 
+    //TODO: Use accent from config.
     let accent = Color32::from_rgb(220, 220, 220);
-    let bg = Color32::from_rgb(48, 48, 48);
+    let bg = COLOR_GREY_DARK_BG;
     let wbg = Color32::from_rgb(200, 200, 200);
     let extreme_bg = Color32::from_rgb(70, 70, 70);
     let light_bg = Color32::from_rgb(150, 150, 150);

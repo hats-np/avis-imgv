@@ -1,7 +1,9 @@
+use crate::COLOR_GREY_DARK_BG;
 use crate::db::DbRepository;
 use crate::filters::Filters;
 use crate::image_store::ImageStore;
-use crate::worker::Worker;
+use crate::metadata::Metadata;
+use crate::worker::{PostProcessingMessage, Worker};
 use crate::{
     VALID_EXTENSIONS,
     callback::Callback,
@@ -15,13 +17,14 @@ use crate::{
 };
 use eframe::Frame;
 use eframe::egui::{self, KeyboardShortcut, Panel, RichText, Ui, ViewportCommand, Window, frame};
-use epaint::{Color32, Pos2};
+use epaint::Stroke;
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
 use notify::FsEventWatcher;
 #[cfg(any(target_os = "linux", target_os = "android"))]
 use notify::INotifyWatcher;
 use notify::{RecursiveMode, Watcher};
 use rfd::FileDialog;
+use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, channel};
 use std::{
     path::{Path, PathBuf},
@@ -31,30 +34,118 @@ use std::{
 pub struct App {
     paths: Vec<PathBuf>,
     gallery: ImageView,
-    ///used when switching between view modes
-    gallery_selected_index: Option<usize>,
     grid_view: GridView,
-    perf_metrics_visible: bool,
-    grid_view_visible: bool,
-    top_menu_visible: bool,
-    dir_tree_visible: bool,
     base_path: PathBuf,
-    dir_flattened: bool, //Fetches images for all subdirectories recursively
-    navigator_visible: bool,
+    dir_flattened: bool,      //Fetches images for all subdirectories recursively
     navigator_search: String, //TODO: Investigate why this exists in the app struct
     perf_metrics: PerfMetrics,
-    config: GeneralConfig,
     #[cfg(any(target_os = "linux", target_os = "android"))]
     watcher: Option<INotifyWatcher>,
     #[cfg(not(any(target_os = "linux", target_os = "android")))]
     watcher: Option<FsEventWatcher>,
     watcher_events: Option<Receiver<notify::Event>>,
     filters: Filters,
-    side_panel_visible: bool,
     worker: Arc<Mutex<Worker>>,
     fullscreen: bool,
-    image_store: ImageStore,
-    thumbnail_store: ImageStore,
+    state: AppState,
+}
+
+//The state is seperate from the App struct
+//Since its reference is meant to be passed into views
+//And other elements.
+pub struct AppState {
+    pub view_visibility: AppViewVisibility,
+    pub selected_img_index: usize,
+    pub selected_img_indexes: Vec<usize>,
+    pub selected_img_index_changed: bool,
+    pub image_store: ImageStore,
+    pub thumbnail_store: ImageStore,
+    pub general_config: GeneralConfig,
+    pub grouping: AppFileGrouping,
+}
+
+pub struct AppFileGrouping {
+    pub enabled: bool,
+    pub lookup: HashMap<String, Vec<PathBuf>>,
+}
+
+pub struct AppViewVisibility {
+    pub perf_metrics: bool,
+    pub grid_view: bool,
+    pub top_menu: bool,
+    pub dir_tree: bool,
+    pub navigator: bool,
+    pub side_panel: bool,
+}
+
+impl AppState {
+    pub fn get_active_img_nr(&mut self) -> usize {
+        self.selected_img_index + 1
+    }
+
+    pub fn set_selected_img_index(&mut self, i: usize, trigger_change: bool) {
+        self.selected_img_index = i;
+        if trigger_change {
+            self.selected_img_index_changed = trigger_change;
+            self.selected_img_indexes = vec![i];
+        }
+    }
+
+    pub fn set_selected_img_indexes(&mut self, end: usize) {
+        self.selected_img_indexes = (self.selected_img_index..end + 1).collect();
+    }
+
+    pub fn append_selected_img_index(&mut self, i: usize) {
+        if self.selected_img_indexes.contains(&i) {
+            self.selected_img_indexes.retain(|&x| x != i);
+        } else {
+            self.selected_img_indexes.push(i);
+        }
+    }
+
+    pub fn is_image_selected(&self, i: &usize) -> bool {
+        self.selected_img_indexes.contains(i)
+    }
+
+    pub fn reset_selection_to_current_img(&mut self) {
+        self.selected_img_indexes = vec![];
+    }
+
+    pub fn select_current_img(&mut self) {
+        if !self.selected_img_indexes.contains(&self.selected_img_index) {
+            self.selected_img_indexes.push(self.selected_img_index);
+        } else {
+            self.selected_img_indexes
+                .retain(|&x| x != self.selected_img_index);
+        }
+    }
+
+    pub fn select_all(&mut self, nr_of_imgs: usize) {
+        self.selected_img_indexes = (0..nr_of_imgs).collect();
+    }
+
+    pub fn get_grouped_img_paths(
+        &self,
+        path: &Path,
+        include_non_raw: bool,
+    ) -> Option<Vec<PathBuf>> {
+        let stem = path
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+
+        if let Some(raws) = self.grouping.lookup.get(&stem) {
+            let mut raws = raws.clone();
+            if include_non_raw {
+                raws.push(path.to_path_buf());
+                raws.reverse(); //This way our preview image is always the first on the vec
+            }
+            Some(raws)
+        } else {
+            None
+        }
+    }
 }
 
 impl App {
@@ -99,6 +190,29 @@ impl App {
             }
         };
 
+        let grouping = if cfg.general.group_raw_pairs {
+            let mut grouping = AppFileGrouping {
+                enabled: true,
+                lookup: HashMap::new(),
+            };
+
+            let count_before = img_paths.len();
+            img_paths = Metadata::group_raw_pairs(&img_paths, &mut grouping.lookup);
+
+            tracing::info!(
+                "Grouped {} images into {} groups based on raw pairs",
+                count_before - img_paths.len(),
+                grouping.lookup.len()
+            );
+
+            grouping
+        } else {
+            AppFileGrouping {
+                enabled: false,
+                lookup: HashMap::new(),
+            }
+        };
+
         let render_state = match cc.wgpu_render_state.clone() {
             Some(rs) => rs,
             None => panic!("Failure fetching render state at startup. Startup cannot proceed"),
@@ -108,7 +222,7 @@ impl App {
 
         let base_path = Self::get_base_path(&img_paths, &opened_img_path);
         let worker = Arc::new(Mutex::new(worker));
-        let mut image_store = ImageStore::new(
+        let image_store = ImageStore::new(
             cfg.general.output_icc_profile.to_owned(),
             max_texture_size,
             &render_state,
@@ -124,6 +238,23 @@ impl App {
             cfg.general.simultaneous_load,
             &cfg.general.raw_exiftool_preview_ext,
         );
+        let mut state = AppState {
+            image_store,
+            thumbnail_store,
+            view_visibility: AppViewVisibility {
+                perf_metrics: false,
+                grid_view: false,
+                top_menu: false,
+                dir_tree: false,
+                navigator: false,
+                side_panel: false,
+            },
+            selected_img_index: 0,
+            selected_img_indexes: vec![],
+            selected_img_index_changed: false,
+            general_config: cfg.general,
+            grouping,
+        };
         Self {
             gallery: ImageView::new(
                 &img_paths,
@@ -131,29 +262,20 @@ impl App {
                 cfg.image_view,
                 slideshow,
                 cfg.slideshow,
-                &mut image_store,
+                &mut state,
             ),
-            gallery_selected_index: None,
             grid_view: GridView::new(&img_paths, cfg.grid_view),
-            perf_metrics_visible: false,
-            grid_view_visible: false,
-            top_menu_visible: false,
-            dir_tree_visible: false,
-            side_panel_visible: false,
-            dir_flattened: false,
             base_path: base_path.clone(),
-            navigator_visible: false,
             navigator_search: base_path.to_str().unwrap_or_default().to_string(),
             perf_metrics: PerfMetrics::new(),
-            image_store,
-            thumbnail_store,
-            config: cfg.general,
             filters: Filters::new(cfg.filter, &base_path, worker.clone(), &db_repo),
             paths: img_paths,
             watcher: None,
             watcher_events: None,
             worker,
             fullscreen,
+            dir_flattened: false,
+            state,
         }
     }
 
@@ -180,7 +302,7 @@ impl App {
 
     //Maybe have gallery show this
     fn handle_input(&mut self, ctx: &egui::Context) {
-        if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_exit.kbd_shortcut)) {
+        if ctx.input_mut(|i| i.consume_shortcut(&self.state.general_config.sc_exit.kbd_shortcut)) {
             std::process::exit(0);
         }
 
@@ -189,29 +311,69 @@ impl App {
         }
 
         if ctx.input(|i| i.key_pressed(egui::Key::F10)) {
-            self.perf_metrics_visible = !self.perf_metrics_visible;
+            self.state.view_visibility.perf_metrics = !self.state.view_visibility.perf_metrics;
         }
 
         ctx.input_mut(|i| {
-            if i.consume_shortcut(&self.config.sc_toggle_side_panel.kbd_shortcut) {
-                self.side_panel_visible = !self.side_panel_visible;
+            if i.consume_shortcut(&self.state.general_config.sc_toggle_side_panel.kbd_shortcut) {
+                self.state.view_visibility.side_panel = !self.state.view_visibility.side_panel;
             }
 
-            if i.consume_shortcut(&self.config.sc_watch_directory.kbd_shortcut) {
+            if i.consume_shortcut(&self.state.general_config.sc_watch_directory.kbd_shortcut) {
                 self.enable_watcher();
             }
 
-            if i.consume_shortcut(&self.config.sc_flatten_dir.kbd_shortcut) {
+            if i.consume_shortcut(&self.state.general_config.sc_flatten_dir.kbd_shortcut) {
                 self.flatten_open_dir();
             }
 
-            if i.consume_shortcut(&self.config.sc_toggle_gallery.kbd_shortcut) {
-                self.grid_view_visible = !self.grid_view_visible;
-                self.gallery_selected_index = Some(self.gallery.selected_img_index);
+            if i.consume_shortcut(&self.state.general_config.sc_toggle_gallery.kbd_shortcut) {
+                self.state.view_visibility.grid_view = !self.state.view_visibility.grid_view;
+                self.grid_view.jump_to_index = Some(self.state.selected_img_index)
             }
 
-            if i.consume_shortcut(&self.config.sc_menu.kbd_shortcut) {
-                self.top_menu_visible = !self.top_menu_visible;
+            if i.consume_shortcut(&self.state.general_config.sc_menu.kbd_shortcut) {
+                self.state.view_visibility.top_menu = !self.state.view_visibility.top_menu;
+            }
+
+            if i.consume_shortcut(&self.state.general_config.sc_rate_0.kbd_shortcut) {
+                self.launch_rate_xmp_job(0);
+            }
+
+            if i.consume_shortcut(&self.state.general_config.sc_rate_reject.kbd_shortcut) {
+                self.launch_rate_xmp_job(-1);
+            }
+
+            if i.consume_shortcut(&self.state.general_config.sc_rate_1.kbd_shortcut) {
+                self.launch_rate_xmp_job(1);
+            }
+
+            if i.consume_shortcut(&self.state.general_config.sc_rate_2.kbd_shortcut) {
+                self.launch_rate_xmp_job(2);
+            }
+
+            if i.consume_shortcut(&self.state.general_config.sc_rate_3.kbd_shortcut) {
+                self.launch_rate_xmp_job(3);
+            }
+
+            if i.consume_shortcut(&self.state.general_config.sc_rate_4.kbd_shortcut) {
+                self.launch_rate_xmp_job(4);
+            }
+
+            if i.consume_shortcut(&self.state.general_config.sc_rate_5.kbd_shortcut) {
+                self.launch_rate_xmp_job(5);
+            }
+
+            if i.consume_shortcut(&self.state.general_config.sc_reset_selection.kbd_shortcut) {
+                self.state.reset_selection_to_current_img();
+            }
+
+            if i.consume_shortcut(&self.state.general_config.sc_select_current_img.kbd_shortcut) {
+                self.state.select_current_img();
+            }
+
+            if i.consume_shortcut(&self.state.general_config.sc_select_all.kbd_shortcut) {
+                self.state.select_all(self.paths.len());
             }
         });
 
@@ -226,12 +388,12 @@ impl App {
     fn handle_input_muters(&mut self, ctx: &egui::Context) {
         let to_check: Vec<(&mut bool, &KeyboardShortcut)> = vec![
             (
-                &mut self.navigator_visible,
-                &self.config.sc_navigator.kbd_shortcut,
+                &mut self.state.view_visibility.navigator,
+                &self.state.general_config.sc_navigator.kbd_shortcut,
             ),
             (
-                &mut self.dir_tree_visible,
-                &self.config.sc_dir_tree.kbd_shortcut,
+                &mut self.state.view_visibility.dir_tree,
+                &self.state.general_config.sc_dir_tree.kbd_shortcut,
             ),
         ];
 
@@ -283,7 +445,7 @@ impl App {
     fn get_file_dialog(&mut self) -> FileDialog {
         let mut file_dialog = FileDialog::new();
 
-        if let Some(path) = self.gallery.get_active_img_path()
+        if let Some(path) = self.gallery.get_active_img_path(&self.state)
             && let Some(parent) = path.parent()
         {
             file_dialog = file_dialog.set_directory(parent);
@@ -316,9 +478,8 @@ impl App {
 
     fn load_images(&mut self, selected_img: &Option<PathBuf>, new_dir_opened: bool) {
         self.gallery
-            .set_images(&self.paths, selected_img, &mut self.image_store);
-        self.grid_view
-            .set_images(&self.paths, &mut self.thumbnail_store);
+            .set_images(&self.paths, selected_img, &mut self.state);
+        self.grid_view.set_images(&self.paths, &mut self.state);
 
         if new_dir_opened {
             self.base_path = Self::get_base_path(&self.paths, &None);
@@ -426,7 +587,10 @@ impl App {
                 self.enable_watcher();
             }
 
-            self.set_images_from_path(&self.base_path.clone(), &self.gallery.get_active_img_path());
+            self.set_images_from_path(
+                &self.base_path.clone(),
+                &self.gallery.get_active_img_path(&self.state),
+            );
         }
     }
 
@@ -440,34 +604,72 @@ impl App {
             Callback::ReloadAll => self.callback_reload_all(),
             Callback::Advance => self.callback_advance(),
             Callback::NoAction => {}
+            Callback::CloseView => {}
         }
     }
 
     fn callback_pop(&mut self, path: Option<PathBuf>) {
         if let Some(path) = path {
-            self.gallery.pop(&path, &mut self.image_store);
+            self.gallery.pop(&path, &mut self.state);
             self.grid_view.pop(&path);
         }
     }
 
     fn callback_advance(&mut self) {
-        self.gallery.next_image(&mut self.image_store);
+        self.gallery.next_image(&mut self.state);
     }
 
     fn reload_galleries_image(&mut self, path: Option<PathBuf>) {
         if let Some(path) = path {
-            self.gallery.reload_at(&path, &mut self.image_store);
-            self.grid_view.reload_at(&path, &mut self.thumbnail_store);
+            self.gallery.reload_at(&path, &mut self.state.image_store);
+            self.grid_view
+                .reload_at(&path, &mut self.state.thumbnail_store);
         }
     }
 
     fn callback_reload_all(&mut self) {
-        self.set_images_from_path(&self.base_path.clone(), &self.gallery.get_active_img_path());
+        self.set_images_from_path(
+            &self.base_path.clone(),
+            &self.gallery.get_active_img_path(&self.state),
+        );
     }
 
-    fn execute_img_store_routines(&mut self) {
-        self.image_store.update();
-        self.thumbnail_store.update();
+    fn execute_img_store_routines(&mut self, ui: &mut Ui) {
+        self.state.image_store.update();
+        self.state.thumbnail_store.update();
+
+        if self.state.image_store.has_any_imgs_loading()
+            || self.state.thumbnail_store.has_any_imgs_loading()
+        {
+            ui.request_repaint();
+        }
+    }
+
+    fn execute_worker_post_processing(&mut self) {
+        let pp_messages = if let Ok(mut worker) = self.worker.try_lock() {
+            worker.get_all_post_processing_messages()
+        } else {
+            return;
+        };
+
+        for pp in pp_messages {
+            match pp {
+                PostProcessingMessage::RefreshMetadata => {
+                    self.gallery.reload_all_imgs(&mut self.state);
+                    self.grid_view.reload_all_imgs(&mut self.state);
+                    self.gallery.clear_img_display_names();
+                }
+                PostProcessingMessage::RefreshRating(paths, rating) => {
+                    self.state
+                        .image_store
+                        .refresh_imgs_xmp_rating(&paths, rating);
+                    self.state
+                        .thumbnail_store
+                        .refresh_imgs_xmp_rating(&paths, rating);
+                    self.gallery.clear_img_display_names();
+                }
+            }
+        }
     }
 
     fn show_worker_msg(&mut self, ui: &mut Ui) {
@@ -478,17 +680,17 @@ impl App {
         };
 
         if let Some(msg) = msg_to_display {
-            let max_rect = ui.max_rect();
+            let _max_rect = ui.max_rect();
 
-            Window::new("Floating Control Panel")
-                .vscroll(false) // Enable vertical scrolling if content is large
-                .resizable(false) // Allow user to resize
+            Window::new("WorkerMsgWindow")
+                .vscroll(false)
+                .resizable(false)
                 .title_bar(false)
                 .movable(false)
-                .fixed_pos(Pos2::new(12., max_rect.height() - 70.))
+                .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(12., -40.))
                 .frame(
                     frame::Frame::new()
-                        .fill(Color32::from_rgb(48, 48, 48))
+                        .fill(COLOR_GREY_DARK_BG)
                         .multiply_with_opacity(1.)
                         .corner_radius(4.)
                         .inner_margin(5.),
@@ -501,25 +703,102 @@ impl App {
                 });
         }
     }
+
+    pub fn show_selected_img_counter(&mut self, ui: &mut Ui, margin_right: f32) {
+        if !self.state.selected_img_indexes.is_empty() {
+            let _max_rect = ui.max_rect();
+
+            Window::new("SelectedImgCounter")
+                .vscroll(false)
+                .resizable(false)
+                .title_bar(false)
+                .movable(false)
+                .anchor(
+                    egui::Align2::RIGHT_BOTTOM,
+                    egui::vec2(-12. - margin_right, -40.),
+                )
+                .frame(
+                    frame::Frame::new()
+                        .fill(COLOR_GREY_DARK_BG)
+                        .stroke(Stroke::new(2.0, self.state.general_config.accent_color))
+                        .multiply_with_opacity(1.)
+                        .corner_radius(4.)
+                        .inner_margin(5.),
+                )
+                .show(ui.ctx(), |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(format!(
+                            "{} Images selected",
+                            self.state.selected_img_indexes.len()
+                        ));
+                    });
+                });
+        }
+    }
+
+    pub fn launch_rate_xmp_job(&mut self, rating: i32) {
+        if let Ok(worker) = self.worker.try_lock() {
+            worker.send_job(crate::worker::Job::SetXMPRating(
+                self.get_selected_img_paths(),
+                rating,
+            ));
+        } else {
+            tracing::error!("Failure locking mutex for xmp rating job");
+        }
+    }
+
+    //Clone doesn't matter only used for some user actions as of now
+    //If used on something that runs every frame we need to think better
+    //about this
+    pub fn get_selected_img_paths(&self) -> Vec<PathBuf> {
+        let mut selected_paths: Vec<PathBuf> = vec![];
+        if self.state.selected_img_indexes.len() > 1
+            || (self.state.selected_img_indexes.len() == 1
+                && self.state.selected_img_indexes[0] != self.state.selected_img_index)
+        {
+            for i in &self.state.selected_img_indexes {
+                selected_paths.push(self.paths[*i].clone());
+            }
+        } else {
+            selected_paths = vec![self.paths[self.state.selected_img_index].clone()];
+        };
+
+        if self.state.grouping.enabled {
+            let mut to_append: Vec<PathBuf> = vec![];
+            for path in &selected_paths {
+                if let Some(raws) = self.state.get_grouped_img_paths(path, false) {
+                    for r in raws {
+                        if !selected_paths.contains(&r) {
+                            to_append.push(r.clone());
+                        }
+                    }
+                }
+            }
+
+            selected_paths = [&selected_paths[..], &to_append[..]].concat();
+        }
+
+        selected_paths
+    }
 }
 
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut Frame) {
         self.perf_metrics.new_frame();
-        self.execute_img_store_routines();
+        self.execute_img_store_routines(ui);
         self.handle_input_muters(ui.ctx());
         self.handle_input(ui.ctx());
 
         Panel::top("performance_metrics")
             .show_separator_line(false)
-            .show_animated_inside(ui, self.perf_metrics_visible, |ui| {
+            .show_animated_inside(ui, self.state.view_visibility.perf_metrics, |ui| {
                 self.perf_metrics.display_metrics(ui);
                 ui.ctx().clone().texture_ui(ui);
             });
 
         Panel::top("menu")
             .show_separator_line(false)
-            .show_animated_inside(ui, self.top_menu_visible, |ui| {
+            .show_animated_inside(ui, self.state.view_visibility.top_menu, |ui| {
                 ui.menu_button("File", |ui| {
                     if ui.button("Open Folder").clicked() {
                         self.folder_picker();
@@ -533,12 +812,12 @@ impl eframe::App for App {
                 });
             });
 
-        Panel::right("image_metadata")
+        let image_metadata_panel = Panel::right("image_metadata")
             .resizable(true)
             .show_separator_line(false)
-            .show_animated_inside(ui, self.side_panel_visible, |ui| {
+            .show_animated_inside(ui, self.state.view_visibility.side_panel, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    if let Some(filtered_paths) = self.filters.ui(ui) {
+                    if let Some(filtered_paths) = self.filters.ui(ui, &mut self.state) {
                         self.set_images_from_paths(filtered_paths);
                     }
                     ui.add_space(20.);
@@ -546,48 +825,53 @@ impl eframe::App for App {
                     ui.add_space(10.);
                     ui.label(RichText::new("Image Metadata").heading());
                     ui.add_space(10.);
-                    if let Some(selected_img) = self.gallery.get_active_img_mut() {
-                        selected_img.metadata_ui(ui, &self.config.metadata_tags, &self.image_store);
+                    if let Some(selected_img) = self.gallery.get_active_img_mut(&self.state) {
+                        selected_img.metadata_ui(
+                            ui,
+                            &self.state.general_config.metadata_tags,
+                            &self.state.image_store,
+                        );
                     }
-                });
+                })
             });
 
-        if self.navigator_visible && navigator::ui(&mut self.navigator_search, ui.ctx()) {
-            self.navigator_visible = false;
+        if self.state.view_visibility.navigator
+            && navigator::ui(&mut self.navigator_search, ui.ctx())
+        {
+            self.state.view_visibility.navigator = false;
             utils::set_mute_state(ui.ctx(), false);
             self.set_images_from_path(&PathBuf::from(self.navigator_search.clone()), &None);
         }
 
-        if self.dir_tree_visible
-            && let Some(path) = self.gallery.get_active_img_path()
+        if self.state.view_visibility.dir_tree
+            && let Some(path) = self.gallery.get_active_img_path(&self.state)
             && let Some(path) = tree::ui(path.to_str().unwrap_or(""), ui.ctx())
         {
-            self.dir_tree_visible = false;
+            self.state.view_visibility.dir_tree = false;
             utils::set_mute_state(ui.ctx(), false);
             self.set_images_from_path(&path, &None);
         }
 
-        if self.grid_view_visible {
-            self.grid_view.ui(
-                ui,
-                &mut self.gallery_selected_index,
-                &mut self.thumbnail_store,
-            );
+        if self.state.view_visibility.grid_view {
+            self.grid_view.ui(ui, &mut self.state);
 
-            if let Some(img_name) = self.grid_view.selected_image_name() {
-                self.gallery.select_by_name(img_name, &mut self.image_store);
-                self.grid_view_visible = false;
+            if self.state.selected_img_index_changed {
+                self.gallery.load(&mut self.state);
             }
 
             if let Some(callback) = self.grid_view.take_callback() {
-                self.execute_callback(callback);
+                if callback == Callback::CloseView {
+                    self.state.view_visibility.grid_view = false;
+                } else {
+                    self.execute_callback(callback);
+                }
             }
         } else {
             self.gallery.ui(
                 ui,
                 self.dir_flattened,
                 self.watcher.is_some(),
-                &mut self.image_store,
+                &mut self.state,
             );
 
             if let Some(callback) = self.gallery.take_callback() {
@@ -596,12 +880,21 @@ impl eframe::App for App {
         }
 
         self.show_worker_msg(ui);
+        self.show_selected_img_counter(
+            ui,
+            if let Some(r) = image_metadata_panel {
+                r.response.rect.width() + 12.
+            } else {
+                0.
+            },
+        );
 
         if self.watcher.is_some() {
             ui.ctx().request_repaint();
         }
 
         self.process_file_watcher_events();
+        self.execute_worker_post_processing();
         self.perf_metrics.end_frame();
     }
 }

@@ -1,4 +1,5 @@
 use crate::{
+    app::AppState,
     callback::Callback,
     config::GridViewConfig,
     image_store::ImageStore,
@@ -15,7 +16,6 @@ use std::path::{Path, PathBuf};
 pub struct GridView {
     imgs: Vec<ThumbnailImage>,
     config: GridViewConfig,
-    selected_image_name: Option<String>,
     prev_img_size: f32,
     prev_scroll_offset: f32,
     total_rows: usize,
@@ -24,6 +24,7 @@ pub struct GridView {
     prev_row_range_start: usize,
     reset_scroll: bool,
     callback: Option<Callback>,
+    pub jump_to_index: Option<usize>,
 }
 
 impl GridView {
@@ -32,7 +33,6 @@ impl GridView {
         let mut mg = GridView {
             total_rows: 0,
             imgs,
-            selected_image_name: None,
             images_per_row: config.images_per_row,
             prev_images_per_row: config.images_per_row,
             config,
@@ -41,6 +41,7 @@ impl GridView {
             prev_row_range_start: 0,
             reset_scroll: false,
             callback: None,
+            jump_to_index: None,
         };
 
         mg.set_total_rows();
@@ -48,21 +49,16 @@ impl GridView {
         mg
     }
 
-    pub fn set_images(&mut self, img_paths: &[PathBuf], image_store: &mut ImageStore) {
+    pub fn set_images(&mut self, img_paths: &[PathBuf], state: &mut AppState) {
         for img in self.imgs.iter().filter(|x| x.registered) {
-            image_store.deregister_instant(&img.path);
+            state.thumbnail_store.deregister_instant(&img.path);
         }
         self.imgs = ThumbnailImage::from_paths(img_paths);
         self.reset_scroll = true;
         self.set_total_rows();
     }
 
-    pub fn ui(
-        &mut self,
-        ui: &mut Ui,
-        jump_to_index: &mut Option<usize>,
-        image_store: &mut ImageStore,
-    ) {
+    pub fn ui(&mut self, ui: &mut Ui, state: &mut AppState) {
         self.handle_input(ui);
 
         egui::CentralPanel::default().show_inside(ui, |ui| {
@@ -99,7 +95,7 @@ impl GridView {
                 });
             }
 
-            if let Some(mut i) = jump_to_index.take() {
+            if let Some(mut i) = self.jump_to_index.take() {
                 //Get start of the row index so it's easier to calculate the offset
                 i = i - (i % self.images_per_row);
                 let scroll_offset = ((i as f32) / self.images_per_row as f32) * img_size;
@@ -135,7 +131,7 @@ impl GridView {
                                 row_range.start,
                                 row_range.end,
                                 img_size,
-                                image_store,
+                                &mut state.thumbnail_store,
                             );
                         }
                     }
@@ -148,7 +144,7 @@ impl GridView {
                                 preload_from,
                                 preload_to,
                                 img_size,
-                                image_store,
+                                &mut state.thumbnail_store,
                             );
                         }
                     }
@@ -161,7 +157,7 @@ impl GridView {
                                 preload_from,
                                 preload_to,
                                 img_size,
-                                image_store,
+                                &mut state.thumbnail_store,
                             );
                         }
                     }
@@ -172,7 +168,7 @@ impl GridView {
                             ui.add_space(remainder / 2.0);
 
                             for j in r * self.images_per_row..(r + 1) * self.images_per_row {
-                                self.show_image_at(ui, j, img_size, image_store);
+                                self.show_image_at(ui, j, img_size, state);
                             }
                         });
                     }
@@ -223,13 +219,7 @@ impl GridView {
         }
     }
 
-    fn show_image_at(
-        &mut self,
-        ui: &mut Ui,
-        index: usize,
-        max_size: f32,
-        image_store: &mut ImageStore,
-    ) {
+    fn show_image_at(&mut self, ui: &mut Ui, index: usize, max_size: f32, state: &mut AppState) {
         let image = match self.imgs.get_mut(index) {
             Some(img) => img,
             None => return,
@@ -238,11 +228,23 @@ impl GridView {
         if let Some(resp) = image.ui(
             ui,
             [max_size, max_size],
-            image_store,
+            state,
             &self.config.hover_exif_tags,
+            state.is_image_selected(&index),
         ) {
             if resp.clicked() {
-                self.selected_image_name = Some(image.name.clone());
+                if ui.input(|i| i.modifiers.ctrl) {
+                    state.append_selected_img_index(index);
+                } else if ui.input(|i| i.modifiers.shift) {
+                    state.set_selected_img_indexes(index);
+                } else {
+                    state.set_selected_img_index(index, true);
+                }
+            }
+            if resp.double_clicked() {
+                state.set_selected_img_index(index, true);
+                state.reset_selection_to_current_img();
+                self.callback = Some(Callback::CloseView);
             }
             if resp.hovered() {
                 ui.set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -285,11 +287,6 @@ impl GridView {
         }
     }
 
-    pub fn selected_image_name(&mut self) -> Option<String> {
-        //We want it to be consumed
-        self.selected_image_name.take()
-    }
-
     pub fn set_total_rows(&mut self) {
         //div_ceil will be available in the next release. Avoids conversions..
         self.total_rows = (self.imgs.len() as f32 / self.images_per_row as f32).ceil() as usize
@@ -311,6 +308,14 @@ impl GridView {
             && let Some(img) = self.imgs.get_mut(pos)
         {
             image_store.reload(&img.path, Some((self.prev_img_size * 2.) as u32));
+        }
+    }
+
+    pub fn reload_all_imgs(&mut self, state: &mut AppState) {
+        for img in &self.imgs {
+            state
+                .thumbnail_store
+                .reload(&img.path, Some((self.prev_img_size * 2.) as u32));
         }
     }
 }

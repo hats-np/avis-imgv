@@ -1,0 +1,3 @@
+- Add a popup window module for recently opened directories and files
+- Introduce the concept of selection to commands. A user command can specify if it supports many files(array) as argument or if the command should execute once per selected img
+- Rework shortcuts logically (One modifier to open panels/windows, etc)

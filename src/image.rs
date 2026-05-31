@@ -2,7 +2,9 @@ use crate::{
     JXL_EXTENSION, RAW_EXTENSIONS, SKIP_ORIENT_EXTENSIONS,
     db::DbRepository,
     icc::profile_desc_to_icc,
-    metadata::{self, METADATA_ORIENTATION, METADATA_PROFILE_DESCRIPTION, Orientation},
+    metadata::{
+        self, ImageMetadata, METADATA_ORIENTATION, METADATA_PROFILE_DESCRIPTION, Orientation,
+    },
 };
 use eframe::{
     egui_wgpu::RenderState,
@@ -14,7 +16,6 @@ use jpegxl_rs::decoder_builder;
 use lcms2::*;
 use rawler::imgop::develop::RawDevelop;
 use std::{
-    collections::HashMap,
     fs::File,
     io::Read,
     path::PathBuf,
@@ -40,7 +41,7 @@ pub enum DecodeMethod {
 pub struct Image {
     pub file_name: String,
     pub size: Vec2,
-    pub metadata: HashMap<String, String>,
+    pub metadata: ImageMetadata,
     texture_view: Option<TextureView>,
     texture_id: Option<TextureId>,
 }
@@ -186,7 +187,7 @@ impl Image {
             let mut flat_samples = image.into_rgb8().into_flat_samples();
             let pixels = flat_samples.as_mut_slice();
 
-            if let Some(cpd) = metadata.get(METADATA_PROFILE_DESCRIPTION) {
+            if let Some(cpd) = metadata.exif_tags.get(METADATA_PROFILE_DESCRIPTION) {
                 Self::apply_cc(cpd, pixels, &path, &output_icc_profile);
             };
 
@@ -359,9 +360,9 @@ impl Image {
         }
     }
 
-    pub fn orient(img: DynamicImage, metadata: &HashMap<String, String>) -> DynamicImage {
+    pub fn orient(img: DynamicImage, metadata: &ImageMetadata) -> DynamicImage {
         //see https://magnushoff.com/articles/jpeg-orientation/
-        match metadata.get(METADATA_ORIENTATION) {
+        match metadata.exif_tags.get(METADATA_ORIENTATION) {
             Some(o) => match metadata::Orientation::from_orientation_metadata(o) {
                 Orientation::Normal => img,
                 Orientation::MirrorHorizontal => img.fliph(),
@@ -521,7 +522,7 @@ impl Image {
                 x: size[0] as f32,
                 y: size[1] as f32,
             },
-            metadata: HashMap::new(),
+            metadata: ImageMetadata::default(),
         };
 
         img.register_texture(render_state);
@@ -563,7 +564,10 @@ pub fn extract_preview_from_raw_file(path: &Path) -> Option<Vec<u8>> {
     let output = match command.output() {
         Ok(output) => output,
         Err(e) => {
-            tracing::error!("Failure fetching raw image preview with exiftool: {e}");
+            tracing::error!(
+                "{:?} -> Failure fetching raw image preview with exiftool: {e}",
+                path
+            );
             return None;
         }
     };
@@ -582,7 +586,10 @@ pub fn extract_preview_from_raw_file(path: &Path) -> Option<Vec<u8>> {
         Some(std_out)
     } else {
         let error_message = String::from_utf8_lossy(&output.stderr);
-        tracing::error!("Failure fetching raw image preview with exiftool: {error_message}");
+        tracing::error!(
+            "{:?} -> Failure fetching raw image preview with exiftool: {error_message}",
+            path
+        );
         None
     }
 }

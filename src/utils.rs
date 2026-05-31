@@ -154,11 +154,32 @@ pub fn pascal_case_format_space(str: &str) -> String {
     s
 }
 
+pub fn format_stars_from_rating(r: Option<i32>) -> String {
+    if r.is_none() {
+        return String::new();
+    }
+
+    let r = r.unwrap();
+
+    let mut r = r;
+    if r < 0 {
+        "× Rejected".to_string()
+    } else {
+        if r > 6 {
+            r = 5;
+        }
+
+        format!("{}{}", "★".repeat(r as usize), "☆".repeat(5 - r as usize))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;
 
-    use crate::utils::{get_path_string_without_trailing_slash, pascal_case_format_space};
+    use crate::utils::{
+        format_stars_from_rating, get_path_string_without_trailing_slash, pascal_case_format_space,
+    };
 
     #[test]
     fn test_get_path_string_without_trailing_slash() {
@@ -182,5 +203,19 @@ mod tests {
         assert_eq!("Pascal", pascal_case_format_space("Pascal"));
         assert_eq!("pascal", pascal_case_format_space("pascal"));
         assert_eq!("ISO", pascal_case_format_space("ISO"));
+    }
+
+    #[test]
+    fn test_format_stars_from_rating() {
+        assert_eq!(format_stars_from_rating(None), "");
+        assert_eq!(format_stars_from_rating(Some(-1)), "× Rejected");
+        assert_eq!(format_stars_from_rating(Some(-100)), "× Rejected");
+        assert_eq!(format_stars_from_rating(Some(0)), "☆☆☆☆☆");
+        assert_eq!(format_stars_from_rating(Some(1)), "★☆☆☆☆");
+        assert_eq!(format_stars_from_rating(Some(2)), "★★☆☆☆");
+        assert_eq!(format_stars_from_rating(Some(3)), "★★★☆☆");
+        assert_eq!(format_stars_from_rating(Some(4)), "★★★★☆");
+        assert_eq!(format_stars_from_rating(Some(5)), "★★★★★");
+        assert_eq!(format_stars_from_rating(Some(7)), "★★★★★");
     }
 }

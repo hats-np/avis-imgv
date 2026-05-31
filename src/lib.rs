@@ -1,9 +1,11 @@
 extern crate core;
 
 use eframe::egui;
+use epaint::Color32;
 
 pub mod app;
 pub mod callback;
+pub mod components;
 pub mod config;
 pub mod crawler;
 pub mod db;
@@ -158,3 +160,8 @@ pub fn no_icon(
     _above_or_below: egui::AboveOrBelow,
 ) {
 }
+
+pub const COLOR_MID_GREY: Color32 = Color32::from_rgb(119, 119, 119);
+pub const COLOR_MID_LIGHT: Color32 = Color32::from_rgb(160, 160, 160);
+pub const COLOR_GREY_DARK_BG: Color32 = egui::Color32::from_rgb(48, 48, 48);
+pub const COLOR_GREY_DARK_TRANSPARENT_BG: Color32 = egui::Color32::from_black_alpha(80);

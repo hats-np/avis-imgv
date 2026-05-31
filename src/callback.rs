@@ -8,13 +8,14 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 ///Callbacks are functions which the user can
 ///invoke under certain circumstances
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Callback {
     ReloadAll,
     Reload(Option<PathBuf>),
     Pop(Option<PathBuf>),
     Advance,
     NoAction,
+    CloseView,
 }
 
 impl Callback {
@@ -25,6 +26,7 @@ impl Callback {
             Callback::Pop(_) => Self::Pop(path),
             Callback::Advance => Self::Advance,
             Callback::NoAction => Self::NoAction,
+            Callback::CloseView => Self::CloseView,
         }
     }
 }
@@ -58,6 +60,7 @@ impl Serialize for Callback {
             Callback::Pop(_) => "Pop",
             Callback::Reload(_) => "Reload",
             Callback::Advance => "Advance",
+            Callback::CloseView => "CloseView",
         })
     }
 }

@@ -1,9 +1,13 @@
-use eframe::egui::{Panel, Response, Sense, Ui};
+use eframe::egui::{Panel, Response, Sense, TextStyle, Ui};
 use eframe::{egui, epaint::Vec2};
+use epaint::Stroke;
+use epaint::text::{LayoutJob, TextFormat};
 use std::cmp::min;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+use crate::COLOR_MID_GREY;
+use crate::app::AppState;
 use crate::config::SlideshowConfig;
 use crate::gallery_image::{GalleryImageFrame, GalleryImageSizing};
 use crate::image_store::ImageStore;
@@ -60,7 +64,6 @@ impl Slideshow {
 
 pub struct ImageView {
     imgs: Vec<GalleryImage>,
-    pub selected_img_index: usize,
     preload_active: bool,
     frame: GalleryImageFrame,
     sizing: GalleryImageSizing,
@@ -79,7 +82,7 @@ impl ImageView {
         config: ImageViewConfig,
         start_slideshow: bool,
         slideshow_config: SlideshowConfig,
-        image_store: &mut ImageStore,
+        state: &mut AppState,
     ) -> ImageView {
         let mut gallery_sizing = GalleryImageSizing {
             zoom_factor: 1.0,
@@ -108,7 +111,6 @@ impl ImageView {
 
         let mut sg = ImageView {
             imgs: vec![],
-            selected_img_index: 0,
             preload_active: true,
             frame,
             sizing: gallery_sizing,
@@ -120,7 +122,7 @@ impl ImageView {
             slideshow,
         };
 
-        sg.set_images(image_paths, selected_image_path, image_store);
+        sg.set_images(image_paths, selected_image_path, state);
 
         sg
     }
@@ -129,114 +131,123 @@ impl ImageView {
         &mut self,
         image_paths: &[PathBuf],
         selected_image_path: &Option<PathBuf>,
-        image_store: &mut ImageStore,
+        state: &mut AppState,
     ) {
         for img in &self.imgs {
-            image_store.deregister_instant(&img.path);
+            state.image_store.deregister_instant(&img.path);
         }
 
         let imgs = GalleryImage::from_paths(image_paths);
 
         self.imgs = imgs;
-        self.selected_img_index = match selected_image_path {
-            Some(path) => self.imgs.iter().position(|x| &x.path == path).unwrap_or(0),
-            None => 0,
-        };
+        state.set_selected_img_index(
+            match selected_image_path {
+                Some(path) => self.imgs.iter().position(|x| &x.path == path).unwrap_or(0),
+                None => 0,
+            },
+            false,
+        );
         self.preload_active =
             Self::is_valid_for_preload(self.config.nr_loaded_images, self.imgs.len());
 
         tracing::info!(
             "Starting gallery with {} images on image {}",
             self.imgs.len(),
-            self.selected_img_index + 1
+            state.selected_img_index + 1
         );
 
-        self.load(image_store);
+        self.load(state);
     }
 
-    pub fn load(&mut self, image_store: &mut ImageStore) {
+    pub fn load(&mut self, state: &mut AppState) {
         if self.imgs.is_empty() {
             return;
         }
 
         if !self.preload_active {
             for i in 0..self.imgs.len() {
-                image_store.register_img(&self.imgs[i].path, None);
+                state.image_store.register_img(&self.imgs[i].path, None);
             }
 
             return;
         }
 
-        let mut indexes_to_load: Vec<usize> = vec![self.selected_img_index];
+        let mut indexes_to_load: Vec<usize> = vec![state.selected_img_index];
 
         for i in 1..self.config.nr_loaded_images + 1 {
             indexes_to_load.push(get_vec_index_subtracted_by(
                 self.imgs.len(),
-                self.selected_img_index,
+                state.selected_img_index,
                 i,
             ));
             indexes_to_load.push(get_vec_index_sum_by(
                 self.imgs.len(),
-                self.selected_img_index,
+                state.selected_img_index,
                 i,
             ));
         }
 
         for (i, img) in &mut self.imgs.iter_mut().enumerate() {
             if indexes_to_load.contains(&i) {
-                image_store.register_img(&img.path, None);
+                state.image_store.register_img(&img.path, None);
             } else {
-                image_store.deregister_img(&img.path)
+                state.image_store.deregister_img(&img.path)
             }
         }
     }
 
-    pub fn select_by_name(&mut self, img_name: String, image_store: &mut ImageStore) {
-        self.selected_img_index = self
-            .imgs
-            .iter()
-            .position(|x| x.name == img_name)
-            .unwrap_or(0);
+    pub fn select_by_name(&mut self, img_name: String, state: &mut AppState) {
+        state.set_selected_img_index(
+            self.imgs
+                .iter()
+                .position(|x| x.name == img_name)
+                .unwrap_or(0),
+            false,
+        );
 
-        self.load(image_store);
+        self.load(state);
     }
 
-    pub fn next_image(&mut self, image_store: &mut ImageStore) {
+    pub fn next_image(&mut self, state: &mut AppState) {
         if self.imgs.is_empty() {
             return;
         }
 
-        if self.config.should_wait && self.active_img_is_loading(image_store) {
+        if self.config.should_wait && self.active_img_is_loading(state) {
             return;
         }
 
         if self.preload_active {
             let index_to_clear = get_vec_index_subtracted_by(
                 self.imgs.len(),
-                self.selected_img_index,
+                state.selected_img_index,
                 self.config.nr_loaded_images,
             );
 
             let index_to_preload = get_vec_index_sum_by(
                 self.imgs.len(),
-                self.selected_img_index,
+                state.selected_img_index,
                 self.config.nr_loaded_images,
             );
 
-            image_store.deregister_img(&self.imgs[index_to_clear].path);
-            image_store.register_img(&self.imgs[index_to_preload].path, None);
+            state
+                .image_store
+                .deregister_img(&self.imgs[index_to_clear].path);
+            state
+                .image_store
+                .register_img(&self.imgs[index_to_preload].path, None);
         }
 
-        if self.selected_img_index == self.imgs.len() - 1 {
-            self.selected_img_index = 0;
+        if state.selected_img_index == self.imgs.len() - 1 {
+            state.set_selected_img_index(0, false);
         } else {
-            self.selected_img_index += 1;
+            state.set_selected_img_index(state.selected_img_index + 1, false);
         }
 
         self.sizing.has_maximized = false;
     }
 
-    pub fn previous_image(&mut self, image_store: &mut ImageStore) {
+    pub fn previous_image(&mut self, state: &mut AppState) {
         if self.imgs.is_empty() {
             return;
         }
@@ -244,24 +255,28 @@ impl ImageView {
         if self.preload_active {
             let index_to_clear = get_vec_index_sum_by(
                 self.imgs.len(),
-                self.selected_img_index,
+                state.selected_img_index,
                 self.config.nr_loaded_images,
             );
 
             let index_to_preload = get_vec_index_subtracted_by(
                 self.imgs.len(),
-                self.selected_img_index,
+                state.selected_img_index,
                 self.config.nr_loaded_images,
             );
 
-            image_store.deregister_img(&self.imgs[index_to_clear].path);
-            image_store.register_img(&self.imgs[index_to_preload].path, None);
+            state
+                .image_store
+                .deregister_img(&self.imgs[index_to_clear].path);
+            state
+                .image_store
+                .register_img(&self.imgs[index_to_preload].path, None);
         }
 
-        if self.selected_img_index == 0 {
-            self.selected_img_index = self.imgs.len() - 1;
+        if state.selected_img_index == 0 {
+            state.set_selected_img_index(self.imgs.len() - 1, false);
         } else {
-            self.selected_img_index -= 1;
+            state.set_selected_img_index(state.selected_img_index - 1, false);
         }
 
         self.sizing.has_maximized = false;
@@ -291,13 +306,13 @@ impl ImageView {
     }
 
     ///Sets zoom factor based on percentage and opened image size
-    pub fn set_zoom_factor_from_percentage(&mut self, percentage: &f32, image_store: &ImageStore) {
-        let img = match self.get_active_img() {
+    pub fn set_zoom_factor_from_percentage(&mut self, percentage: &f32, state: &AppState) {
+        let img = match self.get_active_img(state) {
             Some(img) => img,
             None => return,
         };
 
-        let original_size = match image_store.get_image_size(&img.path) {
+        let original_size = match state.image_store.get_image_size(&img.path) {
             Some(org_size) => org_size,
             None => return,
         };
@@ -307,8 +322,8 @@ impl ImageView {
             / (img.prev_target_size[0] * self.sizing.zoom_factor);
     }
 
-    pub fn fit_vertical(&mut self) {
-        let img = match self.get_active_img() {
+    pub fn fit_vertical(&mut self, state: &AppState) {
+        let img = match self.get_active_img(state) {
             Some(img) => img,
             None => return,
         };
@@ -316,8 +331,8 @@ impl ImageView {
         self.sizing.zoom_factor = img.prev_available_size.y / img.prev_target_size.y;
     }
 
-    pub fn fit_horizontal(&mut self) {
-        let img = match self.get_active_img() {
+    pub fn fit_horizontal(&mut self, state: &AppState) {
+        let img = match self.get_active_img(state) {
             Some(img) => img,
             None => return,
         };
@@ -325,8 +340,8 @@ impl ImageView {
         self.sizing.zoom_factor = img.prev_available_size.x / img.prev_target_size.x;
     }
 
-    pub fn fit_maximize(&mut self) {
-        let img = match self.get_active_img() {
+    pub fn fit_maximize(&mut self, state: &AppState) {
+        let img = match self.get_active_img(state) {
             Some(img) => img,
             None => return,
         };
@@ -344,58 +359,55 @@ impl ImageView {
         self.sizing.should_maximize = !self.sizing.should_maximize;
     }
 
-    pub fn get_active_img_nr(&mut self) -> usize {
-        self.selected_img_index + 1
-    }
-
-    pub fn get_active_img_mut(&mut self) -> Option<&mut GalleryImage> {
+    pub fn get_active_img_mut(&mut self, state: &AppState) -> Option<&mut GalleryImage> {
         if !self.imgs.is_empty() {
-            return Some(&mut self.imgs[self.selected_img_index]);
+            return Some(&mut self.imgs[state.selected_img_index]);
         }
 
         None
     }
 
-    pub fn get_active_img(&self) -> Option<&GalleryImage> {
+    pub fn get_active_img(&self, state: &AppState) -> Option<&GalleryImage> {
         if !self.imgs.is_empty() {
-            return Some(&self.imgs[self.selected_img_index]);
+            return Some(&self.imgs[state.selected_img_index]);
         }
 
         None
     }
 
-    pub fn get_active_img_name(&mut self, image_store: &ImageStore) -> String {
+    pub fn get_active_img_name(&mut self, state: &AppState) -> String {
         let format = self.config.name_format.clone();
-        match self.get_active_img_mut() {
-            Some(img) => img.get_display_name(format, image_store),
+        match self.get_active_img_mut(state) {
+            Some(img) => img.get_display_name(format, &state.image_store),
             None => "".to_string(),
         }
     }
 
-    pub fn get_active_img_path(&self) -> Option<PathBuf> {
-        self.get_active_img().map(|img| img.path.clone())
+    pub fn get_active_img_path(&self, state: &AppState) -> Option<PathBuf> {
+        self.get_active_img(state).map(|img| img.path.clone())
     }
 
-    pub fn active_img_is_loading(&self, image_store: &ImageStore) -> bool {
-        match self.get_active_img() {
-            Some(img) => !image_store.is_image_loaded(&img.path),
+    pub fn active_img_is_loading(&self, state: &AppState) -> bool {
+        match self.get_active_img(state) {
+            Some(img) => !state.image_store.is_image_loaded(&img.path),
             None => false,
         }
     }
 
-    pub fn jump_to_image(&mut self, image_store: &mut ImageStore) {
-        self.selected_img_index = match self.jump_to.parse::<usize>() {
+    pub fn jump_to_image(&mut self, state: &mut AppState) {
+        let i = match self.jump_to.parse::<usize>() {
             Ok(i) => {
                 if i > self.imgs.len() || i < 1 {
-                    self.selected_img_index
+                    state.selected_img_index
                 } else {
                     i - 1
                 }
             }
-            Err(_) => self.selected_img_index,
+            Err(_) => state.selected_img_index,
         };
 
-        self.load(image_store);
+        state.set_selected_img_index(i, false);
+        self.load(state);
         self.jump_to.clear();
     }
 
@@ -406,20 +418,27 @@ impl ImageView {
         }
     }
 
+    pub fn reload_all_imgs(&mut self, state: &mut AppState) {
+        for i in 0..self.imgs.len() {
+            let img = &self.imgs[i];
+            state.image_store.reload(&img.path, None);
+        }
+    }
+
     //TODO: Manage this outside of his view.
     ///Pops image from the collection
-    pub fn pop(&mut self, path: &Path, image_store: &mut ImageStore) {
+    pub fn pop(&mut self, path: &Path, state: &mut AppState) {
         if let Some(pos) = self.imgs.iter().position(|x| x.path == path) {
             self.imgs.remove(pos);
             self.preload_active =
                 Self::is_valid_for_preload(self.config.nr_loaded_images, self.imgs.len());
 
             //Last image of the collection, we want to load backwards
-            if self.selected_img_index == self.imgs.len() {
-                self.selected_img_index = self.imgs.len() - 1;
+            if state.selected_img_index == self.imgs.len() {
+                state.set_selected_img_index(self.imgs.len() - 1, false);
             }
 
-            self.load(image_store);
+            self.load(state);
         }
     }
 
@@ -432,23 +451,23 @@ impl ImageView {
         ui: &mut Ui,
         flattened: bool,
         watcher_enabled: bool,
-        image_store: &mut ImageStore,
+        state: &mut AppState,
     ) {
-        self.handle_input(ui, image_store);
+        self.handle_input(ui, state);
 
         //In slideshow mode we only want to see the picture
         if self.slideshow.is_none() {
-            self.show_view_bottom_bar(ui, flattened, watcher_enabled, image_store);
+            self.show_view_bottom_bar(ui, flattened, watcher_enabled, state);
         } else {
-            self.handle_slideshow(ui, image_store);
+            self.handle_slideshow(ui, state);
         }
 
-        let show_image_response = self.show_image(ui, image_store);
-        self.handle_image_scroll(ui, &show_image_response, image_store);
-        self.handle_callbacks(&show_image_response);
+        let show_image_response = self.show_image(ui, state);
+        self.handle_image_scroll(ui, &show_image_response, state);
+        self.handle_callbacks(&show_image_response, state);
     }
 
-    pub fn handle_input(&mut self, ui: &mut Ui, image_store: &mut ImageStore) {
+    pub fn handle_input(&mut self, ui: &mut Ui, state: &mut AppState) {
         let ctx = ui.ctx();
 
         if utils::are_inputs_muted(ctx) {
@@ -465,22 +484,22 @@ impl ImageView {
             self.double_zoom();
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_next.kbd_shortcut)) {
-            self.next_image(image_store);
+            self.next_image(state);
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_prev.kbd_shortcut)) {
-            self.previous_image(image_store);
+            self.previous_image(state);
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_one_to_one.kbd_shortcut)) {
-            self.set_zoom_factor_from_percentage(&100., image_store);
+            self.set_zoom_factor_from_percentage(&100., state);
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_fit_horizontal.kbd_shortcut)) {
-            self.fit_horizontal();
+            self.fit_horizontal(state);
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_fit_vertical.kbd_shortcut)) {
-            self.fit_vertical();
+            self.fit_vertical(state);
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_fit_maximize.kbd_shortcut)) {
-            self.fit_maximize();
+            self.fit_maximize(state);
         }
         if ctx.input_mut(|i| i.consume_shortcut(&self.config.sc_latch_fit_maximize.kbd_shortcut)) {
             self.latch_fit_maximize();
@@ -503,7 +522,7 @@ impl ImageView {
                 continue;
             }
 
-            if let Some(path) = self.get_active_img_path() {
+            if let Some(path) = self.get_active_img_path(state) {
                 if user_action::execute(&action.exec, &path)
                     && let Some(callback) = action.callback.to_owned()
                 {
@@ -519,15 +538,15 @@ impl ImageView {
         self.callback.take()
     }
 
-    pub fn show_image(&mut self, ui: &mut Ui, image_store: &ImageStore) -> Response {
+    pub fn show_image(&mut self, ui: &mut Ui, state: &AppState) -> Response {
         egui::CentralPanel::default()
             .frame(self.get_image_frame())
             .show_inside(ui, |ui| {
                 if !self.imgs.is_empty() {
                     if self.imgs.len() == 1 {
                         ui.centered_and_justified(|ui| {
-                            let img: &mut GalleryImage = &mut self.imgs[self.selected_img_index];
-                            img.ui(ui, &self.frame, &mut self.sizing, image_store);
+                            let img: &mut GalleryImage = &mut self.imgs[state.selected_img_index];
+                            img.ui(ui, &self.frame, &mut self.sizing, &state.image_store);
                         });
                     } else {
                         let w = (ui.available_width() / self.nr_images_displayed as f32) - 1.;
@@ -540,11 +559,16 @@ impl ImageView {
                                     ui.centered_and_justified(|ui| {
                                         let index = get_vec_index_sum_by(
                                             self.imgs.len(),
-                                            self.selected_img_index,
+                                            state.selected_img_index,
                                             i,
                                         );
                                         let img: &mut GalleryImage = &mut self.imgs[index];
-                                        img.ui(ui, &self.frame, &mut self.sizing, image_store);
+                                        img.ui(
+                                            ui,
+                                            &self.frame,
+                                            &mut self.sizing,
+                                            &state.image_store,
+                                        );
                                     });
                                 });
                             }
@@ -557,7 +581,7 @@ impl ImageView {
     }
 
     pub fn get_image_frame(&mut self) -> egui::Frame {
-        let mut background_color = egui::Color32::from_rgb(119, 119, 119);
+        let mut background_color = COLOR_MID_GREY;
 
         if self.slideshow.is_some()
             && let Some(override_hex) = self
@@ -575,18 +599,18 @@ impl ImageView {
         &mut self,
         ctx: &egui::Context,
         response: &Response,
-        image_store: &mut ImageStore,
+        state: &mut AppState,
     ) {
         //unfortunately we'll always be one frame behind
         //when advancing with the scroll wheel
         if response.contains_pointer() {
             if self.config.scroll_navigation {
                 if get_raw_scroll(ctx) > 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0 {
-                    self.next_image(image_store);
+                    self.next_image(state);
                 }
 
                 if get_raw_scroll(ctx) < 0.0 && ctx.input(|i| i.zoom_delta()) == 1.0 {
-                    self.previous_image(image_store);
+                    self.previous_image(state);
                 }
             }
 
@@ -604,8 +628,8 @@ impl ImageView {
         }
     }
 
-    pub fn handle_callbacks(&mut self, response: &Response) {
-        if let Some(path) = self.get_active_img_path() {
+    pub fn handle_callbacks(&mut self, response: &Response, state: &AppState) {
+        if let Some(path) = self.get_active_img_path(state) {
             let callback = show_context_menu(&self.config.context_menu, response, &path);
 
             if let Some(callback) = callback {
@@ -614,7 +638,7 @@ impl ImageView {
         }
     }
 
-    pub fn handle_slideshow(&mut self, ctx: &egui::Context, image_store: &mut ImageStore) {
+    pub fn handle_slideshow(&mut self, ctx: &egui::Context, state: &mut AppState) {
         if self.slideshow.is_none() {
             return;
         }
@@ -622,10 +646,13 @@ impl ImageView {
         let mut slideshow = self.slideshow.clone().unwrap();
 
         if slideshow.zoom_step.is_none() {
-            slideshow.set_zoom_step(self.slideshow_config.percent_zoom, self.get_active_img());
+            slideshow.set_zoom_step(
+                self.slideshow_config.percent_zoom,
+                self.get_active_img(state),
+            );
         }
 
-        let mut new_zoom_percentage = if let Some(active_image) = self.get_active_img() {
+        let mut new_zoom_percentage = if let Some(active_image) = self.get_active_img(state) {
             active_image.prev_percentage_zoom
         } else {
             100.
@@ -641,11 +668,11 @@ impl ImageView {
             slideshow.last_zoom_instant = Instant::now();
             slideshow.last_adv_instant = Instant::now();
             slideshow.zoom_step = None;
-            self.next_image(image_store);
+            self.next_image(state);
         }
 
         if self.slideshow_config.percent_zoom != 0. {
-            self.set_zoom_factor_from_percentage(&new_zoom_percentage, image_store);
+            self.set_zoom_factor_from_percentage(&new_zoom_percentage, state);
             ctx.request_repaint_after(Duration::from_millis(slideshow.zoom_step_ms as u64));
         } else {
             ctx.request_repaint_after(Duration::from_secs(self.slideshow_config.seconds_per_image));
@@ -654,12 +681,47 @@ impl ImageView {
         self.slideshow = Some(slideshow);
     }
 
+    //Faster to clear all and re-generate than to loop over O(n^2)
+    pub fn clear_img_display_names(&mut self) {
+        for img in &mut self.imgs {
+            img.clear_display_name();
+        }
+    }
+
+    pub fn draw_image_name(&mut self, ui: &mut Ui, state: &AppState) {
+        let body_font_id = TextStyle::Body.resolve(ui.style());
+
+        let underline_color = state.general_config.accent_color;
+        let underline_stroke = Stroke::new(2.0, underline_color);
+
+        let mut job = LayoutJob::default();
+        let mut tf = TextFormat {
+            font_id: body_font_id,
+            color: ui.visuals().text_color(),
+            ..Default::default()
+        };
+
+        if state.is_image_selected(&state.selected_img_index) {
+            tf.underline = underline_stroke;
+        }
+
+        job.append(&self.get_active_img_name(state), 0.0, tf);
+
+        let mut label = egui::Label::new(job);
+        label = label.truncate();
+
+        ui.add_sized(
+            egui::Vec2::new(ui.available_width() - 245., ui.available_height()),
+            label,
+        );
+    }
+
     pub fn show_view_bottom_bar(
         &mut self,
         ui: &mut Ui,
         flattened: bool,
         watcher_enabled: bool,
-        image_store: &mut ImageStore,
+        state: &mut AppState,
     ) {
         Panel::bottom("image_view_bottom_bar")
             .show_separator_line(false)
@@ -673,14 +735,14 @@ impl ImageView {
                     if response.lost_focus()
                         && response.ctx.input(|i| i.key_pressed(egui::Key::Enter))
                     {
-                        self.jump_to_image(image_store);
+                        self.jump_to_image(state);
                     }
 
                     ui.add_sized(
                         Vec2::new(35., ui.available_height()),
                         egui::Label::new(format!(
                             "{}/{}",
-                            self.get_active_img_nr(),
+                            state.get_active_img_nr(),
                             self.imgs.len()
                         )),
                     );
@@ -697,12 +759,7 @@ impl ImageView {
                         ui.label("Maximizing");
                     }
 
-                    let mut label = egui::Label::new(self.get_active_img_name(image_store));
-                    label = label.truncate();
-                    ui.add_sized(
-                        Vec2::new(ui.available_width() - 245., ui.available_height()),
-                        label,
-                    );
+                    self.draw_image_name(ui, state);
 
                     ui.with_layout(
                         egui::Layout::right_to_left(eframe::emath::Align::Max),
@@ -713,7 +770,7 @@ impl ImageView {
                                     .text("🔎"),
                             );
 
-                            if let Some(img) = self.get_active_img() {
+                            if let Some(img) = self.get_active_img(state) {
                                 let resp = ui.add_sized(
                                     Vec2::new(45., ui.available_height()),
                                     egui::Label::new(format!("{:.1}%", img.prev_percentage_zoom))
@@ -727,12 +784,12 @@ impl ImageView {
                                     }
 
                                     if ui.button("Fit horizontal").clicked() {
-                                        self.fit_horizontal();
+                                        self.fit_horizontal(state);
                                         ui.close();
                                     }
 
                                     if ui.button("Fit vertical").clicked() {
-                                        self.fit_vertical();
+                                        self.fit_vertical(state);
                                         ui.close();
                                     }
 
@@ -740,10 +797,7 @@ impl ImageView {
 
                                     for percentage in PERCENTAGES {
                                         if ui.button(format!("{percentage:.0}%")).clicked() {
-                                            self.set_zoom_factor_from_percentage(
-                                                percentage,
-                                                image_store,
-                                            );
+                                            self.set_zoom_factor_from_percentage(percentage, state);
                                             ui.close();
                                         }
                                     }
