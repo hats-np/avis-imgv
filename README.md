@@ -4,6 +4,8 @@
 
 # avis-imgv
 
+## MOVED TO CODEBERG https://codeberg.org/hatsnp/avis-imgv
+
 avis-imgv is a fast, configurable and color managed image viewer built with Rust
 and [egui](https://github.com/emilk/egui). My goal was for it to be fast and to be able to adapt to any kind of hardware
 power through user configuration.
